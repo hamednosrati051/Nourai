@@ -36,7 +36,9 @@ export default function VoicePage() {
   const trackedJob = useAudioJob(trackedJobId);
   const jobs = useAudioJobs(page);
 
-  const audioModels = (models.data ?? []).filter((m) => m.service === 'audio');
+  const audioModels = (models.data ?? []).filter(
+    (m) => m.capability === 'speech_to_text' || m.capability === 'text_to_speech',
+  );
   const [modelId, setModelId] = useState('');
 
   const onFileChange = (f: File | null) => {
@@ -139,7 +141,7 @@ export default function VoicePage() {
                 <option value="">پیش‌فرض</option>
                 {audioModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {m.display_name}
                   </option>
                 ))}
               </select>

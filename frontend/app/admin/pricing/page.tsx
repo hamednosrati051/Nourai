@@ -20,9 +20,16 @@ import { ResponsiveTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { ApiError, getErrorMessage } from '@/lib/api';
-import type { ModelService, PricingRule } from '@/types/api';
+import type { ModelCapability, ModelService, PricingRule } from '@/types/api';
 
 const SERVICE_LABELS: Record<ModelService, string> = { text: 'متن', audio: 'صوت', image: 'تصویر' };
+
+const CAPABILITY_LABELS: Record<ModelCapability, string> = {
+  text: 'متن',
+  speech_to_text: 'گفتار → متن',
+  text_to_speech: 'متن → گفتار',
+  image: 'تصویر',
+};
 
 const ruleSchema = z.object({
   model_id: z.string().min(1, 'مدل را انتخاب کنید.'),
@@ -164,7 +171,7 @@ export default function AdminPricingPage() {
               <option value="">انتخاب مدل…</option>
               {(models.data ?? []).map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({SERVICE_LABELS[m.service]})
+                  {m.display_name} ({CAPABILITY_LABELS[m.capability] ?? m.capability})
                 </option>
               ))}
             </select>
@@ -221,7 +228,7 @@ export default function AdminPricingPage() {
               <option value="">انتخاب مدل…</option>
               {(models.data ?? []).map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name} ({SERVICE_LABELS[m.service]})
+                  {m.display_name} ({CAPABILITY_LABELS[m.capability] ?? m.capability})
                 </option>
               ))}
             </select>

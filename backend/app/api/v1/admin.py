@@ -606,6 +606,7 @@ def _model_payload(model: AiModel) -> dict:
         "pricing_type": model.pricing_type, "tokenizer_encoding": model.tokenizer_encoding,
         "config_json": model.config_json, "description": model.description,
         "created_at": model.created_at.isoformat() if model.created_at else None,
+        "updated_at": model.updated_at.isoformat() if model.updated_at else None,
     }
 
 

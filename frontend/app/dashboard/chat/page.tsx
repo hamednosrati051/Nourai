@@ -53,7 +53,7 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.data]);
 
-  const textModels = (models.data ?? []).filter((m) => m.service === 'text');
+  const textModels = (models.data ?? []).filter((m) => m.capability === 'text');
 
   const startConversation = (modelId: string) => {
     createConversation.mutate(
@@ -119,7 +119,7 @@ export default function ChatPage() {
                     <option value="">انتخاب مدل…</option>
                     {textModels.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name}
+                        {m.display_name}
                       </option>
                     ))}
                   </select>

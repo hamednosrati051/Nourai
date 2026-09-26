@@ -81,18 +81,46 @@ export interface Payment {
 
 export type ModelService = 'text' | 'audio' | 'image';
 
+/** Model capability, matches backend CAP_* constants. */
+export type ModelCapability = 'text' | 'speech_to_text' | 'text_to_speech' | 'image';
+
+/** Admin model payload: GET/PATCH /admin/models. */
 export interface AiModel {
   id: string;
-  name: string;
-  service: ModelService;
-  provider: string;
+  slug: string;
+  display_name: string;
+  capability: ModelCapability;
+  provider_key: string;
+  provider_model_name: string;
   is_active: boolean;
-  /** Human-readable pricing hint, e.g. «هر ۱۰۰۰ توکن: ۵۰۰ تومان». */
-  pricing_hint?: string | null;
-  max_output_tokens?: number | null;
+  pricing_type: string;
   tokenizer_encoding?: string | null;
+  config_json?: Record<string, unknown> | null;
+  description?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
+}
+
+export interface ModelPricingInfo {
+  billing_unit: string;
+  unit_size: number;
+  unit_price_irr: number;
+  dimension_key?: string | null;
+  quality_key?: string | null;
+  minimum_charge_irr?: number | null;
+  maximum_charge_irr?: number | null;
+  rounding_mode: string;
+}
+
+/** Public catalog model: GET /models (active models + pricing). */
+export interface PublicModel {
+  id: string;
+  slug: string;
+  display_name: string;
+  capability: ModelCapability;
+  pricing_type: string;
+  description?: string | null;
+  pricing: ModelPricingInfo[];
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +193,14 @@ export interface ImageSizeOption {
   height: number;
 }
 
+export interface ImageConfigModel {
+  id: string;
+  slug: string;
+  display_name: string;
+}
+
 export interface ImageConfig {
-  models: AiModel[];
+  models: ImageConfigModel[];
   sizes: ImageSizeOption[];
   /** Max upload size in bytes for the input image. */
   max_upload_bytes: number;

@@ -85,7 +85,7 @@ export default function UsagePage() {
               <option value="">همه مدل‌ها</option>
               {(models.data ?? []).map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  {m.display_name}
                 </option>
               ))}
             </select>

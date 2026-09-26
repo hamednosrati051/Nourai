@@ -13,16 +13,30 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
-import type { AiModel, ModelService } from '@/types/api';
+import type { AiModel, ModelCapability } from '@/types/api';
 
-const SERVICE_LABELS: Record<ModelService, string> = { text: 'متن', audio: 'صوت', image: 'تصویر' };
+const CAPABILITY_LABELS: Record<ModelCapability, string> = {
+  text: 'متن',
+  speech_to_text: 'گفتار → متن',
+  text_to_speech: 'متن → گفتار',
+  image: 'تصویر',
+};
+
+const CAPABILITIES = Object.keys(CAPABILITY_LABELS) as ModelCapability[];
 
 const modelSchema = z.object({
-  name: z.string().trim().min(1, 'نام مدل را وارد کنید.'),
-  service: z.enum(['text', 'audio', 'image']),
-  provider: z.string().trim().min(1, 'نام provider را وارد کنید.'),
-  pricing_hint: z.string().trim().optional(),
+  slug: z
+    .string()
+    .trim()
+    .min(1, 'شناسه یکتا (slug) را وارد کنید.')
+    .regex(/^[a-z0-9][a-z0-9-_]*$/, 'فقط حروف کوچک انگلیسی، عدد، خط تیره و زیرخط.'),
+  display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
+  capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
+  provider_key: z.string().trim().min(1, 'کلید provider را وارد کنید (مثلاً: metis).'),
+  provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
+  pricing_type: z.string().trim().min(1, 'نوع قیمت‌گذاری را وارد کنید.'),
   tokenizer_encoding: z.string().trim().optional(),
+  description: z.string().trim().optional(),
   is_active: z.boolean(),
 });
 type ModelForm = z.infer<typeof modelSchema>;
@@ -46,18 +60,31 @@ export default function AdminModelsPage() {
 
   const openCreate = () => {
     setEditing(null);
-    reset({ name: '', service: 'text', provider: '', pricing_hint: '', tokenizer_encoding: '', is_active: true });
+    reset({
+      slug: '',
+      display_name: '',
+      capability: 'text',
+      provider_key: '',
+      provider_model_name: '',
+      pricing_type: 'token',
+      tokenizer_encoding: '',
+      description: '',
+      is_active: true,
+    });
     setModalOpen(true);
   };
 
   const openEdit = (m: AiModel) => {
     setEditing(m);
     reset({
-      name: m.name,
-      service: m.service,
-      provider: m.provider,
-      pricing_hint: m.pricing_hint ?? '',
+      slug: m.slug,
+      display_name: m.display_name,
+      capability: m.capability,
+      provider_key: m.provider_key,
+      provider_model_name: m.provider_model_name,
+      pricing_type: m.pricing_type,
       tokenizer_encoding: m.tokenizer_encoding ?? '',
+      description: m.description ?? '',
       is_active: m.is_active,
     });
     setModalOpen(true);
@@ -72,8 +99,43 @@ export default function AdminModelsPage() {
       onError: (err: unknown) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'خطایی رخ داد.', 'error'),
     };
-    if (editing) updateModel.mutate({ id: editing.id, patch: values }, done);
-    else createModel.mutate(values, done);
+    if (editing) {
+      // PATCH only accepts: display_name, provider_model_name, pricing_type,
+      // tokenizer_encoding, config_json, description, is_active.
+      updateModel.mutate(
+        {
+          id: editing.id,
+          patch: {
+            display_name: values.display_name.trim(),
+            provider_model_name: values.provider_model_name.trim(),
+            pricing_type: values.pricing_type.trim(),
+            ...(values.tokenizer_encoding?.trim()
+              ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
+              : {}),
+            ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+            is_active: values.is_active,
+          },
+        },
+        done,
+      );
+    } else {
+      createModel.mutate(
+        {
+          slug: values.slug.trim(),
+          display_name: values.display_name.trim(),
+          capability: values.capability,
+          provider_key: values.provider_key.trim(),
+          provider_model_name: values.provider_model_name.trim(),
+          pricing_type: values.pricing_type.trim(),
+          ...(values.tokenizer_encoding?.trim()
+            ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
+            : {}),
+          ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+          is_active: values.is_active,
+        },
+        done,
+      );
+    }
   };
 
   const toggleActive = (m: AiModel) => {
@@ -106,16 +168,20 @@ export default function AdminModelsPage() {
           ariaLabel="فهرست مدل‌ها"
           keyOf={(m) => m.id}
           rows={models.data}
-          cardHeader={(m) => m.name}
+          cardHeader={(m) => m.display_name}
           columns={[
-            { header: 'نام', render: (m) => <span className="font-semibold">{m.name}</span> },
-            { header: 'سرویس', render: (m) => SERVICE_LABELS[m.service] },
-            { header: 'provider', render: (m) => <span dir="ltr">{m.provider}</span>, hideOnCard: true },
+            { header: 'نام نمایشی', render: (m) => <span className="font-semibold">{m.display_name}</span> },
+            { header: 'قابلیت', render: (m) => CAPABILITY_LABELS[m.capability] ?? m.capability },
+            { header: 'provider', render: (m) => <span dir="ltr">{m.provider_key}</span>, hideOnCard: true },
+            {
+              header: 'نام مدل در provider',
+              render: (m) => <span dir="ltr" className="text-xs">{m.provider_model_name}</span>,
+              hideOnCard: true,
+            },
             {
               header: 'وضعیت',
               render: (m) => (m.is_active ? <span className="badge-success">فعال</span> : <span className="badge-neutral">غیرفعال</span>),
             },
-            { header: 'راهنمای قیمت', render: (m) => m.pricing_hint ?? '—', hideOnCard: true },
             { header: 'به‌روزرسانی', render: (m) => formatDateTime(m.updated_at), hideOnCard: true },
             {
               header: 'اقدام',
@@ -136,34 +202,94 @@ export default function AdminModelsPage() {
 
       <Modal open={modalOpen} title={editing ? 'ویرایش مدل' : 'مدل جدید'} onClose={() => setModalOpen(false)}>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-          <div>
-            <label htmlFor="model-name" className="label">نام مدل</label>
-            <input id="model-name" className={`input ${errors.name ? 'input-error' : ''}`} {...register('name')} />
-            {errors.name && <p role="alert" className="field-error">{errors.name.message}</p>}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="model-slug" className="label">شناسه یکتا (slug)</label>
+              <input
+                id="model-slug"
+                dir="ltr"
+                placeholder="gpt-4-1-mini"
+                disabled={!!editing}
+                className={`input text-left ${errors.slug ? 'input-error' : ''}`}
+                {...register('slug')}
+              />
+              {errors.slug && <p role="alert" className="field-error">{errors.slug.message}</p>}
+              {editing && <p className="field-hint">شناسه یکتا پس از ثبت قابل تغییر نیست.</p>}
+            </div>
+            <div>
+              <label htmlFor="model-display-name" className="label">نام نمایشی</label>
+              <input
+                id="model-display-name"
+                className={`input ${errors.display_name ? 'input-error' : ''}`}
+                {...register('display_name')}
+              />
+              {errors.display_name && <p role="alert" className="field-error">{errors.display_name.message}</p>}
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="model-service" className="label">سرویس</label>
-              <select id="model-service" className="input" {...register('service')}>
-                <option value="text">متن</option>
-                <option value="audio">صوت</option>
-                <option value="image">تصویر</option>
+              <label htmlFor="model-capability" className="label">قابلیت</label>
+              <select id="model-capability" className="input" disabled={!!editing} {...register('capability')}>
+                {CAPABILITIES.map((c) => (
+                  <option key={c} value={c}>
+                    {CAPABILITY_LABELS[c]}
+                  </option>
+                ))}
               </select>
+              {editing && <p className="field-hint">قابلیت پس از ثبت قابل تغییر نیست.</p>}
             </div>
             <div>
-              <label htmlFor="model-provider" className="label">provider</label>
-              <input id="model-provider" dir="ltr" className={`input text-left ${errors.provider ? 'input-error' : ''}`} {...register('provider')} />
-              {errors.provider && <p role="alert" className="field-error">{errors.provider.message}</p>}
+              <label htmlFor="model-provider-key" className="label">کلید provider</label>
+              <input
+                id="model-provider-key"
+                dir="ltr"
+                placeholder="metis"
+                disabled={!!editing}
+                className={`input text-left ${errors.provider_key ? 'input-error' : ''}`}
+                {...register('provider_key')}
+              />
+              {errors.provider_key && <p role="alert" className="field-error">{errors.provider_key.message}</p>}
+              {editing && <p className="field-hint">کلید provider پس از ثبت قابل تغییر نیست.</p>}
             </div>
           </div>
-          <div>
-            <label htmlFor="model-pricing" className="label">راهنمای قیمت (نمایشی برای کاربر)</label>
-            <input id="model-pricing" className="input" placeholder="مثلاً: هر ۱۰۰۰ توکن ۵۰۰ تومان" {...register('pricing_hint')} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>
+              <input
+                id="model-provider-name"
+                dir="ltr"
+                placeholder="gpt-4.1-mini"
+                className={`input text-left ${errors.provider_model_name ? 'input-error' : ''}`}
+                {...register('provider_model_name')}
+              />
+              {errors.provider_model_name && <p role="alert" className="field-error">{errors.provider_model_name.message}</p>}
+              <p className="field-hint">دقیقاً همان نامی که provider می‌شناسد.</p>
+            </div>
+            <div>
+              <label htmlFor="model-pricing-type" className="label">نوع قیمت‌گذاری</label>
+              <input
+                id="model-pricing-type"
+                dir="ltr"
+                className={`input text-left ${errors.pricing_type ? 'input-error' : ''}`}
+                {...register('pricing_type')}
+              />
+              {errors.pricing_type && <p role="alert" className="field-error">{errors.pricing_type.message}</p>}
+            </div>
           </div>
           <div>
             <label htmlFor="model-encoding" className="label">encoding توکنایزر (tiktoken)</label>
-            <input id="model-encoding" dir="ltr" className="input text-left" placeholder="مثلاً: cl100k_base" {...register('tokenizer_encoding')} />
-            <p className="field-hint">باید با tiktoken.get_encoding() معتبر باشد؛ در runtime fallback وجود ندارد.</p>
+            <input
+              id="model-encoding"
+              dir="ltr"
+              className="input text-left"
+              placeholder="مثلاً: o200k_base"
+              {...register('tokenizer_encoding')}
+            />
+            <p className="field-hint">باید با tiktoken.get_encoding() معتبر باشد؛ برای مدل‌های متنی لازم است.</p>
+          </div>
+          <div>
+            <label htmlFor="model-description" className="label">توضیحات</label>
+            <textarea id="model-description" rows={2} className="input" {...register('description')} />
           </div>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="h-5 w-5 accent-amber-600" {...register('is_active')} />

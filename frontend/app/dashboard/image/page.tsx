@@ -80,7 +80,8 @@ export default function ImagePage() {
   }, [jobType, modelId, inputFile]);
 
   const cfg = config.data;
-  const imageModels = (cfg?.models ?? []).filter((m) => m.service === 'image');
+  // /image/config already returns only image-capable models.
+  const imageModels = cfg?.models ?? [];
 
   const onFileChange = (f: File | null) => {
     setFileError(null);
@@ -199,7 +200,7 @@ export default function ImagePage() {
                 <option value="">انتخاب مدل…</option>
                 {imageModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}
+                    {m.display_name}
                   </option>
                 ))}
               </select>
