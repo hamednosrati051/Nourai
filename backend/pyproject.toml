@@ -1,0 +1,49 @@
+[project]
+name = "nourai-backend"
+version = "0.1.0"
+description = "Backend API for the Nourai (نورا) AI platform"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flask==3.1.0",
+    "flask-sqlalchemy==3.1.1",
+    "flask-cors==5.0.1",
+    "sqlalchemy==2.0.36",
+    "alembic==1.14.0",
+    "pydantic==2.10.4",
+    "redis==5.2.1",
+    "celery==5.4.0",
+    "tiktoken==0.8.0",
+    "pillow==11.0.0",
+    "argon2-cffi==23.1.0",
+    "pyjwt==2.10.1",
+    "gunicorn==23.0.0",
+    "httpx==0.28.1",
+    "boto3==1.36.26",
+    "python-dotenv==1.0.1",
+    "pymysql==1.1.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.3.4",
+]
+
+[project.scripts]
+nourai-db = "alembic:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
