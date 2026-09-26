@@ -360,12 +360,21 @@ export interface PricingRule {
   id: string;
   model_id: string;
   model_name?: string;
-  service: ModelService;
   version: number;
+  billing_unit: string;
+  unit_size: number;
+  /** Integer IRR. */
+  unit_price_irr: number;
+  dimension_key?: string | null;
+  quality_key?: string | null;
+  /** Integer IRR. */
+  minimum_charge_irr?: number | null;
+  /** Integer IRR. */
+  maximum_charge_irr?: number | null;
+  rounding_mode: 'up' | 'down' | 'nearest';
+  effective_from?: string | null;
+  effective_to?: string | null;
   is_active: boolean;
-  /** Pricing parameters, e.g. per-1k-token rates in IRR. */
-  params: Record<string, number>;
-  rounding: 'up' | 'down' | 'nearest';
   created_at: string;
 }
 
