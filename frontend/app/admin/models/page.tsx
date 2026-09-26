@@ -30,6 +30,12 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
 
 const CAPABILITIES = Object.keys(CAPABILITY_LABELS) as ModelCapability[];
 
+/** Adapter families. Extend when new provider types are added. */
+const PROVIDER_TYPE_LABELS: Record<string, string> = {
+  openai_compat: 'OpenAI Compatible',
+};
+const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
+
 /** Optional toman amount (quick pricing). Empty => no rule created. */
 const optionalToman = z
   .union([z.number(), z.string()])
@@ -45,6 +51,7 @@ const slugPattern = /^[a-z0-9][a-z0-9-_]*$/;
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
+  provider_type: z.enum(['openai_compat' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
@@ -104,6 +111,7 @@ export default function AdminModelsPage() {
     reset({
       display_name: '',
       capability: 'text',
+      provider_type: 'openai_compat',
       provider_model_name: '',
       base_url: '',
       api_key: '',
@@ -125,6 +133,7 @@ export default function AdminModelsPage() {
     reset({
       display_name: m.display_name,
       capability: m.capability,
+      provider_type: (m.provider_type as 'openai_compat') ?? 'openai_compat',
       provider_model_name: m.provider_model_name,
       base_url: '',
       api_key: '',
@@ -186,14 +195,16 @@ export default function AdminModelsPage() {
       toast(e instanceof ApiError ? getErrorMessage(e.code, e.message) : 'خطایی رخ داد.', 'error');
 
     if (editing) {
-      // PATCH only accepts: display_name, provider_model_name, pricing_type,
-      // tokenizer_encoding, config_json, description, is_active (+ credentials).
+      // PATCH accepts: display_name, provider_model_name, provider_type,
+      // pricing_type, tokenizer_encoding, config_json, description,
+      // is_active (+ credentials).
       updateModel.mutate(
         {
           id: editing.id,
           patch: {
             display_name: values.display_name.trim(),
             provider_model_name: values.provider_model_name.trim(),
+            provider_type: values.provider_type,
             ...(values.tokenizer_encoding?.trim()
               ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
               : {}),
@@ -224,6 +235,7 @@ export default function AdminModelsPage() {
         ...(values.slug?.trim() ? { slug: values.slug.trim() } : autoSlug ? { slug: autoSlug } : {}),
         display_name: values.display_name.trim(),
         capability: values.capability,
+        provider_type: values.provider_type,
         ...(values.provider_key?.trim() ? { provider_key: values.provider_key.trim() } : {}),
         provider_model_name: values.provider_model_name.trim(),
         ...(values.capability === 'text'
@@ -262,7 +274,13 @@ export default function AdminModelsPage() {
     updateModel.mutate(
       { id: m.id, patch: { is_active: !m.is_active } },
       {
-        onSuccess: () => toast(m.is_active ? 'مدل غیرفعال شد.' : 'مدل فعال شد.', 'success'),
+        onSuccess: () =>
+          toast(
+            m.is_active
+              ? 'مدل غیرفعال شد.'
+              : `مدل فعال شد؛ سایر مدل‌های «${CAPABILITY_LABELS[m.capability] ?? m.capability}» غیرفعال شدند.`,
+            'success',
+          ),
         onError: (err) =>
           toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'خطایی رخ داد.', 'error'),
       },
@@ -292,6 +310,7 @@ export default function AdminModelsPage() {
           columns={[
             { header: 'نام نمایشی', render: (m) => <span className="font-semibold">{m.display_name}</span> },
             { header: 'قابلیت', render: (m) => CAPABILITY_LABELS[m.capability] ?? m.capability },
+            { header: 'نوع', render: (m) => PROVIDER_TYPE_LABELS[m.provider_type] ?? m.provider_type, hideOnCard: true },
             { header: 'provider', render: (m) => <span dir="ltr">{m.provider_key}</span>, hideOnCard: true },
             {
               header: 'نام مدل در provider',
@@ -346,6 +365,15 @@ export default function AdminModelsPage() {
                   </select>
                 </div>
                 <div>
+                  <label htmlFor="model-provider-type" className="label">نوع</label>
+                  <select id="model-provider-type" className="input" {...register('provider_type')}>
+                    {PROVIDER_TYPES.map((t) => (
+                      <option key={t} value={t}>{PROVIDER_TYPE_LABELS[t]}</option>
+                    ))}
+                  </select>
+                  <p className="field-hint">نوع‌های دیگر بعداً اضافه می‌شوند.</p>
+                </div>
+                <div className="sm:col-span-2">
                   <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>
                   <input
                     id="model-provider-name"

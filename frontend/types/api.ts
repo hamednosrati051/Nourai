@@ -94,6 +94,8 @@ export interface AiModel {
   provider_model_name: string;
   is_active: boolean;
   pricing_type: string;
+  /** Adapter family (e.g. "openai_compat"); selects the runtime adapter. */
+  provider_type: string;
   tokenizer_encoding?: string | null;
   config_json?: Record<string, unknown> | null;
   description?: string | null;

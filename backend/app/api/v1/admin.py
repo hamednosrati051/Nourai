@@ -586,6 +586,8 @@ class ModelCreateSchema(BaseModel):
     provider_model_name: str
     is_active: bool = True
     pricing_type: str = "token"
+    # Adapter family; must be a known PROVIDER_TYPES key.
+    provider_type: str = "openai_compat"
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
@@ -600,6 +602,7 @@ class ModelUpdateSchema(BaseModel):
     is_active: bool | None = None
     pricing_type: str | None = None
     provider_model_name: str | None = None
+    provider_type: str | None = None
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
@@ -610,6 +613,25 @@ class ModelUpdateSchema(BaseModel):
 
 # Reserved config_json key holding form-provided provider credentials.
 _PROVIDER_CREDS_KEY = "__provider__"
+
+# Adapter families a model can use. The runtime picks the adapter from the
+# model's own provider_type; env vars (AI_TEXT/AUDIO/IMAGE_PROVIDER) remain
+# only as fallback. Extend this dict when new families are added.
+PROVIDER_TYPES = {
+    "openai_compat": "OpenAI Compatible",
+}
+
+
+def _enforce_single_active(capability: str, except_id: str | None = None) -> int:
+    """Deactivate all other active models of a capability. Returns count."""
+    q = db.session.query(AiModel).filter(
+        AiModel.capability == capability, AiModel.is_active.is_(True))
+    if except_id:
+        q = q.filter(AiModel.id != except_id)
+    others = q.all()
+    for m in others:
+        m.is_active = False
+    return len(others)
 
 
 def _extract_provider_creds(config_json: dict | None) -> tuple[str, str]:
@@ -645,7 +667,8 @@ def _model_payload(model: AiModel) -> dict:
         "id": model.id, "slug": model.slug, "display_name": model.display_name,
         "capability": model.capability, "provider_key": model.provider_key,
         "provider_model_name": model.provider_model_name, "is_active": model.is_active,
-        "pricing_type": model.pricing_type, "tokenizer_encoding": model.tokenizer_encoding,
+        "pricing_type": model.pricing_type, "provider_type": model.provider_type,
+        "tokenizer_encoding": model.tokenizer_encoding,
         "config_json": cfg or None, "description": model.description,
         "has_credentials": has_credentials,
         "created_at": model.created_at.isoformat() if model.created_at else None,
@@ -688,6 +711,9 @@ def create_model():
         return err
     if data.capability not in CAPABILITIES:
         return validation_error()
+    provider_type = (data.provider_type or "").strip().lower() or "openai_compat"
+    if provider_type not in PROVIDER_TYPES:
+        return error_response("VALIDATION_ERROR", "نوع provider نامعتبر است.", 422)
     raw_slug = (data.slug or "").strip()
     if raw_slug:
         if db.session.query(AiModel).filter_by(slug=raw_slug).one_or_none():
@@ -713,14 +739,21 @@ def create_model():
         slug=slug, display_name=data.display_name.strip(),
         capability=data.capability, provider_key=provider_key,
         provider_model_name=data.provider_model_name.strip(),
+        provider_type=provider_type,
         is_active=data.is_active, pricing_type=data.pricing_type,
         tokenizer_encoding=encoding, config_json=config_with_creds,
         description=data.description,
     )
     db.session.add(model)
+    deactivated = 0
+    if model.is_active:
+        # Only one active model per capability: deactivate the rest first.
+        deactivated = _enforce_single_active(model.capability)
     _audit("model.created", "ai_model", model.id, {"slug": model.slug})
     db.session.commit()
-    return success_response(_model_payload(model), status=201)
+    payload = _model_payload(model)
+    payload["deactivated_others"] = deactivated
+    return success_response(payload, status=201)
 
 
 @bp.patch("/admin/models/<model_id>")
@@ -737,6 +770,11 @@ def update_model(model_id: str):
         model.display_name = data.display_name.strip(); changes["display_name"] = model.display_name
     if data.is_active is not None:
         model.is_active = data.is_active; changes["is_active"] = data.is_active
+    if data.provider_type is not None:
+        pt = data.provider_type.strip().lower() or "openai_compat"
+        if pt not in PROVIDER_TYPES:
+            return error_response("VALIDATION_ERROR", "نوع provider نامعتبر است.", 422)
+        model.provider_type = pt; changes["provider_type"] = pt
     if data.pricing_type is not None:
         model.pricing_type = data.pricing_type; changes["pricing_type"] = data.pricing_type
     if data.provider_model_name is not None:
@@ -759,9 +797,15 @@ def update_model(model_id: str):
         changes["provider_credentials"] = True
     if data.description is not None:
         model.description = data.description; changes["description"] = True
+    deactivated = 0
+    if model.is_active:
+        # Only one active model per capability.
+        deactivated = _enforce_single_active(model.capability, except_id=model.id)
     _audit("model.updated", "ai_model", model.id, changes)
     db.session.commit()
-    return success_response(_model_payload(model))
+    payload = _model_payload(model)
+    payload["deactivated_others"] = deactivated
+    return success_response(payload)
 
 
 # ---------------------------------------------------------------------------

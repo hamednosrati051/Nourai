@@ -340,9 +340,10 @@ def get_text_provider(provider_key: str | None = None, model=None) -> TextAiProv
     """Select the text provider.
 
     ``provider_key`` is the model's catalog key (e.g. ``"metis"``); ``model``
-    is the catalog row, used for form-stored credentials (env is fallback).
+    is the catalog row, used for form-stored credentials (env is fallback)
+    and for the per-model ``provider_type`` (env is fallback).
     """
-    name = (config.ai_text_provider or "fake").lower()
+    name = ((getattr(model, "provider_type", None) or config.ai_text_provider) or "fake").lower()
     if name == "fake":
         return FakeTextProvider()
     if name == "openai_compat":
@@ -365,9 +366,10 @@ def get_stt_provider(provider_key: str | None = None, model=None) -> SpeechToTex
     """Select the speech-to-text provider.
 
     ``provider_key`` is the model's catalog key (e.g. ``"arvan_stt"``); ``model``
-    is the catalog row, used for form-stored credentials (env is fallback).
+    is the catalog row, used for form-stored credentials (env is fallback)
+    and for the per-model ``provider_type`` (env is fallback).
     """
-    name = (config.ai_audio_provider or "fake").lower()
+    name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
     if name == "fake":
         return FakeSttProvider()
     if name == "openai_compat":

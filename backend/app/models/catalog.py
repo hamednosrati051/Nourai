@@ -24,6 +24,12 @@ class AiModel(Base):
     capability: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     provider_key: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Adapter family for this model (e.g. "openai_compat"). Selects the
+    # runtime adapter; env vars remain only as fallback for callers without
+    # a model row. New families can be added without touching existing rows.
+    provider_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="openai_compat", server_default="openai_compat"
+    )
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False, index=True)
     pricing_type: Mapped[str] = mapped_column(String(32), nullable=False)
     # Valid tiktoken encoding name for text models; validated with
