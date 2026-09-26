@@ -17,6 +17,7 @@ from app.api.deps import (
     error_response,
     ip_hash,
     paginate_query,
+    paginated_response,
     pagination_params,
     success_response,
     utcnow,
@@ -147,7 +148,7 @@ def list_users():
     query = query.order_by(User.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([user_service.user_summary(db.session, u) for u in items], meta)
+    return paginated_response([user_service.user_summary(db.session, u) for u in items], page, page_size, meta["total"])
 
 
 @bp.get("/admin/users/<user_id>")
@@ -264,7 +265,7 @@ def user_wallet_transactions(user_id: str):
         .order_by(WalletTransaction.created_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_tx_payload(t) for t in items], meta)
+    return paginated_response([_tx_payload(t) for t in items], page, page_size, meta["total"])
 
 
 def _tx_payload(tx: WalletTransaction) -> dict:
@@ -294,7 +295,7 @@ def list_payments():
     query = query.order_by(Payment.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_payment_payload(p) for p in items], meta)
+    return paginated_response([_payment_payload(p) for p in items], page, page_size, meta["total"])
 
 
 @bp.get("/admin/payments/<payment_id>")
@@ -345,7 +346,7 @@ def list_usage():
     query = query.order_by(UsageEvent.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_usage_payload(e) for e in items], meta)
+    return paginated_response([_usage_payload(e) for e in items], page, page_size, meta["total"])
 
 
 def _usage_payload(event: UsageEvent) -> dict:
@@ -382,7 +383,7 @@ def list_jobs():
     query = query.order_by(GenerationJob.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_job_payload(j) for j in items], meta)
+    return paginated_response([_job_payload(j) for j in items], page, page_size, meta["total"])
 
 
 @bp.get("/admin/jobs/<job_id>")
@@ -441,7 +442,7 @@ def list_assets():
     query = query.order_by(Asset.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_asset_payload(a, include_url=True) for a in items], meta)
+    return paginated_response([_asset_payload(a, include_url=True) for a in items], page, page_size, meta["total"])
 
 
 def _asset_payload(asset: Asset, include_url: bool = False) -> dict:
@@ -1025,7 +1026,7 @@ def list_audit_logs():
     query = query.order_by(AuditLog.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response(
+    return paginated_response(
         [
             {
                 "id": e.id, "actor_type": e.actor_type, "actor_id": e.actor_id,
@@ -1035,7 +1036,9 @@ def list_audit_logs():
             }
             for e in items
         ],
-        meta,
+        page,
+        page_size,
+        meta["total"],
     )
 
 

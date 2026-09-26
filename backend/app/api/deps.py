@@ -108,6 +108,24 @@ def paginate_query(query, page: int, page_size: int):
     return items, meta
 
 
+def paginated_response(items, page: int, page_size: int, total: int):
+    """Success envelope whose ``data`` holds the frontend's ``Paginated<T>``
+    shape: ``{"items": [...], "meta": {"page", "page_size", "total_items",
+    "total_pages"}}``. Use for every paginated list endpoint."""
+    total_pages = (total + page_size - 1) // page_size if page_size else 0
+    return success_response(
+        {
+            "items": items,
+            "meta": {
+                "page": page,
+                "page_size": page_size,
+                "total_items": total,
+                "total_pages": total_pages,
+            },
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # Rate limiting (Redis fixed-window, in-memory fallback for tests)
 # ---------------------------------------------------------------------------

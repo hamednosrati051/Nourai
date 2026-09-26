@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, g
 
-from app.api.deps import login_required, paginate_query, pagination_params, success_response
+from app.api.deps import login_required, paginate_query, paginated_response, pagination_params, success_response
 from app.billing.currency import irr_to_toman
 from app.billing.ledger import get_wallet_for_update
 from app.extensions import db
@@ -36,7 +36,7 @@ def list_transactions():
         .order_by(WalletTransaction.created_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
-    return success_response(
+    return paginated_response(
         [
             {
                 "id": tx.id,
@@ -49,5 +49,7 @@ def list_transactions():
             }
             for tx in items
         ],
-        meta,
+        page,
+        page_size,
+        meta["total"],
     )

@@ -25,6 +25,7 @@ from app.api.deps import (
     ip_hash,
     login_required,
     paginate_query,
+    paginated_response,
     pagination_params,
     rate_limited,
     success_response,
@@ -359,7 +360,7 @@ def list_image_jobs():
         .order_by(GenerationJob.created_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_job_payload(j) for j in items], meta)
+    return paginated_response([_job_payload(j) for j in items], page, page_size, meta["total"])
 
 
 @bp.get("/image/jobs/<job_id>")

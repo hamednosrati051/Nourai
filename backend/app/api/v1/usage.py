@@ -5,7 +5,7 @@ from datetime import datetime
 
 from flask import Blueprint, g, request
 
-from app.api.deps import login_required, paginate_query, pagination_params, success_response
+from app.api.deps import login_required, paginate_query, paginated_response, pagination_params, success_response
 from app.extensions import db
 from app.models import AiModel, UsageEvent
 
@@ -54,7 +54,7 @@ def list_usage():
             AiModel.id.in_({i.model_id for i in items if i.model_id})
         ).all()
     }
-    return success_response(
+    return paginated_response(
         [
             {
                 "id": e.id,
@@ -73,5 +73,7 @@ def list_usage():
             }
             for e in items
         ],
-        meta,
+        page,
+        page_size,
+        meta["total"],
     )

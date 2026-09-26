@@ -18,6 +18,7 @@ from app.api.deps import (
     ip_hash,
     login_required,
     paginate_query,
+    paginated_response,
     pagination_params,
     success_response,
     utcnow,
@@ -147,7 +148,7 @@ def list_payments():
         .order_by(Payment.created_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_payment_payload(p) for p in items], meta)
+    return paginated_response([_payment_payload(p) for p in items], page, page_size, meta["total"])
 
 
 @bp.get("/payments/<payment_id>")
