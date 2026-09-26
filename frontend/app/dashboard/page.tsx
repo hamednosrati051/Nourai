@@ -1,0 +1,136 @@
+'use client';
+
+import Link from 'next/link';
+import { useWallet } from '@/features/wallet/hooks';
+import { useMyPlan } from '@/features/plans/hooks';
+import { useMe } from '@/features/auth/hooks';
+import { formatToman } from '@/lib/currency';
+import { formatDateTime } from '@/lib/format';
+import { BRAND } from '@/lib/config';
+import { ServiceCard } from '@/components/ServiceCard';
+import { FloatingNav } from '@/components/FloatingNav';
+import { PillHeader } from '@/components/PillHeader';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ErrorState } from '@/components/ErrorState';
+import { ApiError, getErrorMessage } from '@/lib/api';
+
+/**
+ * User dashboard (Binavira-inspired): floating pill header + vertical
+ * right-side nav, color-coded service cards, wallet overview with top-up /
+ * history shortcuts, and the «پلن فعال شما» banner from GET /api/v1/me/plan.
+ */
+export default function DashboardPage() {
+  const { data: user } = useMe();
+  const wallet = useWallet();
+  const myPlan = useMyPlan(!!user);
+
+  return (
+    <div className="min-h-screen">
+      <PillHeader />
+      <FloatingNav />
+
+      <main className="mx-auto w-full max-w-6xl px-4 pb-20 pt-28 sm:px-6 md:pe-24">
+        <div className="mb-8">
+          <p className="badge badge-warning mb-3">داشبورد</p>
+          <h1 className="text-3xl font-black">
+            خوش برگشتی به <span className="text-gradient">{BRAND.fa}</span>
+          </h1>
+        </div>
+
+        {/* Active plan banner */}
+        {myPlan.data && (
+          <div
+            role="status"
+            className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 dark:bg-emerald-500/10"
+          >
+            <span aria-hidden="true" className="text-2xl">✅</span>
+            <div>
+              <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
+                پلن فعال شما: {myPlan.data.name}
+              </p>
+              {myPlan.data.limits.length > 0 && (
+                <p className="text-xs text-neutral-600 dark:text-slate-400">
+                  محدودیت مصرف: {myPlan.data.limits.join('، ')}
+                </p>
+              )}
+            </div>
+            <Link href="/#plans" className="btn-secondary mr-auto !px-4 !py-2 text-xs">
+              تغییر پلن
+            </Link>
+          </div>
+        )}
+
+        {/* Wallet overview */}
+        {wallet.isLoading && <LoadingSpinner label="در حال بارگذاری موجودی…" />}
+        {wallet.isError && (
+          <ErrorState
+            message={
+              wallet.error instanceof ApiError
+                ? getErrorMessage(wallet.error.code, wallet.error.message)
+                : 'بارگذاری موجودی ناموفق بود.'
+            }
+            onRetry={() => wallet.refetch()}
+          />
+        )}
+        {wallet.data && (
+          <section aria-labelledby="wallet-heading" className="mb-8">
+            <h2 id="wallet-heading" className="mb-3 text-lg font-bold">کیف پول</h2>
+            <div className="service-card !border-brand-500/30">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm text-neutral-500 dark:text-slate-400">موجودی فعلی</p>
+                  <p className="text-3xl font-black tabular-nums">
+                    {formatToman(wallet.data.balance_irr).replace(' تومان', '')}{' '}
+                    <span className="text-sm font-normal text-neutral-500 dark:text-slate-400">تومان</span>
+                  </p>
+                  {wallet.data.updated_at && (
+                    <p className="mt-1 text-xs text-neutral-400 dark:text-slate-500">
+                      آخرین به‌روزرسانی: {formatDateTime(wallet.data.updated_at)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Link href="/dashboard/wallet" className="btn-primary">
+                    شارژ کیف پول
+                  </Link>
+                  <Link href="/dashboard/usage" className="btn-secondary">
+                    سابقه مصرف
+                  </Link>
+                </div>
+              </div>
+              <span aria-hidden="true" className="service-accent" style={{ ['--svc' as string]: '#f59e0b' }} />
+            </div>
+          </section>
+        )}
+
+        {/* Service cards */}
+        <section aria-labelledby="services-heading">
+          <h2 id="services-heading" className="mb-3 text-lg font-bold">سرویس‌ها</h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <ServiceCard
+              href="/dashboard/chat"
+              icon="💬"
+              title="گفت‌وگوی متنی"
+              description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
+              color="#38bdf8"
+            />
+            <ServiceCard
+              href="/dashboard/image"
+              icon="🎨"
+              title="تولید تصویر"
+              description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
+              color="#a78bfa"
+            />
+            <ServiceCard
+              href="/dashboard/voice"
+              icon="🎙️"
+              title="تعامل صوتی"
+              description="ارسال صوت و دریافت پاسخ متنی یا صوتی"
+              color="#f472b6"
+            />
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}

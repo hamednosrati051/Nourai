@@ -1,0 +1,253 @@
+@import "tailwindcss";
+
+/* Class-free dark mode driven by <html data-theme="dark">. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  /* Persian-first system font stack: no external fetch at build time. */
+  --font-sans: "Vazirmatn", "IRANSans", "IRANSansX", "Segoe UI", Tahoma,
+    ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Brand palette ("Nourai" = light): warm amber/gold. */
+  --color-brand-50: #fffbeb;
+  --color-brand-100: #fef3c7;
+  --color-brand-200: #fde68a;
+  --color-brand-300: #fcd34d;
+  --color-brand-400: #fbbf24;
+  --color-brand-500: #f59e0b;
+  --color-brand-600: #d97706;
+  --color-brand-700: #b45309;
+  --color-brand-800: #92400e;
+  --color-brand-900: #78350f;
+  --color-brand-950: #451a03;
+
+  /* App navy scale: dark theme is deep navy (#0F172A), cards #1E293B. */
+  --color-navy-950: #0b1220;
+  --color-navy-900: #0f172a;
+  --color-navy-800: #1e293b;
+  --color-navy-700: #334155;
+  --color-navy-600: #475569;
+
+  /* Service color codes. */
+  --color-svc-blue: #3b82f6;
+  --color-svc-violet: #8b5cf6;
+  --color-svc-green: #10b981;
+  --color-svc-amber: #f59e0b;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 3.5s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --surface: #ffffff;
+    --surface-soft: #f8fafc;
+    --ring: var(--color-brand-600);
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --surface: var(--color-navy-900);
+    --surface-soft: var(--color-navy-800);
+    --ring: var(--color-brand-400);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white text-neutral-900 antialiased;
+    @apply dark:bg-navy-900 dark:text-slate-100;
+    font-family: var(--font-sans);
+    line-height: 1.75;
+  }
+
+  /* Visible keyboard focus everywhere (WCAG 2.4.7). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Minimum touch target size (WCAG 2.5.8 / spec requirement). */
+  button,
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  a.inline-link,
+  button.inline-link {
+    min-height: 0;
+    min-width: 0;
+  }
+  input[type="text"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  textarea {
+    min-height: 44px;
+  }
+
+  /* Honor reduced-motion preferences globally. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------
+   Reusable primitives: consistent, RTL-friendly, theme-aware.
+   Defined as Tailwind v4 custom utilities so they compose with @apply.
+   ------------------------------------------------------------------ */
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5
+    text-sm font-semibold transition-colors select-none cursor-pointer
+    disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700
+    dark:bg-brand-500 dark:text-navy-950 dark:hover:bg-brand-400;
+}
+@utility btn-secondary {
+  @apply btn border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100
+    dark:border-white/15 dark:bg-navy-800 dark:text-slate-100 dark:hover:bg-navy-700;
+}
+@utility btn-ghost {
+  @apply btn text-neutral-700 hover:bg-neutral-100
+    dark:text-slate-300 dark:hover:bg-white/10;
+}
+@utility btn-danger {
+  @apply btn bg-red-600 text-white hover:bg-red-700
+    dark:bg-red-500 dark:text-navy-950 dark:hover:bg-red-400;
+}
+@utility btn-sm {
+  @apply px-3 py-1.5 text-xs;
+}
+
+/* Text input shared by admin/dashboard forms. */
+@utility input {
+  @apply w-full rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm
+    text-neutral-900 placeholder:text-neutral-400 outline-none transition
+    focus:border-brand-600 focus:ring-2 focus:ring-brand-500/30
+    disabled:cursor-not-allowed disabled:opacity-60
+    dark:border-white/15 dark:bg-navy-800 dark:text-slate-100 dark:placeholder:text-slate-500
+    dark:focus:border-brand-400 dark:focus:ring-brand-400/30;
+}
+@utility input-error {
+  @apply border-red-500 dark:border-red-400;
+}
+
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-neutral-700 dark:text-slate-300;
+}
+@utility field-error {
+  @apply mt-1 text-xs text-red-600 dark:text-red-400;
+}
+@utility field-hint {
+  @apply mt-1 text-xs text-neutral-500 dark:text-slate-400;
+}
+
+@utility card {
+  @apply rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm
+    dark:border-white/10 dark:bg-navy-800 dark:shadow-none;
+}
+
+@utility badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+}
+@utility badge-success {
+  @apply badge bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300;
+}
+@utility badge-warning {
+  @apply badge bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300;
+}
+@utility badge-danger {
+  @apply badge bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300;
+}
+@utility badge-info {
+  @apply badge bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300;
+}
+@utility badge-neutral {
+  @apply badge bg-neutral-100 text-neutral-700 dark:bg-white/10 dark:text-slate-300;
+}
+
+@utility table-wrap {
+  @apply overflow-x-auto rounded-3xl border border-neutral-200 dark:border-white/10;
+}
+
+/* ---- App-style service card (color-coded, glowing icon, bottom accent) ---- */
+@utility service-card {
+  @apply relative flex flex-col gap-3 overflow-hidden rounded-3xl border p-6
+    border-neutral-200 bg-white shadow-sm
+    dark:border-white/10 dark:bg-navy-800
+    transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
+}
+@utility service-icon {
+  @apply flex h-14 w-14 items-center justify-center rounded-2xl text-3xl;
+  background: color-mix(in srgb, var(--svc) 18%, transparent);
+  box-shadow: 0 0 28px 0 color-mix(in srgb, var(--svc) 45%, transparent);
+}
+@utility service-accent {
+  @apply pointer-events-none absolute inset-x-8 bottom-0 h-1 rounded-full;
+  background: linear-gradient(90deg, transparent, var(--svc), transparent);
+}
+
+/* Gradient headline text. */
+@utility text-gradient {
+  @apply bg-gradient-to-l from-brand-600 via-amber-500 to-brand-600 bg-clip-text text-transparent
+    dark:from-brand-300 dark:via-amber-200 dark:to-brand-300;
+}
+
+/* Floating pill header + floating side nav shells. */
+@utility pill-header {
+  @apply pointer-events-auto flex items-center gap-2 rounded-full border px-3 py-2
+    border-neutral-200 bg-white/85 shadow-lg shadow-neutral-200/50 backdrop-blur-xl
+    dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40 sm:gap-3 sm:px-4;
+}
+@utility floating-nav {
+  @apply pointer-events-auto flex rounded-3xl border backdrop-blur-xl
+    border-neutral-200 bg-white/85 shadow-lg
+    dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40;
+}
+
+/* Data table (plain CSS: descendant selectors can't be @utility). */
+.table {
+  @apply w-full min-w-[640px] border-collapse bg-white text-sm dark:bg-navy-800;
+}
+.table thead th {
+  @apply border-b border-neutral-200 bg-neutral-50 px-4 py-3 text-start font-semibold
+    text-neutral-600 dark:border-white/10 dark:bg-navy-950/60 dark:text-slate-400;
+}
+.table tbody td {
+  @apply border-b border-neutral-100 px-4 py-3 align-middle text-neutral-800
+    last:border-b-0 dark:border-white/5 dark:text-slate-200;
+}
+.table tbody tr {
+  @apply transition-colors hover:bg-neutral-50 dark:hover:bg-white/5;
+}

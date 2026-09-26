@@ -1,0 +1,356 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, buildQuery } from '@/lib/api';
+import { DEFAULT_PAGE_SIZE } from '@/lib/config';
+import type {
+  ActivityItem,
+  AdminStats,
+  AdminUserDetail,
+  AdminUserRow,
+  AiModel,
+  AssetItem,
+  AuditLogEntry,
+  GalleryQueueItem,
+  ImagePreviewResult,
+  ImageProfile,
+  Paginated,
+  Payment,
+  Plan,
+  PricingRule,
+  UsageEvent,
+  WalletTransaction,
+} from '@/types/api';
+
+// ---------------------------------------------------------------------------
+// Dashboard stats
+// ---------------------------------------------------------------------------
+
+export function useAdminDashboard() {
+  return useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: () => apiGet<AdminStats>('/admin/dashboard'),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+export interface AdminUserFilters {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  isActive?: boolean | '';
+}
+
+export function useAdminUsers(filters: AdminUserFilters = {}) {
+  const { page = 1, pageSize = DEFAULT_PAGE_SIZE, search, isActive } = filters;
+  return useQuery({
+    queryKey: ['admin', 'users', page, pageSize, search, isActive],
+    queryFn: () =>
+      apiGet<Paginated<AdminUserRow>>(
+        `/admin/users${buildQuery({
+          page,
+          page_size: pageSize,
+          search: search || undefined,
+          is_active: isActive === '' ? undefined : isActive,
+        })}`,
+      ),
+  });
+}
+
+export function useAdminUser(id: string | null) {
+  return useQuery({
+    queryKey: ['admin', 'users', id],
+    queryFn: () => apiGet<AdminUserDetail>(`/admin/users/${id}`),
+    enabled: !!id,
+  });
+}
+
+export function useUserActivity(id: string | null, page = 1) {
+  return useQuery({
+    queryKey: ['admin', 'users', id, 'activity', page],
+    queryFn: () =>
+      apiGet<Paginated<ActivityItem>>(
+        `/admin/users/${id}/activity${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+      ),
+    enabled: !!id,
+  });
+}
+
+export function useUserAssets(id: string | null, kind?: 'generated' | 'chat_input', enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'users', id, 'assets', kind],
+    queryFn: () =>
+      apiGet<AssetItem[]>(`/admin/users/${id}/assets${buildQuery({ kind: kind || undefined })}`),
+    enabled: !!id && enabled,
+  });
+}
+
+export function useUserWalletTransactions(id: string | null, page = 1) {
+  return useQuery({
+    queryKey: ['admin', 'users', id, 'wallet-transactions', page],
+    queryFn: () =>
+      apiGet<Paginated<WalletTransaction>>(
+        `/admin/users/${id}/wallet-transactions${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+      ),
+    enabled: !!id,
+  });
+}
+
+export function useUpdateUserStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
+      apiPatch<AdminUserDetail>(`/admin/users/${id}/status`, { is_active: isActive, reason }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
+export function useWalletAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      amountIrr,
+      reason,
+    }: {
+      id: string;
+      /** Signed integer IRR: positive = credit, negative = debit. */
+      amountIrr: number;
+      reason: string;
+    }) => apiPost<WalletTransaction>(`/admin/users/${id}/wallet-adjustments`, { amount_irr: amountIrr, reason }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id, 'wallet-transactions'] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Payments / usage (admin)
+// ---------------------------------------------------------------------------
+
+export function useAdminPayments(page = 1, status?: string) {
+  return useQuery({
+    queryKey: ['admin', 'payments', page, status],
+    queryFn: () =>
+      apiGet<Paginated<Payment>>(
+        `/admin/payments${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, status: status || undefined })}`,
+      ),
+  });
+}
+
+export function useAdminUsage(page = 1, filters?: { service?: string; userId?: string }) {
+  return useQuery({
+    queryKey: ['admin', 'usage', page, filters],
+    queryFn: () =>
+      apiGet<Paginated<UsageEvent>>(
+        `/admin/usage${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, ...filters })}`,
+      ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Gallery moderation queue
+// ---------------------------------------------------------------------------
+
+export function useAdminGallery(status: 'pending' | 'approved' | 'rejected' = 'pending') {
+  return useQuery({
+    queryKey: ['admin', 'gallery', status],
+    queryFn: () => apiGet<GalleryQueueItem[]>(`/admin/gallery${buildQuery({ status })}`),
+  });
+}
+
+export function useApproveGalleryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: string) => apiPost<GalleryQueueItem>(`/admin/gallery/${assetId}/approve`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
+  });
+}
+
+export function useRejectGalleryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ assetId, reason }: { assetId: string; reason?: string }) =>
+      apiPost<GalleryQueueItem>(`/admin/gallery/${assetId}/reject`, { reason }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
+  });
+}
+
+export function useRemoveGalleryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: string) => apiDelete<void>(`/admin/gallery/${assetId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+export function useAdminModels() {
+  return useQuery({
+    queryKey: ['admin', 'models'],
+    queryFn: () => apiGet<AiModel[]>('/admin/models'),
+  });
+}
+
+export function useCreateAdminModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<AiModel>) => apiPost<AiModel>('/admin/models', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
+  });
+}
+
+export function useUpdateAdminModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<AiModel> }) =>
+      apiPatch<AiModel>(`/admin/models/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Pricing rules (versioned)
+// ---------------------------------------------------------------------------
+
+export function usePricingRules() {
+  return useQuery({
+    queryKey: ['admin', 'pricing-rules'],
+    queryFn: () => apiGet<PricingRule[]>('/admin/pricing-rules'),
+  });
+}
+
+export function useCreatePricingRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<PricingRule>) => apiPost<PricingRule>('/admin/pricing-rules', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
+  });
+}
+
+export function useUpdatePricingRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<PricingRule> }) =>
+      apiPatch<PricingRule>(`/admin/pricing-rules/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
+  });
+}
+
+export function usePricingEstimate() {
+  return useMutation({
+    mutationFn: (input: Record<string, unknown>) =>
+      apiPost<{ total_irr: number; breakdown: { label: string; amount_irr: number }[] }>(
+        '/admin/pricing/estimate',
+        input,
+      ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Image processing profiles
+// ---------------------------------------------------------------------------
+
+export function useImageProfiles() {
+  return useQuery({
+    queryKey: ['admin', 'image-profiles'],
+    queryFn: () => apiGet<ImageProfile[]>('/admin/settings/image-processing'),
+  });
+}
+
+export function useUpdateImageProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<ImageProfile> }) =>
+      apiPut<ImageProfile>(`/admin/settings/image-processing/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'image-profiles'] }),
+  });
+}
+
+export function useImageProfilePreview() {
+  return useMutation({
+    mutationFn: async ({ profileId, file }: { profileId: string; file: File }) => {
+      const { apiPostForm } = await import('@/lib/api');
+      const form = new FormData();
+      form.set('image', file, file.name);
+      form.set('profile_id', profileId);
+      // Spec endpoint: POST /api/v1/admin/settings/image-processing/preview
+      return apiPostForm<ImagePreviewResult>('/admin/settings/image-processing/preview', form);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Audit log
+// ---------------------------------------------------------------------------
+
+export function useAuditLog(page = 1) {
+  return useQuery({
+    queryKey: ['admin', 'audit', page],
+    queryFn: () =>
+      apiGet<Paginated<AuditLogEntry>>(
+        `/admin/audit${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+      ),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Plans
+// ---------------------------------------------------------------------------
+
+export function useAdminPlans() {
+  return useQuery({
+    queryKey: ['admin', 'plans'],
+    queryFn: () => apiGet<Plan[]>('/admin/plans'),
+    staleTime: 30_000,
+  });
+}
+
+export interface PlanInput {
+  name: string;
+  tagline?: string;
+  /** Canonical unit: integer IRR (UI enters toman and converts). */
+  amount_irr: number;
+  period?: string;
+  features: string[];
+  limits: string[];
+  is_free: boolean;
+  is_featured: boolean;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export function useCreateAdminPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: PlanInput) => apiPost<Plan>('/admin/plans', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
+  });
+}
+
+export function useUpdateAdminPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<PlanInput> }) =>
+      apiPatch<Plan>('/admin/plans/{id}'.replace('{id}', id), input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
+  });
+}
+
+export function useDeleteAdminPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<unknown>('/admin/plans/{id}'.replace('{id}', id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
+  });
+}
