@@ -216,6 +216,104 @@ class OpenAICompatTextProvider(TextAiProvider):
         )
 
 
+class OpenAICompatSttProvider(SpeechToTextProvider):
+    """Shared OpenAI-compatible speech-to-text client — provider-agnostic.
+
+    POSTs multipart/form-data to ``{base_url}/audio/transcriptions`` with
+    fields ``file`` (audio bytes), ``model`` and optional ``language``.
+    Audio is fetched from the app's storage backend by ``audio_key``.
+    """
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 180):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def transcribe(self, model: str, audio_key: str, options: dict) -> TranscriptResult:
+        from app.services.storage import storage  # lazy: avoids import cycles
+
+        try:
+            audio_bytes = storage.get_bytes(audio_key)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("stt: failed to read audio %s: %s", audio_key, exc)
+            return TranscriptResult(ok=False, error_code="STORAGE_ERROR",
+                                    error_message="could not read input audio")
+        if not audio_bytes:
+            return TranscriptResult(ok=False, error_code="EMPTY_AUDIO",
+                                    error_message="input audio is empty")
+
+        filename = audio_key.rsplit("/", 1)[-1] or "audio.wav"
+        mime_type = options.get("mime_type") or "audio/wav"
+        fields = {"model": model}
+        if options.get("language"):
+            fields["language"] = str(options["language"])
+        body, content_type = _encode_multipart(fields, "file", filename, mime_type, audio_bytes)
+
+        url = f"{self.base_url}/audio/transcriptions"
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={
+                "Content-Type": content_type,
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                raw = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("openai-compat stt provider %s http %s: %s",
+                        self.provider_key, exc.code, detail)
+            return TranscriptResult(ok=False, error_code="PROVIDER_ERROR",
+                                    error_message=f"provider http {exc.code}")
+        except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
+            log.warning("openai-compat stt provider %s failed: %s",
+                        self.provider_key, exc)
+            return TranscriptResult(ok=False, error_code="PROVIDER_ERROR",
+                                    error_message=str(exc)[:200])
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            return TranscriptResult(ok=False, error_code="PROVIDER_ERROR",
+                                    error_message="invalid provider response")
+        text = data.get("text") or ""
+        if not isinstance(text, str):
+            text = str(text)
+        return TranscriptResult(
+            ok=True,
+            text=text,
+            provider_request_id=str(data.get("id")) if data.get("id") else None,
+            duration_seconds=int(options.get("duration_seconds") or 0) or None,
+        )
+
+
+def _encode_multipart(fields: dict, file_field: str, filename: str,
+                      content_type: str, file_bytes: bytes) -> tuple[bytes, str]:
+    """Build a multipart/form-data body with stdlib only."""
+    boundary = uuid.uuid4().hex
+    body = io.BytesIO()
+    for name, value in fields.items():
+        body.write(
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"'
+            f'\r\n\r\n{value}\r\n'.encode("utf-8")
+        )
+    body.write(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; '
+        f'filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n'.encode("utf-8")
+    )
+    body.write(file_bytes)
+    body.write(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+    return body.getvalue(), f"multipart/form-data; boundary={boundary}"
+
+
 def get_text_provider(provider_key: str | None = None) -> TextAiProvider:
     """Select the text provider.
 
@@ -241,10 +339,28 @@ def get_text_provider(provider_key: str | None = None) -> TextAiProvider:
     raise ValueError(f"unknown AI_TEXT_PROVIDER: {name}")
 
 
-def get_stt_provider() -> SpeechToTextProvider:
+def get_stt_provider(provider_key: str | None = None) -> SpeechToTextProvider:
+    """Select the speech-to-text provider.
+
+    ``provider_key`` is the model's catalog key (e.g. ``"arvan_stt"``); it picks
+    the credentials (``AI_PROVIDER_<KEY>_BASE_URL`` / ``AI_PROVIDER_<KEY>_API_KEY``)
+    while the HTTP client stays the same for every provider.
+    """
     name = (config.ai_audio_provider or "fake").lower()
     if name == "fake":
         return FakeSttProvider()
+    if name == "openai_compat":
+        base_url, api_key = config.ai_provider_credentials(provider_key)
+        if not base_url or not api_key:
+            raise ValueError(
+                f"missing credentials for provider {provider_key!r}: "
+                f"set AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL "
+                f"and AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        return OpenAICompatSttProvider(
+            base_url=base_url, api_key=api_key,
+            provider_key=provider_key or "default",
+        )
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 
