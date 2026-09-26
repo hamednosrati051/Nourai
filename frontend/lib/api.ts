@@ -95,8 +95,11 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     finalHeaders['Content-Type'] = 'application/json';
   }
   // CSRF protection for state-changing requests (double-submit cookie).
+  // Precedence mirrors the backend (app/api/deps.py::csrf_protect), which
+  // checks the user cookie first: readCookie('nourai_csrf') wins over the
+  // admin one, so cookie and header always refer to the same token.
   if (method !== 'GET') {
-    const csrf = readCookie('nourai_admin_csrf') ?? readCookie('nourai_csrf');
+    const csrf = readCookie('nourai_csrf') ?? readCookie('nourai_admin_csrf');
     if (csrf) finalHeaders['X-CSRF-Token'] = csrf;
   }
 
