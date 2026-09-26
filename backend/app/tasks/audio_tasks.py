@@ -105,7 +105,7 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
     tts_model = session.get(AiModel, params.get("tts_model_id") or job.model_id)
 
     # 1. speech -> text
-    stt = get_stt_provider(stt_model.provider_key if stt_model else None)
+    stt = get_stt_provider(stt_model.provider_key if stt_model else None, stt_model)
     transcript_res = stt.transcribe(
         stt_model.provider_model_name if stt_model else "default",
         input_asset.storage_key,
@@ -129,7 +129,7 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
         {"role": "system", "content": "You are Nourai (نورا), a helpful Persian AI assistant."},
         {"role": "user", "content": transcript},
     ]
-    text_provider = get_text_provider(text_model.provider_key)
+    text_provider = get_text_provider(text_model.provider_key, text_model)
     text_res = text_provider.generate(text_model.provider_model_name, messages, {})
     if not text_res.ok:
         raise RuntimeError(text_res.error_code or "text generation failed")

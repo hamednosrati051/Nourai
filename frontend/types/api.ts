@@ -97,6 +97,11 @@ export interface AiModel {
   tokenizer_encoding?: string | null;
   config_json?: Record<string, unknown> | null;
   description?: string | null;
+  /** True when provider credentials were stored via the admin form. */
+  has_credentials?: boolean;
+  /** Write-only: sent on create/update, never returned by the API. */
+  base_url?: string;
+  api_key?: string;
   created_at: string;
   updated_at?: string | null;
 }

@@ -37,6 +37,8 @@ const modelSchema = z.object({
   pricing_type: z.string().trim().min(1, 'نوع قیمت‌گذاری را وارد کنید.'),
   tokenizer_encoding: z.string().trim().optional(),
   description: z.string().trim().optional(),
+  base_url: z.string().trim().optional(),
+  api_key: z.string().trim().optional(),
   is_active: z.boolean(),
 });
 type ModelForm = z.infer<typeof modelSchema>;
@@ -69,6 +71,8 @@ export default function AdminModelsPage() {
       pricing_type: 'token',
       tokenizer_encoding: '',
       description: '',
+      base_url: '',
+      api_key: '',
       is_active: true,
     });
     setModalOpen(true);
@@ -85,6 +89,8 @@ export default function AdminModelsPage() {
       pricing_type: m.pricing_type,
       tokenizer_encoding: m.tokenizer_encoding ?? '',
       description: m.description ?? '',
+      base_url: '',
+      api_key: '',
       is_active: m.is_active,
     });
     setModalOpen(true);
@@ -101,7 +107,7 @@ export default function AdminModelsPage() {
     };
     if (editing) {
       // PATCH only accepts: display_name, provider_model_name, pricing_type,
-      // tokenizer_encoding, config_json, description, is_active.
+      // tokenizer_encoding, config_json, description, is_active (+ credentials).
       updateModel.mutate(
         {
           id: editing.id,
@@ -113,6 +119,12 @@ export default function AdminModelsPage() {
               ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
               : {}),
             ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+            ...(values.base_url?.trim() || values.api_key?.trim()
+              ? {
+                  base_url: values.base_url?.trim() || '',
+                  api_key: values.api_key?.trim() || '',
+                }
+              : {}),
             is_active: values.is_active,
           },
         },
@@ -131,6 +143,12 @@ export default function AdminModelsPage() {
             ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
             : {}),
           ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+          ...(values.base_url?.trim() || values.api_key?.trim()
+            ? {
+                base_url: values.base_url?.trim() || '',
+                api_key: values.api_key?.trim() || '',
+              }
+            : {}),
           is_active: values.is_active,
         },
         done,
@@ -290,6 +308,39 @@ export default function AdminModelsPage() {
           <div>
             <label htmlFor="model-description" className="label">توضیحات</label>
             <textarea id="model-description" rows={2} className="input" {...register('description')} />
+          </div>
+          <div className="rounded-lg border border-neutral-200 p-4 dark:border-slate-700">
+            <h3 className="mb-3 text-sm font-bold">اتصال provider</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label htmlFor="model-base-url" className="label">آدرس endpoint (base URL)</label>
+                <input
+                  id="model-base-url"
+                  dir="ltr"
+                  placeholder="https://api.example.com/v1"
+                  className="input text-left"
+                  {...register('base_url')}
+                />
+                <p className="field-hint">اگر خالی باشد، از متغیر محیطی AI_PROVIDER_&lt;KEY&gt;_BASE_URL استفاده می‌شود.</p>
+              </div>
+              <div>
+                <label htmlFor="model-api-key" className="label">کلید API</label>
+                <input
+                  id="model-api-key"
+                  type="password"
+                  dir="ltr"
+                  autoComplete="off"
+                  placeholder={editing?.has_credentials ? '•••••••• (ذخیره شده)' : ''}
+                  className="input text-left"
+                  {...register('api_key')}
+                />
+                {editing?.has_credentials ? (
+                  <p className="field-hint">کلید قبلاً ذخیره شده؛ فقط برای تغییر، مقدار جدید وارد کنید.</p>
+                ) : (
+                  <p className="field-hint">اگر خالی باشد، از متغیر محیطی AI_PROVIDER_&lt;KEY&gt;_API_KEY استفاده می‌شود.</p>
+                )}
+              </div>
+            </div>
           </div>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="h-5 w-5 accent-amber-600" {...register('is_active')} />

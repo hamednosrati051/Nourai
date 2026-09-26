@@ -586,6 +586,10 @@ class ModelCreateSchema(BaseModel):
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
+    # Write-only provider credentials (from the admin form). Stored on the
+    # model record; never returned by the API. Env vars remain as fallback.
+    base_url: str | None = None
+    api_key: str | None = None
 
 
 class ModelUpdateSchema(BaseModel):
@@ -596,15 +600,51 @@ class ModelUpdateSchema(BaseModel):
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
+    # Write-only: non-empty values replace the stored credentials.
+    base_url: str | None = None
+    api_key: str | None = None
+
+
+# Reserved config_json key holding form-provided provider credentials.
+_PROVIDER_CREDS_KEY = "__provider__"
+
+
+def _extract_provider_creds(config_json: dict | None) -> tuple[str, str]:
+    """(base_url, api_key) stored on the model via the admin form."""
+    creds = (config_json or {}).get(_PROVIDER_CREDS_KEY) or {}
+    return (creds.get("base_url") or "", creds.get("api_key") or "")
+
+
+def _store_provider_creds(config_json: dict | None, base_url: str | None,
+                          api_key: str | None) -> dict | None:
+    """Merge form-provided credentials into config_json (write path only).
+
+    The reserved ``__provider__`` key can only be written through the
+    dedicated ``base_url``/``api_key`` fields, never via raw ``config_json``.
+    """
+    cfg = dict(config_json or {})
+    cfg.pop(_PROVIDER_CREDS_KEY, None)
+    bu = (base_url or "").strip()
+    ak = (api_key or "").strip()
+    if bu or ak:
+        if not (bu and ak):
+            raise ValueError("base_url and api_key must be provided together")
+        cfg[_PROVIDER_CREDS_KEY] = {"base_url": bu, "api_key": ak}
+    return cfg or None
 
 
 def _model_payload(model: AiModel) -> dict:
+    # Provider credentials are write-only: never expose them via the API.
+    cfg = dict(model.config_json or {})
+    creds = cfg.pop(_PROVIDER_CREDS_KEY, None) or {}
+    has_credentials = bool(creds.get("base_url") and creds.get("api_key"))
     return {
         "id": model.id, "slug": model.slug, "display_name": model.display_name,
         "capability": model.capability, "provider_key": model.provider_key,
         "provider_model_name": model.provider_model_name, "is_active": model.is_active,
         "pricing_type": model.pricing_type, "tokenizer_encoding": model.tokenizer_encoding,
-        "config_json": model.config_json, "description": model.description,
+        "config_json": cfg or None, "description": model.description,
+        "has_credentials": has_credentials,
         "created_at": model.created_at.isoformat() if model.created_at else None,
         "updated_at": model.updated_at.isoformat() if model.updated_at else None,
     }
@@ -641,12 +681,16 @@ def create_model():
             return error_response("TOKENIZER_UNAVAILABLE", status=422)
     if data.capability == "text" and not encoding:
         return error_response("TOKENIZER_UNAVAILABLE", "برای مدل متنی encoding الزامی است.", 422)
+    try:
+        config_with_creds = _store_provider_creds(data.config_json, data.base_url, data.api_key)
+    except ValueError as exc:
+        return error_response("VALIDATION_ERROR", str(exc), 422)
     model = AiModel(
         slug=data.slug.strip(), display_name=data.display_name.strip(),
         capability=data.capability, provider_key=data.provider_key.strip(),
         provider_model_name=data.provider_model_name.strip(),
         is_active=data.is_active, pricing_type=data.pricing_type,
-        tokenizer_encoding=encoding, config_json=data.config_json,
+        tokenizer_encoding=encoding, config_json=config_with_creds,
         description=data.description,
     )
     db.session.add(model)
@@ -682,6 +726,13 @@ def update_model(model_id: str):
         changes["tokenizer_encoding"] = model.tokenizer_encoding
     if data.config_json is not None:
         model.config_json = data.config_json; changes["config_json"] = True
+    if data.base_url or data.api_key:
+        try:
+            model.config_json = _store_provider_creds(
+                model.config_json, data.base_url, data.api_key)
+        except ValueError as exc:
+            return error_response("VALIDATION_ERROR", str(exc), 422)
+        changes["provider_credentials"] = True
     if data.description is not None:
         model.description = data.description; changes["description"] = True
     _audit("model.updated", "ai_model", model.id, changes)

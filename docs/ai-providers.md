@@ -11,7 +11,11 @@
 - هر مدل در کاتالوگ یک `provider_key` دارد (مثلاً `metis`، `openai`، ...).
 - یک کلاینت HTTP **مشترک و سازگار با OpenAI** (`/chat/completions` و...)
   همه‌ی providerها را صدا می‌زند؛ تفاوتشان فقط `base_url` و `api_key` است.
-- مشخصات هر provider فقط از env خوانده می‌شود:
+- مشخصات هر provider با این اولویت resolve می‌شود:
+  1. **فرم ادمین** — فیلدهای `base_url` و `api_key` روی فرم مدل (write-only؛
+     API فقط `has_credentials` برمی‌گرداند، نه خود کلید).
+  2. **env** — `AI_PROVIDER_<KEY>_BASE_URL` / `AI_PROVIDER_<KEY>_API_KEY`.
+  3. **env عمومی** — `AI_TEXT_BASE_URL` / `AI_TEXT_API_KEY`.
 
 ```bash
 AI_PROVIDER_<KEY>_BASE_URL=https://...
@@ -27,7 +31,9 @@ AI_PROVIDER_METIS_API_KEY=<کلید داشبورد متیس>
 
 - انتخاب adapter در رانتایم با `provider_key` مدل انجام می‌شود، نه با
   if/else هاردکدشده برای هر provider.
-- کلیدها **هرگز** در کد یا دیتابیس ذخیره نمی‌شوند — فقط env / secret manager.
+- کلیدها **هرگز** در کد ذخیره نمی‌شوند. می‌توان آن‌ها را در فرم ادمین
+  (راحت‌تر — ولی در دیتابیس می‌ماند) یا env / secret manager
+  (امن‌تر — فقط روی سرور) نگه داشت.
 
 ## ۲. ارائه‌دهنده‌های قابل اتصال در متیس
 

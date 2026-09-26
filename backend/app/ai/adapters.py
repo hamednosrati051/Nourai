@@ -314,23 +314,45 @@ def _encode_multipart(fields: dict, file_field: str, filename: str,
     return body.getvalue(), f"multipart/form-data; boundary={boundary}"
 
 
-def get_text_provider(provider_key: str | None = None) -> TextAiProvider:
+def _resolve_credentials(provider_key: str | None, model=None) -> tuple[str, str]:
+    """Resolve (base_url, api_key) for a provider.
+
+    Priority: 1) credentials stored on the model via the admin form,
+    2) ``AI_PROVIDER_<KEY>_BASE_URL`` / ``AI_PROVIDER_<KEY>_API_KEY`` env,
+    3) generic ``AI_TEXT_BASE_URL`` / ``AI_TEXT_API_KEY`` env fallback.
+    """
+    if model is not None:
+        cfg = getattr(model, "config_json", None) or {}
+        creds = cfg.get("__provider__") or {}
+        base_url = (creds.get("base_url") or "").strip()
+        api_key = (creds.get("api_key") or "").strip()
+        if base_url or api_key:
+            if not (base_url and api_key):
+                raise ValueError(
+                    f"incomplete credentials stored for provider {provider_key!r}: "
+                    "base_url and api_key must both be set"
+                )
+            return base_url, api_key
+    return config.ai_provider_credentials(provider_key)
+
+
+def get_text_provider(provider_key: str | None = None, model=None) -> TextAiProvider:
     """Select the text provider.
 
-    ``provider_key`` is the model's catalog key (e.g. ``"metis"``); it picks
-    the credentials (``AI_PROVIDER_<KEY>_BASE_URL`` / ``AI_PROVIDER_<KEY>_API_KEY``)
-    while the HTTP client stays the same for every provider.
+    ``provider_key`` is the model's catalog key (e.g. ``"metis"``); ``model``
+    is the catalog row, used for form-stored credentials (env is fallback).
     """
     name = (config.ai_text_provider or "fake").lower()
     if name == "fake":
         return FakeTextProvider()
     if name == "openai_compat":
-        base_url, api_key = config.ai_provider_credentials(provider_key)
+        base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
                 f"missing credentials for provider {provider_key!r}: "
-                f"set AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL "
-                f"and AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
             )
         return OpenAICompatTextProvider(
             base_url=base_url, api_key=api_key,
@@ -339,23 +361,23 @@ def get_text_provider(provider_key: str | None = None) -> TextAiProvider:
     raise ValueError(f"unknown AI_TEXT_PROVIDER: {name}")
 
 
-def get_stt_provider(provider_key: str | None = None) -> SpeechToTextProvider:
+def get_stt_provider(provider_key: str | None = None, model=None) -> SpeechToTextProvider:
     """Select the speech-to-text provider.
 
-    ``provider_key`` is the model's catalog key (e.g. ``"arvan_stt"``); it picks
-    the credentials (``AI_PROVIDER_<KEY>_BASE_URL`` / ``AI_PROVIDER_<KEY>_API_KEY``)
-    while the HTTP client stays the same for every provider.
+    ``provider_key`` is the model's catalog key (e.g. ``"arvan_stt"``); ``model``
+    is the catalog row, used for form-stored credentials (env is fallback).
     """
     name = (config.ai_audio_provider or "fake").lower()
     if name == "fake":
         return FakeSttProvider()
     if name == "openai_compat":
-        base_url, api_key = config.ai_provider_credentials(provider_key)
+        base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
                 f"missing credentials for provider {provider_key!r}: "
-                f"set AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL "
-                f"and AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
             )
         return OpenAICompatSttProvider(
             base_url=base_url, api_key=api_key,

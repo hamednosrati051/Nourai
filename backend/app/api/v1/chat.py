@@ -218,7 +218,7 @@ def send_message(conversation_id: str):
 
     # The exact payload string sent to the provider is what gets counted.
     try:
-        provider = get_text_provider(model.provider_key)
+        provider = get_text_provider(model.provider_key, model)
     except ValueError as exc:
         log.error("text provider misconfigured: %s", exc)
         return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
