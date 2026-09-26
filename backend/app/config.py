@@ -59,6 +59,23 @@ class Config:
     ai_text_provider: str = field(default_factory=lambda: _get("AI_TEXT_PROVIDER", "fake"))
     ai_audio_provider: str = field(default_factory=lambda: _get("AI_AUDIO_PROVIDER", "fake"))
     ai_image_provider: str = field(default_factory=lambda: _get("AI_IMAGE_PROVIDER", "fake"))
+
+    def ai_provider_credentials(self, provider_key: str | None) -> tuple[str, str]:
+        """Return ``(base_url, api_key)`` for a provider key like ``"metis"``.
+
+        Provider-agnostic: credentials come from
+        ``AI_PROVIDER_<KEY>_BASE_URL`` / ``AI_PROVIDER_<KEY>_API_KEY``,
+        falling back to the generic ``AI_TEXT_BASE_URL`` / ``AI_TEXT_API_KEY``.
+        Adding a new provider is env-only — no code change.
+        """
+        key = (provider_key or "").strip().upper()
+        base_url = _get(f"AI_PROVIDER_{key}_BASE_URL") if key else ""
+        api_key = _get(f"AI_PROVIDER_{key}_API_KEY") if key else ""
+        if not base_url:
+            base_url = _get("AI_TEXT_BASE_URL")
+        if not api_key:
+            api_key = _get("AI_TEXT_API_KEY")
+        return base_url, api_key
     ai_provider_api_key: str = field(default_factory=lambda: _get("AI_PROVIDER_API_KEY", ""))
 
     # --- image hard ceilings (security; admin settings can never exceed these) ---

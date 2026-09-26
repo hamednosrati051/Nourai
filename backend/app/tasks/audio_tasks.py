@@ -129,7 +129,7 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
         {"role": "system", "content": "You are Nourai (نورا), a helpful Persian AI assistant."},
         {"role": "user", "content": transcript},
     ]
-    text_provider = get_text_provider()
+    text_provider = get_text_provider(text_model.provider_key)
     text_res = text_provider.generate(text_model.provider_model_name, messages, {})
     if not text_res.ok:
         raise RuntimeError(text_res.error_code or "text generation failed")

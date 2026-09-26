@@ -217,7 +217,11 @@ def send_message(conversation_id: str):
     provider_messages.append({"role": ROLE_USER, "content": content})
 
     # The exact payload string sent to the provider is what gets counted.
-    provider = get_text_provider()
+    try:
+        provider = get_text_provider(model.provider_key)
+    except ValueError as exc:
+        log.error("text provider misconfigured: %s", exc)
+        return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
     overhead = getattr(provider, "OVERHEAD_PER_MESSAGE", 0)
     input_tokens = counter.count_chat_messages(
         provider_messages, overhead_per_message=overhead,
