@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import os
 from logging.config import fileConfig
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -15,7 +20,8 @@ if config.config_file_name is not None:
 
 # Prefer the app's DATABASE_URL; fall back to alembic.ini.
 db_url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
-config.set_main_option("sqlalchemy.url", db_url)
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
+
 
 from app import create_app  # noqa: E402
 

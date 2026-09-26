@@ -5,8 +5,10 @@ import type { NextRequest } from 'next/server';
 // Deep authentication is always verified via API (ProtectedRoute / server data).
 // Cookie names are configurable via NEXT_PUBLIC_*_SESSION_COOKIE.
 
-const USER_COOKIE = process.env.NEXT_PUBLIC_USER_SESSION_COOKIE || 'nourai_user_session';
-const ADMIN_COOKIE = process.env.NEXT_PUBLIC_ADMIN_SESSION_COOKIE || 'nourai_admin_session';
+// Cookie names must match the backend session cookies (app/auth/sessions.py):
+// users -> nourai_at / nourai_rt, admins -> nourai_admin_at / nourai_admin_rt.
+const USER_COOKIE = process.env.NEXT_PUBLIC_USER_SESSION_COOKIE || 'nourai_at';
+const ADMIN_COOKIE = process.env.NEXT_PUBLIC_ADMIN_SESSION_COOKIE || 'nourai_admin_at';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

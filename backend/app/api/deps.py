@@ -55,7 +55,11 @@ def success_response(data=None, meta: dict | None = None, status: int = 200):
         "meta": meta or {},
         "request_id": g.get("request_id", ""),
     }
-    return jsonify(payload), status
+    # Return a real Response (not a tuple) so callers can set cookies on it
+    # before returning (login / refresh / CSRF flows).
+    resp = jsonify(payload)
+    resp.status_code = status
+    return resp
 
 
 def error_response(code: str, message: str | None = None, status: int = 400):
@@ -268,3 +272,4 @@ def utcnow() -> datetime:
     from datetime import timezone
 
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
