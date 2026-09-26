@@ -7,7 +7,8 @@
 // - Auth is cookie-based (HttpOnly cookies set by the backend); the frontend
 //   never reads or stores tokens. `credentials: 'include'` is always sent.
 // - Mutations (POST/PATCH/PUT/DELETE) attach the CSRF token from the
-//   `csrf_token` cookie as the `X-CSRF-Token` header when present.
+//   `nourai_admin_csrf` / `nourai_csrf` cookie as the `X-CSRF-Token` header
+//   when present (double-submit cookie, see backend app/api/deps.py).
 
 export interface ApiSuccessEnvelope<T> {
   data: T;
@@ -93,9 +94,9 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   if (body !== undefined && !formData) {
     finalHeaders['Content-Type'] = 'application/json';
   }
-  // CSRF protection for state-changing requests.
+  // CSRF protection for state-changing requests (double-submit cookie).
   if (method !== 'GET') {
-    const csrf = readCookie('csrf_token');
+    const csrf = readCookie('nourai_admin_csrf') ?? readCookie('nourai_csrf');
     if (csrf) finalHeaders['X-CSRF-Token'] = csrf;
   }
 
