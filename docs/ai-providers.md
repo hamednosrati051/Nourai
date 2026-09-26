@@ -1,15 +1,37 @@
-# اتصال به مدل‌های هوش مصنوعی از طریق متیس (MetisAI)
+# اتصال به مدل‌های هوش مصنوعی
 
-این سند مرجع اتصال «نورا» به مدل‌های AI است. نورا مستقیم به OpenAI و...
-وصل نمی‌شود؛ همه‌ی مدل‌ها از طریق **درگاه متیس** فراخوانی می‌شوند.
+این سند مرجع اتصال «نورا» به مدل‌های AI است.
 
-- داشبورد متیس: https://console.metisai.ir/dashboard
-- مستندات متیس: https://docs.metisai.ir
-- Endpoint سازگار با OpenAI: `https://api.metisai.ir/openai/v1`
+> **اصل طراحی:** کد نورا به هیچ provider خاصی (از جمله متیس) قفل نیست.
+> متیس فقط **یک نمونه** است. معماری باید provider-agnostic باشد: اضافه کردن
+> یک provider جدید = فقط env و ثبت مدل در کاتالوگ، بدون تغییر کد.
 
-## ۱. ارائه‌دهنده‌های قابل اتصال در متیس
+## ۱. معماری provider-agnostic
 
-متیس «اتصال مستقیم به مدل‌ها» را برای این ارائه‌دهنده‌ها دارد:
+- هر مدل در کاتالوگ یک `provider_key` دارد (مثلاً `metis`، `openai`، ...).
+- یک کلاینت HTTP **مشترک و سازگار با OpenAI** (`/chat/completions` و...)
+  همه‌ی providerها را صدا می‌زند؛ تفاوتشان فقط `base_url` و `api_key` است.
+- مشخصات هر provider فقط از env خوانده می‌شود:
+
+```bash
+AI_PROVIDER_<KEY>_BASE_URL=https://...
+AI_PROVIDER_<KEY>_API_KEY=<secret>
+```
+
+مثال — متیس:
+
+```bash
+AI_PROVIDER_METIS_BASE_URL=https://api.metisai.ir/openai/v1
+AI_PROVIDER_METIS_API_KEY=<کلید داشبورد متیس>
+```
+
+- انتخاب adapter در رانتایم با `provider_key` مدل انجام می‌شود، نه با
+  if/else هاردکدشده برای هر provider.
+- کلیدها **هرگز** در کد یا دیتابیس ذخیره نمی‌شوند — فقط env / secret manager.
+
+## ۲. ارائه‌دهنده‌های قابل اتصال در متیس
+
+متیس «اتصال مستقیم به مدل‌ها» را برای این ارائه‌دهنده‌ها دارد (به‌عنوان نمونه):
 
 | ارائه‌دهنده | توضیح |
 |---|---|
@@ -22,21 +44,23 @@
 | Kimi K3 (Moonshot) | مدل‌های Moonshot |
 | Gemini | مدل‌های Google |
 
-نکته‌ی مهم: چون متیس یک endpoint سازگار با OpenAI می‌دهد، سمت نورا فقط
-**یک adapter** لازم است (کلاینت HTTP سازگار با OpenAI) و انتخاب مدلِ نهایی
-با `provider_model_name` انجام می‌شود — یعنی همان شناسه‌ی مدلی که در
-داشبورد متیس می‌بینید.
+- داشبورد متیس: https://console.metisai.ir/dashboard
+- مستندات متیس: https://docs.metisai.ir
+- Endpoint سازگار با OpenAI متیس: `https://api.metisai.ir/openai/v1`
 
-## ۲. مقادیر اتصال
+نکته: چون متیس endpoint سازگار با OpenAI می‌دهد، `provider_model_name` همان
+شناسه‌ی مدلی است که در داشبورد متیس می‌بینید و همان کلاینت مشترک کافی است.
+
+## ۲. مقادیر اتصال (نمونه: متیس)
 
 | مقدار | توضیح |
 |---|---|
 | `base_url` | `https://api.metisai.ir/openai/v1` |
 | `Authorization` | هدر `Bearer <API_KEY>` |
-| `API_KEY` | از داشبورد متیس (console.metisai.ir) گرفته می‌شود؛ **هرگز در کد یا دیتابیس ذخیره نشود** — فقط env / secret manager |
-| `model` | شناسه‌ی دقیق مدل در داشبورد متیس (مثلاً `gpt-4.1-mini`) |
+| `API_KEY` | از داشبورد provider گرفته می‌شود؛ **هرگز در کد یا دیتابیس ذخیره نشود** — فقط env / secret manager |
+| `model` | شناسه‌ی دقیق مدل در داشبورد provider (مثلاً `gpt-4.1-mini`) |
 
-مثال curl برای تست دستی:
+مثال curl برای تست دستی (متیس):
 
 ```bash
 curl https://api.metisai.ir/openai/v1/chat/completions \
@@ -70,15 +94,21 @@ curl https://api.metisai.ir/openai/v1/chat/completions \
 ## ۴. تنظیمات env برای adapter
 
 وضعیت فعلی: در `app/ai/adapters.py` فقط adapterهای `fake` پیاده شده‌اند.
-برای اتصال واقعی، adapter سازگار با OpenAI باید پیاده شود و سپس:
+برای اتصال واقعی، کلاینت مشترک سازگار با OpenAI باید پیاده شود؛ انتخاب
+provider در رانتایم با `provider_key` مدل و envهای زیر انجام می‌شود:
 
 ```bash
+# نوع adapter (مشترک برای همه‌ی providerها)
 AI_TEXT_PROVIDER=openai_compat
-AI_TEXT_BASE_URL=https://api.metisai.ir/openai/v1
-AI_TEXT_API_KEY=<کلید متیس>
-# به همین ترتیب برای صوت و تصویر:
 AI_AUDIO_PROVIDER=openai_compat
 AI_IMAGE_PROVIDER=openai_compat
+
+# مشخصات هر provider — الگو: AI_PROVIDER_<KEY>_BASE_URL / _API_KEY
+AI_PROVIDER_METIS_BASE_URL=https://api.metisai.ir/openai/v1
+AI_PROVIDER_METIS_API_KEY=<کلید داشبورد متیس>
+# provider بعدی بدون تغییر کد:
+AI_PROVIDER_OPENAI_BASE_URL=https://api.openai.com/v1
+AI_PROVIDER_OPENAI_API_KEY=<کلید OpenAI>
 ```
 
 ## ۵. قیمت‌گذاری — فعلاً دستی
