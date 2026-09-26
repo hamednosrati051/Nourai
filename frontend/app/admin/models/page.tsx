@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAdminModels, useCreateAdminModel, useUpdateAdminModel } from '@/features/admin/hooks';
+import {
+  useAdminModels,
+  useCreateAdminModel,
+  useCreatePricingRule,
+  useUpdateAdminModel,
+} from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
@@ -12,6 +17,7 @@ import { ResponsiveTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
+import { tomanToIrr } from '@/lib/currency';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import type { AiModel, ModelCapability } from '@/types/api';
 
@@ -24,24 +30,54 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
 
 const CAPABILITIES = Object.keys(CAPABILITY_LABELS) as ModelCapability[];
 
+/** Optional toman amount (quick pricing). Empty => no rule created. */
+const optionalToman = z
+  .union([z.number(), z.string()])
+  .optional()
+  .transform((v) => {
+    if (v === undefined || v === '' || v === null) return undefined;
+    const n = typeof v === 'string' ? Number(v) : v;
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  });
+
+const slugPattern = /^[a-z0-9][a-z0-9-_]*$/;
+
 const modelSchema = z.object({
+  display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
+  capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
+  provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
+  base_url: z.string().trim().optional(),
+  api_key: z.string().trim().optional(),
+  // Quick pricing (toman) — create only. Empty = skip.
+  input_price_toman: optionalToman,
+  output_price_toman: optionalToman,
+  audio_price_toman: optionalToman,
+  image_price_toman: optionalToman,
+  // Advanced (auto-filled when empty).
   slug: z
     .string()
     .trim()
-    .min(1, 'شناسه یکتا (slug) را وارد کنید.')
-    .regex(/^[a-z0-9][a-z0-9-_]*$/, 'فقط حروف کوچک انگلیسی، عدد، خط تیره و زیرخط.'),
-  display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
-  capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
-  provider_key: z.string().trim().min(1, 'کلید provider را وارد کنید (مثلاً: metis).'),
-  provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
-  pricing_type: z.string().trim().min(1, 'نوع قیمت‌گذاری را وارد کنید.'),
+    .optional()
+    .refine((v) => !v || slugPattern.test(v), 'فقط حروف کوچک انگلیسی، عدد، خط تیره و زیرخط.'),
+  provider_key: z.string().trim().optional(),
   tokenizer_encoding: z.string().trim().optional(),
   description: z.string().trim().optional(),
-  base_url: z.string().trim().optional(),
-  api_key: z.string().trim().optional(),
   is_active: z.boolean(),
 });
 type ModelForm = z.infer<typeof modelSchema>;
+
+function slugify(value: string): string {
+  return (
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[\s_]+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 60)
+  );
+}
 
 /** Admin model catalog: enable/disable, edit, create. */
 export default function AdminModelsPage() {
@@ -52,27 +88,33 @@ export default function AdminModelsPage() {
   const models = useAdminModels();
   const createModel = useCreateAdminModel();
   const updateModel = useUpdateAdminModel();
+  const createRule = useCreatePricingRule();
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    watch,
+    formState: { errors },
   } = useForm<ModelForm>({ resolver: zodResolver(modelSchema) });
+  const capability = watch('capability');
 
   const openCreate = () => {
     setEditing(null);
     reset({
-      slug: '',
       display_name: '',
       capability: 'text',
-      provider_key: '',
       provider_model_name: '',
-      pricing_type: 'token',
-      tokenizer_encoding: '',
-      description: '',
       base_url: '',
       api_key: '',
+      input_price_toman: undefined,
+      output_price_toman: undefined,
+      audio_price_toman: undefined,
+      image_price_toman: undefined,
+      slug: '',
+      provider_key: '',
+      tokenizer_encoding: '',
+      description: '',
       is_active: true,
     });
     setModalOpen(true);
@@ -81,30 +123,68 @@ export default function AdminModelsPage() {
   const openEdit = (m: AiModel) => {
     setEditing(m);
     reset({
-      slug: m.slug,
       display_name: m.display_name,
       capability: m.capability,
-      provider_key: m.provider_key,
       provider_model_name: m.provider_model_name,
-      pricing_type: m.pricing_type,
-      tokenizer_encoding: m.tokenizer_encoding ?? '',
-      description: m.description ?? '',
       base_url: '',
       api_key: '',
+      slug: m.slug,
+      provider_key: m.provider_key,
+      tokenizer_encoding: m.tokenizer_encoding ?? '',
+      description: m.description ?? '',
       is_active: m.is_active,
     });
     setModalOpen(true);
   };
 
+  const createPricingRules = async (modelId: string, values: ModelForm) => {
+    const rules: Record<string, unknown>[] = [];
+    if (values.capability === 'text') {
+      if (values.input_price_toman != null)
+        rules.push({
+          model_id: modelId,
+          billing_unit: 'input_token',
+          unit_size: 1000000,
+          unit_price_irr: tomanToIrr(values.input_price_toman),
+          rounding_mode: 'up',
+        });
+      if (values.output_price_toman != null)
+        rules.push({
+          model_id: modelId,
+          billing_unit: 'output_token',
+          unit_size: 1000000,
+          unit_price_irr: tomanToIrr(values.output_price_toman),
+          rounding_mode: 'up',
+        });
+    } else if (values.capability === 'speech_to_text' || values.capability === 'text_to_speech') {
+      if (values.audio_price_toman != null)
+        rules.push({
+          model_id: modelId,
+          billing_unit: 'audio_second',
+          unit_size: 1,
+          unit_price_irr: tomanToIrr(values.audio_price_toman),
+          rounding_mode: 'up',
+        });
+    } else if (values.capability === 'image') {
+      if (values.image_price_toman != null)
+        rules.push({
+          model_id: modelId,
+          billing_unit: 'image_count',
+          unit_size: 1,
+          unit_price_irr: tomanToIrr(values.image_price_toman),
+          rounding_mode: 'up',
+        });
+    }
+    for (const rule of rules) {
+      await createRule.mutateAsync(rule);
+    }
+    return rules.length;
+  };
+
   const onSubmit = (values: ModelForm) => {
-    const done = {
-      onSuccess: () => {
-        setModalOpen(false);
-        toast(editing ? 'مدل به‌روزرسانی شد.' : 'مدل جدید ثبت شد.', 'success');
-      },
-      onError: (err: unknown) =>
-        toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'خطایی رخ داد.', 'error'),
-    };
+    const err = (e: unknown) =>
+      toast(e instanceof ApiError ? getErrorMessage(e.code, e.message) : 'خطایی رخ داد.', 'error');
+
     if (editing) {
       // PATCH only accepts: display_name, provider_model_name, pricing_type,
       // tokenizer_encoding, config_json, description, is_active (+ credentials).
@@ -114,7 +194,6 @@ export default function AdminModelsPage() {
           patch: {
             display_name: values.display_name.trim(),
             provider_model_name: values.provider_model_name.trim(),
-            pricing_type: values.pricing_type.trim(),
             ...(values.tokenizer_encoding?.trim()
               ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
               : {}),
@@ -128,32 +207,55 @@ export default function AdminModelsPage() {
             is_active: values.is_active,
           },
         },
-        done,
-      );
-    } else {
-      createModel.mutate(
         {
-          slug: values.slug.trim(),
-          display_name: values.display_name.trim(),
-          capability: values.capability,
-          provider_key: values.provider_key.trim(),
-          provider_model_name: values.provider_model_name.trim(),
-          pricing_type: values.pricing_type.trim(),
-          ...(values.tokenizer_encoding?.trim()
-            ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
-            : {}),
-          ...(values.description?.trim() ? { description: values.description.trim() } : {}),
-          ...(values.base_url?.trim() || values.api_key?.trim()
-            ? {
-                base_url: values.base_url?.trim() || '',
-                api_key: values.api_key?.trim() || '',
-              }
-            : {}),
-          is_active: values.is_active,
+          onSuccess: () => {
+            setModalOpen(false);
+            toast('مدل به‌روزرسانی شد.', 'success');
+          },
+          onError: err,
         },
-        done,
       );
+      return;
     }
+
+    const autoSlug = slugify(values.provider_model_name) || slugify(values.display_name);
+    createModel.mutate(
+      {
+        ...(values.slug?.trim() ? { slug: values.slug.trim() } : autoSlug ? { slug: autoSlug } : {}),
+        display_name: values.display_name.trim(),
+        capability: values.capability,
+        ...(values.provider_key?.trim() ? { provider_key: values.provider_key.trim() } : {}),
+        provider_model_name: values.provider_model_name.trim(),
+        ...(values.capability === 'text'
+          ? { tokenizer_encoding: values.tokenizer_encoding?.trim() || 'cl100k_base' }
+          : {}),
+        ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+        ...(values.base_url?.trim() || values.api_key?.trim()
+          ? {
+              base_url: values.base_url?.trim() || '',
+              api_key: values.api_key?.trim() || '',
+            }
+          : {}),
+        is_active: values.is_active,
+      },
+      {
+        onSuccess: async (model) => {
+          try {
+            const n = await createPricingRules(model.id, values);
+            setModalOpen(false);
+            toast(
+              n > 0 ? `مدل ثبت شد و ${n === 1 ? 'تعرفه‌اش' : `${n} تعرفه`} ساخته شد.` : 'مدل جدید ثبت شد.',
+              'success',
+            );
+          } catch (e) {
+            setModalOpen(false);
+            toast('مدل ساخته شد ولی ثبت تعرفه ناموفق بود؛ از صفحه تعرفه‌ها اضافه کنید.', 'error');
+            console.error('quick pricing failed', e);
+          }
+        },
+        onError: err,
+      },
+    );
   };
 
   const toggleActive = (m: AiModel) => {
@@ -219,101 +321,53 @@ export default function AdminModelsPage() {
       )}
 
       <Modal open={modalOpen} title={editing ? 'ویرایش مدل' : 'مدل جدید'} onClose={() => setModalOpen(false)}>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="model-slug" className="label">شناسه یکتا (slug)</label>
-              <input
-                id="model-slug"
-                dir="ltr"
-                placeholder="gpt-4-1-mini"
-                disabled={!!editing}
-                className={`input text-left ${errors.slug ? 'input-error' : ''}`}
-                {...register('slug')}
-              />
-              {errors.slug && <p role="alert" className="field-error">{errors.slug.message}</p>}
-              {editing && <p className="field-hint">شناسه یکتا پس از ثبت قابل تغییر نیست.</p>}
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+          {/* ۱. مشخصات */}
+          <section>
+            <h3 className="mb-3 text-sm font-bold text-neutral-700 dark:text-slate-300">مشخصات مدل</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label htmlFor="model-display-name" className="label">نام نمایشی</label>
+                <input
+                  id="model-display-name"
+                  placeholder="مثلاً: آروان GPT-4o Transcribe"
+                  className={`input ${errors.display_name ? 'input-error' : ''}`}
+                  {...register('display_name')}
+                />
+                {errors.display_name && <p role="alert" className="field-error">{errors.display_name.message}</p>}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="model-capability" className="label">قابلیت</label>
+                  <select id="model-capability" className="input" disabled={!!editing} {...register('capability')}>
+                    {CAPABILITIES.map((c) => (
+                      <option key={c} value={c}>{CAPABILITY_LABELS[c]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>
+                  <input
+                    id="model-provider-name"
+                    dir="ltr"
+                    placeholder="gpt-4o-transcribe"
+                    className={`input text-left ${errors.provider_model_name ? 'input-error' : ''}`}
+                    {...register('provider_model_name')}
+                  />
+                  {errors.provider_model_name && (
+                    <p role="alert" className="field-error">{errors.provider_model_name.message}</p>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor="model-display-name" className="label">نام نمایشی</label>
-              <input
-                id="model-display-name"
-                className={`input ${errors.display_name ? 'input-error' : ''}`}
-                {...register('display_name')}
-              />
-              {errors.display_name && <p role="alert" className="field-error">{errors.display_name.message}</p>}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="model-capability" className="label">قابلیت</label>
-              <select id="model-capability" className="input" disabled={!!editing} {...register('capability')}>
-                {CAPABILITIES.map((c) => (
-                  <option key={c} value={c}>
-                    {CAPABILITY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-              {editing && <p className="field-hint">قابلیت پس از ثبت قابل تغییر نیست.</p>}
-            </div>
-            <div>
-              <label htmlFor="model-provider-key" className="label">کلید provider</label>
-              <input
-                id="model-provider-key"
-                dir="ltr"
-                placeholder="metis"
-                disabled={!!editing}
-                className={`input text-left ${errors.provider_key ? 'input-error' : ''}`}
-                {...register('provider_key')}
-              />
-              {errors.provider_key && <p role="alert" className="field-error">{errors.provider_key.message}</p>}
-              {editing && <p className="field-hint">کلید provider پس از ثبت قابل تغییر نیست.</p>}
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>
-              <input
-                id="model-provider-name"
-                dir="ltr"
-                placeholder="gpt-4.1-mini"
-                className={`input text-left ${errors.provider_model_name ? 'input-error' : ''}`}
-                {...register('provider_model_name')}
-              />
-              {errors.provider_model_name && <p role="alert" className="field-error">{errors.provider_model_name.message}</p>}
-              <p className="field-hint">دقیقاً همان نامی که provider می‌شناسد.</p>
-            </div>
-            <div>
-              <label htmlFor="model-pricing-type" className="label">نوع قیمت‌گذاری</label>
-              <input
-                id="model-pricing-type"
-                dir="ltr"
-                className={`input text-left ${errors.pricing_type ? 'input-error' : ''}`}
-                {...register('pricing_type')}
-              />
-              {errors.pricing_type && <p role="alert" className="field-error">{errors.pricing_type.message}</p>}
-            </div>
-          </div>
-          <div>
-            <label htmlFor="model-encoding" className="label">encoding توکنایزر (tiktoken)</label>
-            <input
-              id="model-encoding"
-              dir="ltr"
-              className="input text-left"
-              placeholder="مثلاً: o200k_base"
-              {...register('tokenizer_encoding')}
-            />
-            <p className="field-hint">باید با tiktoken.get_encoding() معتبر باشد؛ برای مدل‌های متنی لازم است.</p>
-          </div>
-          <div>
-            <label htmlFor="model-description" className="label">توضیحات</label>
-            <textarea id="model-description" rows={2} className="input" {...register('description')} />
-          </div>
-          <div className="rounded-lg border border-neutral-200 p-4 dark:border-slate-700">
+          </section>
+
+          {/* ۲. اتصال */}
+          <section className="rounded-lg border border-neutral-200 p-4 dark:border-slate-700">
             <h3 className="mb-3 text-sm font-bold">اتصال provider</h3>
             <div className="flex flex-col gap-4">
               <div>
-                <label htmlFor="model-base-url" className="label">آدرس endpoint (base URL)</label>
+                <label htmlFor="model-base-url" className="label">آدرس endpoint</label>
                 <input
                   id="model-base-url"
                   dir="ltr"
@@ -321,10 +375,9 @@ export default function AdminModelsPage() {
                   className="input text-left"
                   {...register('base_url')}
                 />
-                <p className="field-hint">اگر خالی باشد، از متغیر محیطی AI_PROVIDER_&lt;KEY&gt;_BASE_URL استفاده می‌شود.</p>
               </div>
               <div>
-                <label htmlFor="model-api-key" className="label">کلید API</label>
+                <label htmlFor="model-api-key" className="label">توکن / کلید API</label>
                 <input
                   id="model-api-key"
                   type="password"
@@ -334,21 +387,108 @@ export default function AdminModelsPage() {
                   className="input text-left"
                   {...register('api_key')}
                 />
-                {editing?.has_credentials ? (
+                {editing?.has_credentials && (
                   <p className="field-hint">کلید قبلاً ذخیره شده؛ فقط برای تغییر، مقدار جدید وارد کنید.</p>
-                ) : (
-                  <p className="field-hint">اگر خالی باشد، از متغیر محیطی AI_PROVIDER_&lt;KEY&gt;_API_KEY استفاده می‌شود.</p>
                 )}
               </div>
             </div>
-          </div>
+          </section>
+
+          {/* ۳. قیمت‌گذاری سریع (فقط ساخت) */}
+          {!editing && (
+            <section className="rounded-lg border border-neutral-200 p-4 dark:border-slate-700">
+              <h3 className="mb-1 text-sm font-bold">قیمت‌گذاری سریع</h3>
+              <p className="mb-3 text-xs text-neutral-500 dark:text-slate-400">
+                اختیاری — مبالغ به تومان. خالی بگذارید تا بعداً از صفحه تعرفه‌ها ثبت کنید.
+              </p>
+              {capability === 'text' && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="model-in-price" className="label">هر ۱ میلیون توکن ورودی (تومان)</label>
+                    <input id="model-in-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('input_price_toman')} />
+                  </div>
+                  <div>
+                    <label htmlFor="model-out-price" className="label">هر ۱ میلیون توکن خروجی (تومان)</label>
+                    <input id="model-out-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('output_price_toman')} />
+                  </div>
+                </div>
+              )}
+              {(capability === 'speech_to_text' || capability === 'text_to_speech') && (
+                <div>
+                  <label htmlFor="model-audio-price" className="label">قیمت هر ثانیه صوت (تومان)</label>
+                  <input id="model-audio-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('audio_price_toman')} />
+                </div>
+              )}
+              {capability === 'image' && (
+                <div>
+                  <label htmlFor="model-image-price" className="label">قیمت هر تصویر (تومان)</label>
+                  <input id="model-image-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('image_price_toman')} />
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ۴. پیشرفته */}
+          <details className="rounded-lg border border-neutral-200 dark:border-slate-700">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-600 dark:text-slate-400">
+              تنظیمات پیشرفته
+            </summary>
+            <div className="flex flex-col gap-4 border-t border-neutral-200 px-4 py-4 dark:border-slate-700">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="model-slug" className="label">شناسه یکتا (slug)</label>
+                  <input
+                    id="model-slug"
+                    dir="ltr"
+                    placeholder="خودکار از نام مدل"
+                    disabled={!!editing}
+                    className={`input text-left ${errors.slug ? 'input-error' : ''}`}
+                    {...register('slug')}
+                  />
+                  {errors.slug && <p role="alert" className="field-error">{errors.slug.message}</p>}
+                  {!editing && <p className="field-hint">خالی = خودکار ساخته می‌شود.</p>}
+                </div>
+                <div>
+                  <label htmlFor="model-provider-key" className="label">کلید provider</label>
+                  <input
+                    id="model-provider-key"
+                    dir="ltr"
+                    placeholder="خودکار = شناسه یکتا"
+                    disabled={!!editing}
+                    className="input text-left"
+                    {...register('provider_key')}
+                  />
+                  {!editing && <p className="field-hint">فقط برای خواندن از env لازم است.</p>}
+                </div>
+              </div>
+              {capability === 'text' && (
+                <div>
+                  <label htmlFor="model-encoding" className="label">encoding توکنایزر (tiktoken)</label>
+                  <input
+                    id="model-encoding"
+                    dir="ltr"
+                    placeholder="cl100k_base"
+                    className="input text-left"
+                    {...register('tokenizer_encoding')}
+                  />
+                  <p className="field-hint">خالی = cl100k_base</p>
+                </div>
+              )}
+              <div>
+                <label htmlFor="model-description" className="label">توضیحات</label>
+                <textarea id="model-description" rows={2} className="input" {...register('description')} />
+              </div>
+            </div>
+          </details>
+
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="h-5 w-5 accent-amber-600" {...register('is_active')} />
             مدل فعال باشد
           </label>
+
           <div className="flex gap-2">
-            <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">
-              {isSubmitting ? 'در حال ثبت…' : 'ذخیره'}
+            <button type="submit" disabled={createModel.isPending || updateModel.isPending} className="btn-primary flex-1">
+              {createModel.isPending || updateModel.isPending ? 'در حال ذخیره…' : editing ? 'ذخیره' : 'اتصال مدل'}
             </button>
             <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary flex-1">
               انصراف

@@ -3,6 +3,8 @@ audit log entry."""
 from __future__ import annotations
 
 import logging
+import re
+import secrets
 from datetime import datetime
 
 from flask import Blueprint, g, request
@@ -576,10 +578,11 @@ def remove_gallery(asset_id: str):
 # AI models
 # ---------------------------------------------------------------------------
 class ModelCreateSchema(BaseModel):
-    slug: str
+    # slug / provider_key are optional: auto-generated when empty.
+    slug: str | None = None
     display_name: str
     capability: str
-    provider_key: str
+    provider_key: str | None = None
     provider_model_name: str
     is_active: bool = True
     pricing_type: str = "token"
@@ -663,6 +666,20 @@ def list_models_admin():
     return success_response([_model_payload(m) for m in items], meta)
 
 
+def _slugify(value: str | None) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+    return slug[:60]
+
+
+def _unique_slug(base: str) -> str:
+    slug = base or f"model-{secrets.token_hex(3)}"
+    candidate, n = slug, 2
+    while db.session.query(AiModel.id).filter_by(slug=candidate).first():
+        candidate = f"{slug}-{n}"
+        n += 1
+    return candidate
+
+
 @bp.post("/admin/models")
 @admin_required
 def create_model():
@@ -671,8 +688,15 @@ def create_model():
         return err
     if data.capability not in CAPABILITIES:
         return validation_error()
-    if db.session.query(AiModel).filter_by(slug=data.slug.strip()).one_or_none():
-        return error_response("CONFLICT", "این slug قبلاً ثبت شده است.", 409)
+    raw_slug = (data.slug or "").strip()
+    if raw_slug:
+        if db.session.query(AiModel).filter_by(slug=raw_slug).one_or_none():
+            return error_response("CONFLICT", "این slug قبلاً ثبت شده است.", 409)
+        slug = raw_slug
+    else:
+        slug = _unique_slug(
+            _slugify(data.provider_model_name) or _slugify(data.display_name))
+    provider_key = (data.provider_key or "").strip() or slug
     encoding = None
     if data.tokenizer_encoding:
         try:
@@ -686,8 +710,8 @@ def create_model():
     except ValueError as exc:
         return error_response("VALIDATION_ERROR", str(exc), 422)
     model = AiModel(
-        slug=data.slug.strip(), display_name=data.display_name.strip(),
-        capability=data.capability, provider_key=data.provider_key.strip(),
+        slug=slug, display_name=data.display_name.strip(),
+        capability=data.capability, provider_key=provider_key,
         provider_model_name=data.provider_model_name.strip(),
         is_active=data.is_active, pricing_type=data.pricing_type,
         tokenizer_encoding=encoding, config_json=config_with_creds,
