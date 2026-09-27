@@ -7,8 +7,6 @@ import { z } from 'zod';
 import {
   useAdminModels,
   useCreateAdminModel,
-  useCreatePricingRule,
-  usePricingRules,
   useUpdateAdminModel,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -45,8 +43,6 @@ const modelSchema = z.object({
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
   // Pricing: IRR per 1000 tokens (text models only).
-  input_price_per_1k: z.coerce.number().min(0, 'مبلغ باید مثبت باشد.').default(0),
-  output_price_per_1k: z.coerce.number().min(0, 'مبلغ باید مثبت باشد.').default(0),
   is_active: z.boolean(),
 });
 type ModelForm = z.infer<typeof modelSchema>;
@@ -73,8 +69,6 @@ export default function AdminModelsPage() {
   const models = useAdminModels();
   const createModel = useCreateAdminModel();
   const updateModel = useUpdateAdminModel();
-  const createPricingRule = useCreatePricingRule();
-  const pricingRules = usePricingRules();
 
   const {
     register,
@@ -92,8 +86,6 @@ export default function AdminModelsPage() {
       provider_model_name: '',
       base_url: '',
       api_key: '',
-      input_price_per_1k: 0,
-      output_price_per_1k: 0,
       is_active: true,
     });
     setModalOpen(true);
@@ -101,10 +93,6 @@ export default function AdminModelsPage() {
 
   const openEdit = (m: AiModel) => {
     setEditing(m);
-    // Load existing pricing rules (IRR per 1000 tokens -> تومان in the form).
-    const rules = (pricingRules.data ?? []).filter((r) => r.model_id === m.id);
-    const inputRule = rules.find((r) => r.billing_unit === 'input_token');
-    const outputRule = rules.find((r) => r.billing_unit === 'output_token');
     reset({
       display_name: m.display_name,
       capability: m.capability,
@@ -112,8 +100,6 @@ export default function AdminModelsPage() {
       provider_model_name: m.provider_model_name,
       base_url: m.base_url || '',
       api_key: '',
-      input_price_per_1k: inputRule ? inputRule.unit_price_irr / 10 / inputRule.unit_size * 1000 : 0,
-      output_price_per_1k: outputRule ? outputRule.unit_price_irr / 10 / outputRule.unit_size * 1000 : 0,
       is_active: m.is_active,
     });
     setModalOpen(true);
@@ -144,19 +130,6 @@ export default function AdminModelsPage() {
         },
         {
           onSuccess: () => {
-            // Save pricing rules (new version) for text models.
-            if (values.capability === 'text') {
-              const rules = [];
-              if (values.input_price_per_1k > 0) {
-                rules.push({ model_id: editing.id, billing_unit: 'input_token', unit_size: 1000, unit_price_irr: Math.round(values.input_price_per_1k * 10), rounding_mode: 'up' as const });
-              }
-              if (values.output_price_per_1k > 0) {
-                rules.push({ model_id: editing.id, billing_unit: 'output_token', unit_size: 1000, unit_price_irr: Math.round(values.output_price_per_1k * 10), rounding_mode: 'up' as const });
-              }
-              Promise.all(rules.map((r) => createPricingRule.mutateAsync(r))).catch(() =>
-                toast('مدل به‌روزرسانی شد ولی ثبت تعرفه ناموفق بود.', 'error'),
-              );
-            }
             setModalOpen(false);
             toast('مدل به‌روزرسانی شد.', 'success');
           },
@@ -185,23 +158,9 @@ export default function AdminModelsPage() {
         is_active: values.is_active,
       },
       {
-        onSuccess: (model) => {
-          // Create pricing rules for text models (input/output per 1000 tokens).
-          if (values.capability === 'text' && (values.input_price_per_1k > 0 || values.output_price_per_1k > 0)) {
-            const rules = [];
-            if (values.input_price_per_1k > 0) {
-              rules.push({ model_id: model.id, billing_unit: 'input_token', unit_size: 1000, unit_price_irr: Math.round(values.input_price_per_1k * 10), rounding_mode: 'up' as const });
-            }
-            if (values.output_price_per_1k > 0) {
-              rules.push({ model_id: model.id, billing_unit: 'output_token', unit_size: 1000, unit_price_irr: Math.round(values.output_price_per_1k * 10), rounding_mode: 'up' as const });
-            }
-            // Prices are in تومان in the form, stored as IRR (x10).
-            Promise.all(rules.map((r) => createPricingRule.mutateAsync(r))).catch(() =>
-              toast('مدل ساخته شد ولی ثبت تعرفه ناموفق بود.', 'error'),
-            );
-          }
+        onSuccess: () => {
           setModalOpen(false);
-          toast('مدل جدید ثبت شد.', 'success');
+          toast('مدل جدید ثبت شد. تعرفه را از بخش «تعرفه‌ها» تنظیم کنید.', 'success');
         },
         onError: err,
       },
@@ -361,38 +320,13 @@ export default function AdminModelsPage() {
             </div>
           </section>
 
-          <section aria-label="تعرفه">
-            <h3 className="mb-3 text-sm font-bold">تعرفه (تومان به ازای هر ۱۰۰۰ توکن)</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="model-input-price" className="label">
-                  توکن ورودی
-                </label>
-                <input
-                  id="model-input-price"
-                  type="number"
-                  min={0}
-                  dir="ltr"
-                  className="input text-left"
-                  {...register('input_price_per_1k')}
-                />
-              </div>
-              <div>
-                <label htmlFor="model-output-price" className="label">
-                  توکن خروجی
-                </label>
-                <input
-                  id="model-output-price"
-                  type="number"
-                  min={0}
-                  dir="ltr"
-                  className="input text-left"
-                  {...register('output_price_per_1k')}
-                />
-              </div>
-            </div>
-            <p className="field-hint">مثلاً ورودی ۱۰۰ و خروجی ۲۰۰ یعنی هر ۱۰۰۰ توکن ورودی ۱۰۰ تومان.</p>
-          </section>
+          <p className="field-hint">
+            تعرفه این مدل را از بخش{' '}
+            <a href="/admin/pricing" className="font-medium text-amber-700 underline">
+              تعرفه‌ها
+            </a>{' '}
+            تنظیم کنید.
+          </p>
 
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="h-5 w-5 accent-amber-600" {...register('is_active')} />
