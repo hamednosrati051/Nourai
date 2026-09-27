@@ -653,7 +653,7 @@ def _store_provider_creds(config_json: dict | None, base_url: str | None,
     ak = (api_key or "").strip()
     if bu or ak:
         if not (bu and ak):
-            raise ValueError("base_url and api_key must be provided together")
+            raise ValueError("آدرس و توکن باید با هم وارد شوند.")
         cfg[_PROVIDER_CREDS_KEY] = {"base_url": bu, "api_key": ak}
     return cfg or None
 

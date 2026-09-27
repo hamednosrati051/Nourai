@@ -42,8 +42,15 @@ const modelSchema = z.object({
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
-  // Pricing: IRR per 1000 tokens (text models only).
   is_active: z.boolean(),
+}).superRefine((v, ctx) => {
+  if (v.api_key?.trim() && !v.base_url?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'با وارد کردن توکن جدید، آدرس endpoint هم لازم است.',
+      path: ['base_url'],
+    });
+  }
 });
 type ModelForm = z.infer<typeof modelSchema>;
 
@@ -119,10 +126,10 @@ export default function AdminModelsPage() {
             display_name: values.display_name.trim(),
             provider_model_name: values.provider_model_name.trim(),
             provider_type: values.provider_type,
-            ...(values.base_url?.trim() || values.api_key?.trim()
+            ...(values.api_key?.trim()
               ? {
                   base_url: values.base_url?.trim() || '',
-                  api_key: values.api_key?.trim() || '',
+                  api_key: values.api_key?.trim(),
                 }
               : {}),
             is_active: values.is_active,
@@ -149,10 +156,10 @@ export default function AdminModelsPage() {
         provider_model_name: values.provider_model_name.trim(),
         // TEMP (model testing): pricing + advanced removed; encoding defaults.
         ...(values.capability === 'text' ? { tokenizer_encoding: 'cl100k_base' } : {}),
-        ...(values.base_url?.trim() || values.api_key?.trim()
+        ...(values.api_key?.trim()
           ? {
               base_url: values.base_url?.trim() || '',
-              api_key: values.api_key?.trim() || '',
+              api_key: values.api_key?.trim(),
             }
           : {}),
         is_active: values.is_active,
@@ -298,9 +305,10 @@ export default function AdminModelsPage() {
                   id="model-base-url"
                   dir="ltr"
                   placeholder="https://api.example.com/v1"
-                  className="input text-left"
+                  className={`input text-left ${errors.base_url ? 'input-error' : ''}`}
                   {...register('base_url')}
                 />
+                {errors.base_url && <p role="alert" className="field-error">{errors.base_url.message}</p>}
               </div>
               <div>
                 <label htmlFor="model-api-key" className="label">توکن / کلید API</label>
