@@ -101,6 +101,7 @@ export interface AiModel {
   description?: string | null;
   /** True when provider credentials were stored via the admin form. */
   has_credentials?: boolean;
+  /** Provider endpoint URL (not sensitive); api_key is never returned. */
   /** Write-only: sent on create/update, never returned by the API. */
   base_url?: string;
   api_key?: string;

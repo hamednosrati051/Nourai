@@ -8,6 +8,7 @@ import {
   useAdminModels,
   useCreateAdminModel,
   useCreatePricingRule,
+  usePricingRules,
   useUpdateAdminModel,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -72,6 +73,7 @@ export default function AdminModelsPage() {
   const createModel = useCreateAdminModel();
   const updateModel = useUpdateAdminModel();
   const createPricingRule = useCreatePricingRule();
+  const pricingRules = usePricingRules();
 
   const {
     register,
@@ -98,13 +100,19 @@ export default function AdminModelsPage() {
 
   const openEdit = (m: AiModel) => {
     setEditing(m);
+    // Load existing pricing rules (IRR per 1000 tokens -> تومان in the form).
+    const rules = (pricingRules.data ?? []).filter((r) => r.model_id === m.id);
+    const inputRule = rules.find((r) => r.billing_unit === 'input_token');
+    const outputRule = rules.find((r) => r.billing_unit === 'output_token');
     reset({
       display_name: m.display_name,
       capability: m.capability,
       provider_type: (m.provider_type as 'openai_compat') ?? 'openai_compat',
       provider_model_name: m.provider_model_name,
-      base_url: '',
+      base_url: m.base_url || '',
       api_key: '',
+      input_price_per_1k: inputRule ? inputRule.unit_price_irr / 10 / inputRule.unit_size * 1000 : 0,
+      output_price_per_1k: outputRule ? outputRule.unit_price_irr / 10 / outputRule.unit_size * 1000 : 0,
       is_active: m.is_active,
     });
     setModalOpen(true);
@@ -135,6 +143,19 @@ export default function AdminModelsPage() {
         },
         {
           onSuccess: () => {
+            // Save pricing rules (new version) for text models.
+            if (values.capability === 'text') {
+              const rules = [];
+              if (values.input_price_per_1k > 0) {
+                rules.push({ model_id: editing.id, billing_unit: 'input_token', unit_size: 1000, unit_price_irr: Math.round(values.input_price_per_1k * 10), rounding_mode: 'up' as const });
+              }
+              if (values.output_price_per_1k > 0) {
+                rules.push({ model_id: editing.id, billing_unit: 'output_token', unit_size: 1000, unit_price_irr: Math.round(values.output_price_per_1k * 10), rounding_mode: 'up' as const });
+              }
+              Promise.all(rules.map((r) => createPricingRule.mutateAsync(r))).catch(() =>
+                toast('مدل به‌روزرسانی شد ولی ثبت تعرفه ناموفق بود.', 'error'),
+              );
+            }
             setModalOpen(false);
             toast('مدل به‌روزرسانی شد.', 'success');
           },

@@ -658,7 +658,8 @@ def _store_provider_creds(config_json: dict | None, base_url: str | None,
 
 
 def _model_payload(model: AiModel) -> dict:
-    # Provider credentials are write-only: never expose them via the API.
+    # Provider credentials are write-only: never expose api_key via the API.
+    # base_url is not sensitive, so it is returned for display in edit forms.
     cfg = dict(model.config_json or {})
     creds = cfg.pop(_PROVIDER_CREDS_KEY, None) or {}
     has_credentials = bool(creds.get("base_url") and creds.get("api_key"))
@@ -668,6 +669,7 @@ def _model_payload(model: AiModel) -> dict:
         "provider_model_name": model.provider_model_name, "is_active": model.is_active,
         "pricing_type": model.pricing_type, "provider_type": model.provider_type,
         "tokenizer_encoding": model.tokenizer_encoding,
+        "base_url": creds.get("base_url") or "",
         "config_json": cfg or None, "description": model.description,
         "has_credentials": has_credentials,
         "created_at": model.created_at.isoformat() if model.created_at else None,
