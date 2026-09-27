@@ -104,9 +104,13 @@ def process_image_job(self, job_id: str) -> dict:
 
 def _run_provider(session, job: GenerationJob) -> Asset:
     from app.api.deps import utcnow
+    from app.models import AiModel
 
-    provider = get_image_provider()
+    model = session.get(AiModel, job.model_id) if job.model_id else None
+    provider = get_image_provider(model.provider_key if model else None, model)
     params = job.parameters_json or {}
+    # The provider needs the catalog's provider_model_name verbatim.
+    provider_model_name = (model.provider_model_name if model else None) or "default"
     options = {
         "width": params.get("width"),
         "height": params.get("height"),
@@ -120,13 +124,13 @@ def _run_provider(session, job: GenerationJob) -> Asset:
         )
         # Only the processed derivative leaves our infrastructure.
         result = provider.edit(
-            job.model_id or "default",
+            provider_model_name,
             job.prompt_text or "",
             processed.storage_key,
             options,
         )
     elif job.mode == MODE_TEXT_TO_IMAGE:
-        result = provider.generate(job.model_id or "default", job.prompt_text or "", options)
+        result = provider.generate(provider_model_name, job.prompt_text or "", options)
     else:
         raise ValueError(f"unknown image job mode: {job.mode}")
 

@@ -295,6 +295,335 @@ class OpenAICompatSttProvider(SpeechToTextProvider):
         )
 
 
+class OpenAICompatImageProvider(ImageAiProvider):
+    """Shared OpenAI-compatible image client — provider-agnostic.
+
+    ``generate`` POSTs JSON to ``{base_url}/images/generations``;
+    ``edit`` POSTs multipart/form-data to ``{base_url}/images/edits``.
+    The ``model`` sent is the catalog's ``provider_model_name`` verbatim.
+    Works with any OpenAI-compatible image endpoint (selected per model
+    via ``provider_type=openai_compat`` in the admin form).
+    """
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 180):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def _headers(self, content_type: str | None = None) -> dict:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
+
+    def _post_json(self, path: str, payload: dict) -> dict | None:
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}{path}", data=body, method="POST",
+            headers=self._headers("application/json"),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("openai-compat image provider %s http %s: %s",
+                        self.provider_key, exc.code, detail)
+        except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
+            log.warning("openai-compat image provider %s failed: %s",
+                        self.provider_key, exc)
+        return None
+
+    def _result_from_data(self, data: dict | None, task_label: str) -> ImageResult:
+        if not data:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="provider request failed")
+        items = data.get("data") or []
+        first = items[0] if items else {}
+        b64 = first.get("b64_json")
+        url = first.get("url")
+        image_bytes = b""
+        if b64:
+            try:
+                import base64
+                image_bytes = base64.b64decode(b64)
+            except Exception:  # noqa: BLE001
+                pass
+        elif url:
+            image_bytes = self._download(url)
+        if not image_bytes:
+            log.warning("openai-compat image %s: empty result payload", task_label)
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty image result")
+        width, height = _probe_dimensions(image_bytes)
+        return ImageResult(
+            ok=True, image_bytes=image_bytes, mime_type="image/png",
+            width=width, height=height,
+            provider_request_id=str(data.get("id")) if data.get("id") else None,
+            revised_prompt=(first.get("revised_prompt") or None),
+        )
+
+    def _download(self, url: str) -> bytes:
+        try:
+            req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.api_key}"})
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                return resp.read()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("openai-compat image download failed: %s", exc)
+            return b""
+
+    @staticmethod
+    def _size(options: dict) -> str:
+        w = int(options.get("width") or 1024)
+        h = int(options.get("height") or 1024)
+        return f"{w}x{h}"
+
+    def generate(self, model: str, prompt: str, options: dict) -> ImageResult:
+        data = self._post_json("/images/generations", {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": self._size(options),
+            "response_format": "b64_json",
+        })
+        return self._result_from_data(data, "generate")
+
+    def edit(self, model: str, prompt: str, input_image_key: str, options: dict) -> ImageResult:
+        from app.services.storage import storage  # lazy: avoids import cycles
+
+        try:
+            image_bytes = storage.get_bytes(input_image_key)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("image edit: failed to read input %s: %s", input_image_key, exc)
+            return ImageResult(ok=False, error_code="STORAGE_ERROR",
+                               error_message="could not read input image")
+        if not image_bytes:
+            return ImageResult(ok=False, error_code="EMPTY_IMAGE",
+                               error_message="input image is empty")
+        filename = input_image_key.rsplit("/", 1)[-1] or "image.png"
+        body, content_type = _encode_multipart(
+            {"model": model, "prompt": prompt, "n": "1", "size": self._size(options),
+             "response_format": "b64_json"},
+            "image", filename, "image/png", image_bytes,
+        )
+        req = urllib.request.Request(
+            f"{self.base_url}/images/edits", data=body, method="POST",
+            headers=self._headers(content_type),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            log.warning("openai-compat image edit %s http %s", self.provider_key, exc.code)
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=f"provider http {exc.code}")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("openai-compat image edit %s failed: %s", self.provider_key, exc)
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=str(exc)[:200])
+        return self._result_from_data(data, "edit")
+
+
+def _probe_dimensions(image_bytes: bytes) -> tuple[int | None, int | None]:
+    """Read (width, height) from image bytes; (None, None) on failure."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            return img.width, img.height
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+class MetisGenerationImageProvider(ImageAiProvider):
+    """MetisAI generation API client (async: create -> poll -> download).
+
+    Endpoint: ``POST {base_url}/api/v2/generate`` with
+    ``{"model": {"name": vendor, "model": name}, "operation": "Imagine",
+    "args": {"prompt": ...}}``; result via ``GET {base_url}/api/v2/generate/{id}``
+    polling until ``COMPLETED``. ``edit`` uploads the input image to
+    ``{base_url}/api/v1/storage`` first and passes its URL as ``image_input``.
+
+    The catalog's ``provider_model_name`` uses the ``vendor/model`` format
+    (e.g. ``google/nano-banana``), matching the API's model object.
+    """
+
+    POLL_INTERVAL_SECONDS = 5
+    POLL_DEADLINE_SECONDS = 600
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 60):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def _headers(self, content_type: str | None = None) -> dict:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
+
+    @staticmethod
+    def _split_model(model: str) -> tuple[str, str] | None:
+        if "/" in model:
+            vendor, name = model.split("/", 1)
+            if vendor.strip() and name.strip():
+                return vendor.strip(), name.strip()
+        return None
+
+    def _api(self, method: str, path: str, payload: dict | None = None,
+             content_type: str | None = None) -> dict | None:
+        body = None
+        if payload is not None:
+            body = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}{path}", data=body, method=method,
+            headers=self._headers(content_type or "application/json"),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("metis image provider %s %s http %s: %s",
+                        self.provider_key, path, exc.code, detail)
+        except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
+            log.warning("metis image provider %s %s failed: %s",
+                        self.provider_key, path, exc)
+        return None
+
+    def _create(self, vendor: str, name: str, prompt: str,
+                image_input: str | None = None) -> str | None:
+        args: dict = {"prompt": prompt}
+        if image_input:
+            args["image_input"] = image_input
+        data = self._api("POST", "/api/v2/generate", {
+            "model": {"name": vendor, "model": name},
+            "operation": "Imagine",
+            "args": args,
+        })
+        task_id = (data or {}).get("id")
+        return str(task_id) if task_id else None
+
+    def _poll(self, task_id: str) -> dict | None:
+        import time
+        deadline = time.monotonic() + self.POLL_DEADLINE_SECONDS
+        while time.monotonic() < deadline:
+            data = self._api("GET", f"/api/v2/generate/{task_id}")
+            if not data:
+                return None
+            status = (data.get("status") or "").upper()
+            if status == "COMPLETED":
+                return data
+            if status in ("ERROR", "CANCELLED"):
+                log.warning("metis generation %s ended with %s: %s",
+                            task_id, status, str(data.get("error"))[:200])
+                return None
+            time.sleep(self.POLL_INTERVAL_SECONDS)
+        log.warning("metis generation %s polling timed out", task_id)
+        return None
+
+    def _download(self, url: str) -> bytes:
+        try:
+            with urllib.request.urlopen(url, timeout=self.timeout_seconds) as resp:
+                return resp.read()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("metis image download failed: %s", exc)
+            return b""
+
+    def _finish(self, task_id: str) -> ImageResult:
+        data = self._poll(task_id)
+        if not data:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="generation failed or timed out")
+        generations = data.get("generations") or []
+        url = (generations[0].get("url") if generations else None)
+        if not url:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty generation result")
+        image_bytes = self._download(url)
+        if not image_bytes:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not download result image")
+        width, height = _probe_dimensions(image_bytes)
+        usage = data.get("usage") or {}
+        if usage.get("cost") is not None:
+            log.info("metis generation %s cost=%s cents", task_id, usage.get("cost"))
+        mime = "image/jpeg"
+        if url.lower().endswith(".png"):
+            mime = "image/png"
+        elif url.lower().endswith(".webp"):
+            mime = "image/webp"
+        return ImageResult(
+            ok=True, image_bytes=image_bytes, mime_type=mime,
+            width=width, height=height, provider_request_id=task_id,
+        )
+
+    def _upload(self, image_bytes: bytes, filename: str) -> str | None:
+        body, content_type = _encode_multipart({}, "files", filename, "image/png", image_bytes)
+        data = self._api("POST", "/api/v1/storage", body, content_type)
+        files = (data or {}).get("files") or []
+        url = files[0].get("url") if files else None
+        return url
+
+    def generate(self, model: str, prompt: str, options: dict) -> ImageResult:
+        split = self._split_model(model)
+        if not split:
+            return ImageResult(
+                ok=False, error_code="MODEL_MISCONFIGURED",
+                error_message="provider_model_name must be 'vendor/model' (e.g. google/nano-banana)",
+            )
+        vendor, name = split
+        task_id = self._create(vendor, name, prompt)
+        if not task_id:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not create generation")
+        return self._finish(task_id)
+
+    def edit(self, model: str, prompt: str, input_image_key: str, options: dict) -> ImageResult:
+        from app.services.storage import storage  # lazy: avoids import cycles
+
+        split = self._split_model(model)
+        if not split:
+            return ImageResult(
+                ok=False, error_code="MODEL_MISCONFIGURED",
+                error_message="provider_model_name must be 'vendor/model' (e.g. google/nano-banana)",
+            )
+        try:
+            image_bytes = storage.get_bytes(input_image_key)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("metis edit: failed to read input %s: %s", input_image_key, exc)
+            return ImageResult(ok=False, error_code="STORAGE_ERROR",
+                               error_message="could not read input image")
+        if not image_bytes:
+            return ImageResult(ok=False, error_code="EMPTY_IMAGE",
+                               error_message="input image is empty")
+        filename = input_image_key.rsplit("/", 1)[-1] or "image.png"
+        image_url = self._upload(image_bytes, filename)
+        if not image_url:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not upload input image")
+        vendor, name = split
+        task_id = self._create(vendor, name, prompt, image_input=image_url)
+        if not task_id:
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not create generation")
+        return self._finish(task_id)
+
+
 def _encode_multipart(fields: dict, file_field: str, filename: str,
                       content_type: str, file_bytes: bytes) -> tuple[bytes, str]:
     """Build a multipart/form-data body with stdlib only."""
@@ -395,8 +724,33 @@ def get_tts_provider() -> TextToSpeechProvider:
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 
-def get_image_provider() -> ImageAiProvider:
-    name = (config.ai_image_provider or "fake").lower()
+def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiProvider:
+    """Select the image provider.
+
+    Mirrors :func:`get_text_provider`: ``provider_type`` comes from the
+    model's catalog row (admin form), credentials from the form-stored
+    ``__provider__`` block (env is fallback). ``fake`` keeps the
+    deterministic placeholder for dev/test.
+    """
+    name = ((getattr(model, "provider_type", None) or config.ai_image_provider) or "fake").lower()
     if name == "fake":
         return FakeImageProvider()
+    if name in ("openai_compat", "metis_generation"):
+        base_url, api_key = _resolve_credentials(provider_key, model)
+        if not base_url or not api_key:
+            raise ValueError(
+                f"missing credentials for provider {provider_key!r}: "
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        if name == "openai_compat":
+            return OpenAICompatImageProvider(
+                base_url=base_url, api_key=api_key,
+                provider_key=provider_key or "default",
+            )
+        return MetisGenerationImageProvider(
+            base_url=base_url, api_key=api_key,
+            provider_key=provider_key or "default",
+        )
     raise ValueError(f"unknown AI_IMAGE_PROVIDER: {name}")
