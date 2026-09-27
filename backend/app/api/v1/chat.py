@@ -113,6 +113,22 @@ def _resolve_text_model(model_id: str | None) -> AiModel | None:
     )
 
 
+def _estimate_tokens(content) -> int:
+    """Rough token estimate (~4 chars per token).
+
+    TEMP fallback used only when tiktoken is unavailable (see the note at the
+    TokenCounter construction site). Never used when the real counter works.
+    """
+    if isinstance(content, list):
+        text = " ".join(
+            str(m.get("content", "")) for m in content
+            if isinstance(m, dict) and isinstance(m.get("content"), str)
+        )
+    else:
+        text = content if isinstance(content, str) else ""
+    return max(1, len(text) // 4)
+
+
 @bp.get("/conversations")
 @login_required
 def list_conversations():
@@ -190,12 +206,16 @@ def send_message(conversation_id: str):
     model = _resolve_text_model(data.model_id or conversation.model_id)
     if model is None or not model.is_active:
         return error_response("MODEL_UNAVAILABLE", status=404)
-    if not model.tokenizer_encoding:
-        return error_response("TOKENIZER_UNAVAILABLE", status=500)
+    # TEMP (model testing): never hard-fail on the tokenizer. When tiktoken
+    # is unavailable, token counts fall back to rough character-based
+    # estimates so the model can still be tested end to end.
     try:
-        counter = TokenCounter(model.tokenizer_encoding)
+        counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
     except TokenizerUnavailable:
-        return error_response("TOKENIZER_UNAVAILABLE", status=500)
+        counter = None
+    if counter is None:
+        log.warning("tokenizer unavailable for model %s; using estimated token counts",
+                    model.id)
 
     max_output_tokens = data.max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
     if not 1 <= max_output_tokens <= 8192:
@@ -223,10 +243,13 @@ def send_message(conversation_id: str):
         log.error("text provider misconfigured: %s", exc)
         return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
     overhead = getattr(provider, "OVERHEAD_PER_MESSAGE", 0)
-    input_tokens = counter.count_chat_messages(
-        provider_messages, overhead_per_message=overhead,
-        overhead_total=getattr(provider, "OVERHEAD_TOTAL", 0),
-    )
+    if counter is not None:
+        input_tokens = counter.count_chat_messages(
+            provider_messages, overhead_per_message=overhead,
+            overhead_total=getattr(provider, "OVERHEAD_TOTAL", 0),
+        )
+    else:
+        input_tokens = _estimate_tokens(provider_messages)
 
     pricing = PricingService(db.session)
     try:
@@ -334,8 +357,10 @@ def send_message(conversation_id: str):
     # --- settle on actual usage ---------------------------------------------
     if result.usage_source == "provider" and result.input_tokens is not None and result.output_tokens is not None:
         final_in, final_out, source = result.input_tokens, result.output_tokens, "provider"
-    else:
+    elif counter is not None:
         final_in, final_out, source = input_tokens, counter.count_text(result.text or ""), "tiktoken"
+    else:
+        final_in, final_out, source = input_tokens, _estimate_tokens(result.text or ""), "estimated"
     final_estimate = pricing.estimate_text(model.id, final_in, final_out)
     final_irr = final_estimate["total_irr"]
 
