@@ -7,7 +7,6 @@ import { z } from 'zod';
 import {
   useAdminModels,
   useCreateAdminModel,
-  useCreatePricingRule,
   useUpdateAdminModel,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -17,7 +16,6 @@ import { ResponsiveTable } from '@/components/DataTable';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
-import { tomanToIrr } from '@/lib/currency';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import type { AiModel, ModelCapability } from '@/types/api';
 
@@ -36,18 +34,6 @@ const PROVIDER_TYPE_LABELS: Record<string, string> = {
 };
 const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
-/** Optional toman amount (quick pricing). Empty => no rule created. */
-const optionalToman = z
-  .union([z.number(), z.string()])
-  .optional()
-  .transform((v) => {
-    if (v === undefined || v === '' || v === null) return undefined;
-    const n = typeof v === 'string' ? Number(v) : v;
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
-  });
-
-const slugPattern = /^[a-z0-9][a-z0-9-_]*$/;
-
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
@@ -55,20 +41,7 @@ const modelSchema = z.object({
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
-  // Quick pricing (toman) — create only. Empty = skip.
-  input_price_toman: optionalToman,
-  output_price_toman: optionalToman,
-  audio_price_toman: optionalToman,
-  image_price_toman: optionalToman,
-  // Advanced (auto-filled when empty).
-  slug: z
-    .string()
-    .trim()
-    .optional()
-    .refine((v) => !v || slugPattern.test(v), 'فقط حروف کوچک انگلیسی، عدد، خط تیره و زیرخط.'),
-  provider_key: z.string().trim().optional(),
-  tokenizer_encoding: z.string().trim().optional(),
-  description: z.string().trim().optional(),
+  // TEMP (model testing): pricing + advanced settings removed from the form.
   is_active: z.boolean(),
 });
 type ModelForm = z.infer<typeof modelSchema>;
@@ -95,16 +68,13 @@ export default function AdminModelsPage() {
   const models = useAdminModels();
   const createModel = useCreateAdminModel();
   const updateModel = useUpdateAdminModel();
-  const createRule = useCreatePricingRule();
 
   const {
     register,
     handleSubmit,
     reset,
-    watch,
     formState: { errors },
   } = useForm<ModelForm>({ resolver: zodResolver(modelSchema) });
-  const capability = watch('capability');
 
   const openCreate = () => {
     setEditing(null);
@@ -115,14 +85,6 @@ export default function AdminModelsPage() {
       provider_model_name: '',
       base_url: '',
       api_key: '',
-      input_price_toman: undefined,
-      output_price_toman: undefined,
-      audio_price_toman: undefined,
-      image_price_toman: undefined,
-      slug: '',
-      provider_key: '',
-      tokenizer_encoding: '',
-      description: '',
       is_active: true,
     });
     setModalOpen(true);
@@ -137,57 +99,9 @@ export default function AdminModelsPage() {
       provider_model_name: m.provider_model_name,
       base_url: '',
       api_key: '',
-      slug: m.slug,
-      provider_key: m.provider_key,
-      tokenizer_encoding: m.tokenizer_encoding ?? '',
-      description: m.description ?? '',
       is_active: m.is_active,
     });
     setModalOpen(true);
-  };
-
-  const createPricingRules = async (modelId: string, values: ModelForm) => {
-    const rules: Record<string, unknown>[] = [];
-    if (values.capability === 'text') {
-      if (values.input_price_toman != null)
-        rules.push({
-          model_id: modelId,
-          billing_unit: 'input_token',
-          unit_size: 1000000,
-          unit_price_irr: tomanToIrr(values.input_price_toman),
-          rounding_mode: 'up',
-        });
-      if (values.output_price_toman != null)
-        rules.push({
-          model_id: modelId,
-          billing_unit: 'output_token',
-          unit_size: 1000000,
-          unit_price_irr: tomanToIrr(values.output_price_toman),
-          rounding_mode: 'up',
-        });
-    } else if (values.capability === 'speech_to_text' || values.capability === 'text_to_speech') {
-      if (values.audio_price_toman != null)
-        rules.push({
-          model_id: modelId,
-          billing_unit: 'audio_second',
-          unit_size: 1,
-          unit_price_irr: tomanToIrr(values.audio_price_toman),
-          rounding_mode: 'up',
-        });
-    } else if (values.capability === 'image') {
-      if (values.image_price_toman != null)
-        rules.push({
-          model_id: modelId,
-          billing_unit: 'image_count',
-          unit_size: 1,
-          unit_price_irr: tomanToIrr(values.image_price_toman),
-          rounding_mode: 'up',
-        });
-    }
-    for (const rule of rules) {
-      await createRule.mutateAsync(rule);
-    }
-    return rules.length;
   };
 
   const onSubmit = (values: ModelForm) => {
@@ -195,9 +109,8 @@ export default function AdminModelsPage() {
       toast(e instanceof ApiError ? getErrorMessage(e.code, e.message) : 'خطایی رخ داد.', 'error');
 
     if (editing) {
-      // PATCH accepts: display_name, provider_model_name, provider_type,
-      // pricing_type, tokenizer_encoding, config_json, description,
-      // is_active (+ credentials).
+      // TEMP (model testing): simplified form — PATCH accepts display_name,
+      // provider_model_name, provider_type, is_active (+ credentials).
       updateModel.mutate(
         {
           id: editing.id,
@@ -205,10 +118,6 @@ export default function AdminModelsPage() {
             display_name: values.display_name.trim(),
             provider_model_name: values.provider_model_name.trim(),
             provider_type: values.provider_type,
-            ...(values.tokenizer_encoding?.trim()
-              ? { tokenizer_encoding: values.tokenizer_encoding.trim() }
-              : {}),
-            ...(values.description?.trim() ? { description: values.description.trim() } : {}),
             ...(values.base_url?.trim() || values.api_key?.trim()
               ? {
                   base_url: values.base_url?.trim() || '',
@@ -232,16 +141,13 @@ export default function AdminModelsPage() {
     const autoSlug = slugify(values.provider_model_name) || slugify(values.display_name);
     createModel.mutate(
       {
-        ...(values.slug?.trim() ? { slug: values.slug.trim() } : autoSlug ? { slug: autoSlug } : {}),
+        ...(autoSlug ? { slug: autoSlug } : {}),
         display_name: values.display_name.trim(),
         capability: values.capability,
         provider_type: values.provider_type,
-        ...(values.provider_key?.trim() ? { provider_key: values.provider_key.trim() } : {}),
         provider_model_name: values.provider_model_name.trim(),
-        ...(values.capability === 'text'
-          ? { tokenizer_encoding: values.tokenizer_encoding?.trim() || 'cl100k_base' }
-          : {}),
-        ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+        // TEMP (model testing): pricing + advanced removed; encoding defaults.
+        ...(values.capability === 'text' ? { tokenizer_encoding: 'cl100k_base' } : {}),
         ...(values.base_url?.trim() || values.api_key?.trim()
           ? {
               base_url: values.base_url?.trim() || '',
@@ -251,19 +157,9 @@ export default function AdminModelsPage() {
         is_active: values.is_active,
       },
       {
-        onSuccess: async (model) => {
-          try {
-            const n = await createPricingRules(model.id, values);
-            setModalOpen(false);
-            toast(
-              n > 0 ? `مدل ثبت شد و ${n === 1 ? 'تعرفه‌اش' : `${n} تعرفه`} ساخته شد.` : 'مدل جدید ثبت شد.',
-              'success',
-            );
-          } catch (e) {
-            setModalOpen(false);
-            toast('مدل ساخته شد ولی ثبت تعرفه ناموفق بود؛ از صفحه تعرفه‌ها اضافه کنید.', 'error');
-            console.error('quick pricing failed', e);
-          }
+        onSuccess: () => {
+          setModalOpen(false);
+          toast('مدل جدید ثبت شد.', 'success');
         },
         onError: err,
       },
@@ -422,92 +318,6 @@ export default function AdminModelsPage() {
             </div>
           </section>
 
-          {/* ۳. قیمت‌گذاری سریع (فقط ساخت) */}
-          {!editing && (
-            <section className="rounded-lg border border-neutral-200 p-4 dark:border-slate-700">
-              <h3 className="mb-1 text-sm font-bold">قیمت‌گذاری سریع</h3>
-              <p className="mb-3 text-xs text-neutral-500 dark:text-slate-400">
-                اختیاری — مبالغ به تومان. خالی بگذارید تا بعداً از صفحه تعرفه‌ها ثبت کنید.
-              </p>
-              {capability === 'text' && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="model-in-price" className="label">هر ۱ میلیون توکن ورودی (تومان)</label>
-                    <input id="model-in-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('input_price_toman')} />
-                  </div>
-                  <div>
-                    <label htmlFor="model-out-price" className="label">هر ۱ میلیون توکن خروجی (تومان)</label>
-                    <input id="model-out-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('output_price_toman')} />
-                  </div>
-                </div>
-              )}
-              {(capability === 'speech_to_text' || capability === 'text_to_speech') && (
-                <div>
-                  <label htmlFor="model-audio-price" className="label">قیمت هر ثانیه صوت (تومان)</label>
-                  <input id="model-audio-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('audio_price_toman')} />
-                </div>
-              )}
-              {capability === 'image' && (
-                <div>
-                  <label htmlFor="model-image-price" className="label">قیمت هر تصویر (تومان)</label>
-                  <input id="model-image-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...register('image_price_toman')} />
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* ۴. پیشرفته */}
-          <details className="rounded-lg border border-neutral-200 dark:border-slate-700">
-            <summary className="cursor-pointer px-4 py-3 text-sm font-bold text-neutral-600 dark:text-slate-400">
-              تنظیمات پیشرفته
-            </summary>
-            <div className="flex flex-col gap-4 border-t border-neutral-200 px-4 py-4 dark:border-slate-700">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="model-slug" className="label">شناسه یکتا (slug)</label>
-                  <input
-                    id="model-slug"
-                    dir="ltr"
-                    placeholder="خودکار از نام مدل"
-                    disabled={!!editing}
-                    className={`input text-left ${errors.slug ? 'input-error' : ''}`}
-                    {...register('slug')}
-                  />
-                  {errors.slug && <p role="alert" className="field-error">{errors.slug.message}</p>}
-                  {!editing && <p className="field-hint">خالی = خودکار ساخته می‌شود.</p>}
-                </div>
-                <div>
-                  <label htmlFor="model-provider-key" className="label">کلید provider</label>
-                  <input
-                    id="model-provider-key"
-                    dir="ltr"
-                    placeholder="خودکار = شناسه یکتا"
-                    disabled={!!editing}
-                    className="input text-left"
-                    {...register('provider_key')}
-                  />
-                  {!editing && <p className="field-hint">فقط برای خواندن از env لازم است.</p>}
-                </div>
-              </div>
-              {capability === 'text' && (
-                <div>
-                  <label htmlFor="model-encoding" className="label">encoding توکنایزر (tiktoken)</label>
-                  <input
-                    id="model-encoding"
-                    dir="ltr"
-                    placeholder="cl100k_base"
-                    className="input text-left"
-                    {...register('tokenizer_encoding')}
-                  />
-                  <p className="field-hint">خالی = cl100k_base</p>
-                </div>
-              )}
-              <div>
-                <label htmlFor="model-description" className="label">توضیحات</label>
-                <textarea id="model-description" rows={2} className="input" {...register('description')} />
-              </div>
-            </div>
-          </details>
 
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" className="h-5 w-5 accent-amber-600" {...register('is_active')} />
