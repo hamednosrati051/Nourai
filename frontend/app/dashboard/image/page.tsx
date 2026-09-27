@@ -15,7 +15,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/components/Toast';
 import { formatToman } from '@/lib/currency';
-import { formatBytes, formatDateTime, formatNumber } from '@/lib/format';
+import { formatBytes, formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import type { ImageEstimate, ImageJob, ImageJobStatus } from '@/types/api';
 
@@ -23,8 +23,6 @@ const formSchema = z.object({
   type: z.enum(['text_to_image', 'image_to_image']),
   model_id: z.string().min(1, 'مدل را انتخاب کنید.'),
   prompt: z.string().trim().min(1, 'توضیح تصویر (prompt) را بنویسید.').max(2000, 'متن بیش از حد طولانی است.'),
-  size: z.string().optional(),
-  quality: z.string().optional(),
 });
 type ImageForm = z.infer<typeof formSchema>;
 
@@ -114,8 +112,6 @@ export default function ImagePage() {
         type: values.type,
         model_id: values.model_id,
         prompt: values.prompt,
-        size: values.size || undefined,
-        quality: values.quality || undefined,
       },
       {
         onSuccess: (data) => setEstimate(data),
@@ -135,8 +131,6 @@ export default function ImagePage() {
         type: values.type,
         model_id: values.model_id,
         prompt: values.prompt,
-        size: values.size || undefined,
-        quality: values.quality || undefined,
         inputFile: values.type === 'image_to_image' ? inputFile ?? undefined : undefined,
       },
       {
@@ -230,36 +224,6 @@ export default function ImagePage() {
               )}
             </div>
 
-            {/* Size & quality */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="img-size" className="label">
-                  ابعاد خروجی
-                </label>
-                <select id="img-size" className="input" {...register('size')}>
-                  <option value="">پیش‌فرض</option>
-                  {(cfg.sizes ?? []).map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="img-quality" className="label">
-                  کیفیت
-                </label>
-                <select id="img-quality" className="input" {...register('quality')}>
-                  <option value="">پیش‌فرض</option>
-                  {(cfg.qualities ?? []).map((q) => (
-                    <option key={q} value={q}>
-                      {q}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
             {/* Input image for image_to_image */}
             {jobType === 'image_to_image' && (
               <div>
@@ -274,10 +238,6 @@ export default function ImagePage() {
                   onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
                   className="input cursor-pointer"
                 />
-                <p className="field-hint">
-                  حداکثر حجم {formatBytes(cfg.max_upload_bytes)} و حداکثر ابعاد{' '}
-                  {cfg.max_input_width}×{cfg.max_input_height} پیکسل.
-                </p>
                 {fileError && (
                   <p role="alert" className="field-error">
                     {fileError}
@@ -298,19 +258,6 @@ export default function ImagePage() {
                 )}
               </div>
             )}
-
-            {/* Current limits */}
-            <details className="rounded-xl bg-neutral-50 p-4 text-sm dark:bg-navy-800/60">
-              <summary className="cursor-pointer font-semibold">محدودیت‌های فعلی آپلود</summary>
-              <ul className="mt-2 list-disc space-y-1 pr-5 text-neutral-600 dark:text-slate-400">
-                <li>حداکثر حجم فایل: {formatBytes(cfg.max_upload_bytes)}</li>
-                <li>
-                  حداکثر ابعاد ورودی: {cfg.max_input_width}×{cfg.max_input_height} پیکسل (
-                  {formatNumber(cfg.max_input_pixels)} پیکسل)
-                </li>
-                <li>فرمت‌های مجاز: {(cfg.allowed_mime_types ?? []).join('، ')}</li>
-              </ul>
-            </details>
 
             {/* Estimate */}
             {estimate && (

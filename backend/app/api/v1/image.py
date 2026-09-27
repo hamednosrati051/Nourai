@@ -170,8 +170,13 @@ def _job_payload(job: GenerationJob) -> dict:
 def image_config():
     model_id = request.args.get("model_id")
     profile = get_active_profile(model_id)
+    # Flat shape matching the frontend ImageConfig contract. The nested
+    # `profile` is kept for richer clients; the flat fields are what the
+    # user-facing page reads.
+    payload = _profile_payload(profile) or {}
+    hard = payload.get("hard_ceilings") or {}
     return success_response({
-        "profile": _profile_payload(profile),
+        "profile": payload or None,
         "models": [
             {"id": m.id, "slug": m.slug, "display_name": m.display_name}
             for m in db.session.query(AiModel)
@@ -179,6 +184,13 @@ def image_config():
             .order_by(AiModel.display_name)
             .all()
         ],
+        "sizes": [],
+        "qualities": [],
+        "max_upload_bytes": payload.get("max_upload_bytes") or hard.get("max_bytes") or 0,
+        "max_input_pixels": payload.get("max_input_pixels") or hard.get("max_pixels") or 0,
+        "max_input_width": hard.get("max_width") or 0,
+        "max_input_height": hard.get("max_height") or 0,
+        "allowed_mime_types": payload.get("allowed_mime_types") or [],
     })
 
 

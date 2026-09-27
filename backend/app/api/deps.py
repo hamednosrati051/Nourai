@@ -299,3 +299,4 @@ def utcnow() -> datetime:
     from datetime import timezone
 
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
