@@ -48,7 +48,7 @@ export default function DashboardPage() {
               <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
                 پلن فعال شما: {myPlan.data.name}
               </p>
-              {myPlan.data.limits.length > 0 && (
+              {(myPlan.data.limits?.length ?? 0) > 0 && (
                 <p className="text-xs text-neutral-600 dark:text-slate-400">
                   محدودیت مصرف: {myPlan.data.limits.join('، ')}
                 </p>
