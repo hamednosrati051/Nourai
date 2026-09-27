@@ -57,6 +57,10 @@ bp = Blueprint("chat", __name__)
 GENERATION_TIMEOUT_SECONDS = 90
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
 MAX_CONTENT_CHARS = 20000
+# Token budget for conversation history sent to the provider.
+# Keeps input costs bounded on long conversations.
+MAX_HISTORY_TOKENS = 4000
+MAX_HISTORY_MESSAGES = 20
 
 
 class ConversationCreateSchema(BaseModel):
@@ -237,21 +241,6 @@ def send_message(conversation_id: str):
     if not 1 <= max_output_tokens <= 8192:
         return validation_error()
 
-    history = (
-        db.session.query(Message)
-        .filter_by(conversation_id=conversation.id, status="succeeded")
-        .order_by(Message.created_at.desc())
-        .limit(20)
-        .all()
-    )
-    history = list(reversed(history))
-    provider_messages = [{"role": ROLE_SYSTEM,
-                          "content": "You are Nourai (نورا), a helpful Persian AI assistant."}]
-    for item in history:
-        if item.content_text:
-            provider_messages.append({"role": item.role, "content": item.content_text})
-    provider_messages.append({"role": ROLE_USER, "content": content})
-
     # The exact payload string sent to the provider is what gets counted.
     try:
         provider = get_text_provider(model.provider_key, model)
@@ -259,6 +248,35 @@ def send_message(conversation_id: str):
         log.error("text provider misconfigured: %s", exc)
         return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
     overhead = getattr(provider, "OVERHEAD_PER_MESSAGE", 0)
+
+    history = (
+        db.session.query(Message)
+        .filter_by(conversation_id=conversation.id, status="succeeded")
+        .order_by(Message.created_at.desc())
+        .limit(MAX_HISTORY_MESSAGES)
+        .all()
+    )
+    history = list(reversed(history))
+    # Trim history to the token budget (most recent first) so long
+    # conversations don't blow up input costs.
+    if counter is not None and history:
+        budgeted = []
+        used = 0
+        for item in reversed(history):
+            text = item.content_text or ""
+            cost = counter.count_text(text) + overhead
+            if used + cost > MAX_HISTORY_TOKENS and budgeted:
+                break
+            budgeted.append(item)
+            used += cost
+        history = list(reversed(budgeted))
+    provider_messages = [{"role": ROLE_SYSTEM,
+                          "content": "You are Nourai (نورا), a helpful Persian AI assistant."}]
+    for item in history:
+        if item.content_text:
+            provider_messages.append({"role": item.role, "content": item.content_text})
+    provider_messages.append({"role": ROLE_USER, "content": content})
+
     if counter is not None:
         input_tokens = counter.count_chat_messages(
             provider_messages, overhead_per_message=overhead,
