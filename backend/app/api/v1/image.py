@@ -71,12 +71,35 @@ def get_active_profile(model_id: str | None = None) -> ImageProcessingProfile | 
         )
         if profile:
             return profile
-    return (
+    global_default = (
         db.session.query(ImageProcessingProfile)
         .filter_by(model_id=None, is_active=True)
         .order_by(ImageProcessingProfile.version.desc())
         .first()
     )
+    if global_default is not None:
+        return global_default
+    # Self-heal: a fresh database has no profiles (they used to be created
+    # only by the demo seed command). Create the global default on demand.
+    profile = ImageProcessingProfile(
+        name="پیش‌فرض سراسری",
+        model_id=None,
+        max_upload_bytes=min(8 * 1024 * 1024, config.image_upload_hard_max_bytes),
+        max_input_pixels=min(12 * 1024 * 1024, config.image_input_hard_max_pixels),
+        allowed_mime_types_json=["image/jpeg", "image/png", "image/webp"],
+        target_width=1024,
+        target_height=1024,
+        resize_mode="fit",
+        allow_upscale=False,
+        output_format="jpeg",
+        output_quality=85,
+        strip_metadata=True,
+        is_active=True,
+        version=1,
+    )
+    db.session.add(profile)
+    db.session.flush()
+    return profile
 
 
 def _profile_payload(profile: ImageProcessingProfile | None) -> dict | None:
