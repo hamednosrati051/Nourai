@@ -618,6 +618,7 @@ _PROVIDER_CREDS_KEY = "__provider__"
 # only as fallback. Extend this dict when new families are added.
 PROVIDER_TYPES = {
     "openai_compat": "OpenAI Compatible",
+    "async_generation": "Async Generation",
 }
 
 
