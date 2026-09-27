@@ -85,10 +85,55 @@ interface ApiFetchOptions {
   headers?: Record<string, string>;
   /** Extra fetch init overrides. */
   init?: RequestInit;
+  /** Internal: set when this call is already a retry after a token refresh. */
+  _retried?: boolean;
+}
+
+// --- Silent token refresh ---
+// The access cookie (nourai_at) lives ~15 minutes; the refresh cookie
+// (nourai_rt) lives 30 days. When an API call gets 401 because the access
+// token expired, transparently call /auth/refresh (cookie-based) and retry
+// the original request once. Concurrent 401s share a single in-flight
+// refresh so we don't stampede the endpoint.
+let refreshPromise: Promise<boolean> | null = null;
+
+function tryRefresh(refreshPath: string): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  const p = (async () => {
+    try {
+      // /auth/refresh is a POST with a session cookie, so CSRF protection
+      // applies: send the double-submit token like apiFetch does.
+      const csrf = readCookie('nourai_csrf') ?? readCookie('nourai_admin_csrf');
+      const res = await fetch(apiUrl(refreshPath), {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrf ? { 'X-CSRF-Token': csrf } : {},
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  })();
+  refreshPromise = p;
+  p.finally(() => {
+    if (refreshPromise === p) refreshPromise = null;
+  });
+  return p;
+}
+
+/**
+ * Which refresh endpoint (if any) applies to a 401 on `path`.
+ * Auth-flow paths (login/OTP/refresh itself) never trigger a refresh:
+ * a 401 there means "not logged in / wrong code", not "token expired".
+ */
+function refreshPathFor(path: string): string | null {
+  if (path.startsWith('/auth/') || path.startsWith('/admin/auth/')) return null;
+  if (path.startsWith('/admin/')) return '/admin/auth/refresh';
+  return '/auth/refresh';
 }
 
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const { method = 'GET', body, formData, headers = {}, init = {} } = options;
+  const { method = 'GET', body, formData, headers = {}, init = {}, _retried = false } = options;
 
   const finalHeaders: Record<string, string> = { ...headers };
   if (body !== undefined && !formData) {
@@ -127,6 +172,15 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   }
 
   if (!response.ok) {
+    // Silent refresh: the access token is short-lived. On 401, try to
+    // refresh once (via the long-lived refresh cookie) and retry the
+    // original request before surfacing the error.
+    if (response.status === 401 && !_retried) {
+      const refreshPath = refreshPathFor(path);
+      if (refreshPath && (await tryRefresh(refreshPath))) {
+        return apiFetch<T>(path, { ...options, _retried: true });
+      }
+    }
     const envelope = payload as ApiErrorEnvelope | null;
     const code = envelope?.error?.code ?? `HTTP_${response.status}`;
     const message =

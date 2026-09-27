@@ -32,12 +32,48 @@ class _InMemoryRateStore:
             return count
 
 
+class _InMemoryKVStore:
+    """Process-local key/value store with TTL, used when Redis is unavailable.
+
+    Refresh-token revocation depends on get/setex; without a working fallback
+    every /auth/refresh would 401 when Redis is down.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._data: dict[str, tuple[str, float]] = {}
+
+    def get(self, key: str) -> str | None:
+        import time
+
+        with self._lock:
+            item = self._data.get(key)
+            if item is None:
+                return None
+            value, expires_at = item
+            if time.time() >= expires_at:
+                del self._data[key]
+                return None
+            return value
+
+    def setex(self, key: str, ttl_seconds: int, value: str) -> None:
+        import time
+
+        with self._lock:
+            self._data[key] = (value, time.time() + ttl_seconds)
+
+    def delete(self, key: str) -> None:
+        with self._lock:
+            self._data.pop(key, None)
+
+
 class RedisClient:
     """Thin wrapper: real Redis when reachable, in-memory fallback otherwise."""
 
     def __init__(self) -> None:
         self._client: Any | None = None
         self._memory = _InMemoryRateStore()
+        self._kv_fallback = _InMemoryKVStore()
         self._attempted = False
         self._url = ""
 
@@ -66,7 +102,7 @@ class RedisClient:
     def get(self, key: str) -> str | None:
         client = self._get()
         if client is None:
-            return None
+            return self._kv_fallback.get(key)
         value = client.get(key)
         return value.decode() if isinstance(value, bytes) else value
 
@@ -74,11 +110,15 @@ class RedisClient:
         client = self._get()
         if client is not None:
             client.setex(key, ttl_seconds, value)
+        else:
+            self._kv_fallback.setex(key, ttl_seconds, value)
 
     def delete(self, key: str) -> None:
         client = self._get()
         if client is not None:
             client.delete(key)
+        else:
+            self._kv_fallback.delete(key)
 
     def rate_limit_hit(self, key: str, window_seconds: int) -> int:
         """Increment a fixed-window counter, return the new count."""
