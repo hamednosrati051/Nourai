@@ -162,6 +162,8 @@ def image_config():
 class ImageEstimateSchema(BaseModel):
     prompt: str
     mode: str = MODE_TEXT_TO_IMAGE
+    # Frontend sends `type`; accepted as an alias for `mode`.
+    type: str | None = None
     model_id: str | None = None
     width: int | None = None
     height: int | None = None
@@ -169,6 +171,10 @@ class ImageEstimateSchema(BaseModel):
     input_height: int | None = None
     dimension_key: str | None = None
     quality_key: str | None = None
+
+    @property
+    def resolved_mode(self) -> str:
+        return self.type or self.mode
 
 
 @bp.post("/image/estimate")
@@ -181,7 +187,7 @@ def image_estimate():
         data = ImageEstimateSchema(**(request.get_json(silent=True) or {}))
     except ValidationError:
         return validation_error()
-    if data.mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
+    if data.resolved_mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
 
     model = _resolve_image_model(data.model_id)
@@ -193,7 +199,7 @@ def image_estimate():
     height = data.height or (profile.target_height if profile else 1024)
     output_mp = Decimal(width * height) / Decimal(1_000_000)
     input_mp = Decimal(0)
-    if data.mode == MODE_IMAGE_TO_IMAGE and data.input_width and data.input_height:
+    if data.resolved_mode == MODE_IMAGE_TO_IMAGE and data.input_width and data.input_height:
         input_mp = Decimal(data.input_width * data.input_height) / Decimal(1_000_000)
 
     pricing = PricingService(db.session)
@@ -229,12 +235,25 @@ def create_image_job():
         return error_response("PLAN_LIMIT_EXCEEDED", status=403)
 
     form = request.form
-    prompt = (form.get("prompt") or "").strip()
-    mode = form.get("mode") or MODE_TEXT_TO_IMAGE
+    body = request.get_json(silent=True) or {}
+
+    def _val(*names):
+        """First non-empty value across form fields and JSON body."""
+        for n in names:
+            v = form.get(n)
+            if v in (None, ""):
+                v = body.get(n)
+            if v not in (None, ""):
+                return v
+        return None
+
+    prompt = (_val("prompt") or "").strip()
+    # Frontend sends `type`; accept `mode` as an alias.
+    mode = _val("mode", "type") or MODE_TEXT_TO_IMAGE
     if not prompt or mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
 
-    model = _resolve_image_model(form.get("model_id") or None)
+    model = _resolve_image_model(_val("model_id"))
     if model is None:
         return error_response("MODEL_UNAVAILABLE", status=404)
     profile = get_active_profile(model.id)
@@ -246,12 +265,22 @@ def create_image_job():
     if not idempotency_key:
         return error_response("VALIDATION_ERROR", "Idempotency-Key header is required.", 422)
 
-    width = _as_int(form.get("width"), profile.target_width)
-    height = _as_int(form.get("height"), profile.target_height)
+    width = _as_int(_val("width"), profile.target_width)
+    height = _as_int(_val("height"), profile.target_height)
+    # Optional "WIDTHxHEIGHT" size string (frontend size select).
+    size = _val("size")
+    if size and isinstance(size, str) and "x" in size.lower():
+        try:
+            sw, sh = size.lower().split("x", 1)
+            width = _as_int(sw.strip(), width)
+            height = _as_int(sh.strip(), height)
+        except (TypeError, ValueError):
+            pass
 
     original_asset = processed_asset = None
     input_mp = Decimal(0)
-    upload = request.files.get("file")
+    # Frontend uploads the file field as `image`; accept `file` too.
+    upload = request.files.get("image") or request.files.get("file")
 
     if mode == MODE_IMAGE_TO_IMAGE:
         if upload is None:
