@@ -12,7 +12,6 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
 
 from app.ai.image_pipeline import HardCeilings, ImageValidationError, validate_and_process
-from app.ai.tokens import TokenizerUnavailable, validate_encoding
 from app.api.deps import (
     admin_required,
     client_ip,
@@ -723,14 +722,10 @@ def create_model():
         slug = _unique_slug(
             _slugify(data.provider_model_name) or _slugify(data.display_name))
     provider_key = (data.provider_key or "").strip() or slug
-    encoding = None
-    if data.tokenizer_encoding:
-        try:
-            encoding = validate_encoding(data.tokenizer_encoding)
-        except TokenizerUnavailable:
-            return error_response("TOKENIZER_UNAVAILABLE", status=422)
-    if data.capability == "text" and not encoding:
-        return error_response("TOKENIZER_UNAVAILABLE", "برای مدل متنی encoding الزامی است.", 422)
+    # TEMP (model testing): tokenizer validation disabled entirely.
+    # The encoding name is stored as-is; chat falls back to estimated
+    # token counts when tiktoken is unavailable.
+    encoding = (data.tokenizer_encoding or "").strip() or None
     try:
         config_with_creds = _store_provider_creds(data.config_json, data.base_url, data.api_key)
     except ValueError as exc:
@@ -784,10 +779,8 @@ def update_model(model_id: str):
         model.provider_model_name = data.provider_model_name.strip()
         changes["provider_model_name"] = model.provider_model_name
     if data.tokenizer_encoding is not None:
-        try:
-            model.tokenizer_encoding = validate_encoding(data.tokenizer_encoding)
-        except TokenizerUnavailable:
-            return error_response("TOKENIZER_UNAVAILABLE", status=422)
+        # TEMP (model testing): tokenizer validation disabled; stored as-is.
+        model.tokenizer_encoding = (data.tokenizer_encoding or "").strip() or None
         changes["tokenizer_encoding"] = model.tokenizer_encoding
     if data.config_json is not None:
         model.config_json = data.config_json; changes["config_json"] = True
