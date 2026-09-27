@@ -828,6 +828,7 @@ class ImageProfileUpdateSchema(BaseModel):
 def _profile_payload(profile: ImageProcessingProfile) -> dict:
     return {
         "id": profile.id, "name": profile.name, "model_id": profile.model_id,
+        "is_global": profile.model_id is None,
         "max_upload_bytes": profile.max_upload_bytes,
         "max_input_pixels": profile.max_input_pixels,
         "allowed_mime_types": profile.allowed_mime_types_json,
@@ -909,7 +910,7 @@ def update_image_profile(profile_id: str):
 def preview_image_profile():
     """Preview a resize with proposed (unsaved) settings. Nothing is stored
     publicly; the test file never leaves this request."""
-    upload = request.files.get("file")
+    upload = request.files.get("file") or request.files.get("image")
     if upload is None:
         return validation_error()
     raw = upload.read()

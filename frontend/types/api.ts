@@ -391,8 +391,6 @@ export interface ImageProfile {
   model_id?: string | null;
   max_upload_bytes: number;
   max_input_pixels: number;
-  max_input_width: number;
-  max_input_height: number;
   allowed_mime_types: string[];
   target_width: number;
   target_height: number;

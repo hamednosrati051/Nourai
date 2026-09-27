@@ -25,8 +25,6 @@ const profileSchema = z.object({
   name: z.string().trim().min(1, 'نام پروفایل را وارد کنید.'),
   max_upload_bytes: z.number().int().positive('باید عدد مثبت باشد.'),
   max_input_pixels: z.number().int().positive('باید عدد مثبت باشد.'),
-  max_input_width: z.number().int().positive('باید عدد مثبت باشد.'),
-  max_input_height: z.number().int().positive('باید عدد مثبت باشد.'),
   allowed_mime_types: z.string().trim().min(1, 'حداقل یک MIME وارد کنید.'),
   target_width: z.number().int().positive('باید عدد مثبت باشد.'),
   target_height: z.number().int().positive('باید عدد مثبت باشد.'),
@@ -64,8 +62,6 @@ export default function AdminImageSettingsPage() {
         name: editing.name,
         max_upload_bytes: editing.max_upload_bytes,
         max_input_pixels: editing.max_input_pixels,
-        max_input_width: editing.max_input_width,
-        max_input_height: editing.max_input_height,
         allowed_mime_types: editing.allowed_mime_types.join(', '),
         target_width: editing.target_width,
         target_height: editing.target_height,
@@ -148,8 +144,6 @@ export default function AdminImageSettingsPage() {
               <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <dt className="text-neutral-500 dark:text-slate-400">سقف حجم</dt>
                 <dd className="text-left tabular-nums">{formatBytes(p.max_upload_bytes)}</dd>
-                <dt className="text-neutral-500 dark:text-slate-400">سقف ابعاد ورودی</dt>
-                <dd className="text-left tabular-nums" dir="ltr">{p.max_input_width}×{p.max_input_height}</dd>
                 <dt className="text-neutral-500 dark:text-slate-400">ابعاد مقصد</dt>
                 <dd className="text-left tabular-nums" dir="ltr">{p.target_width}×{p.target_height}</dd>
                 <dt className="text-neutral-500 dark:text-slate-400">روش resize</dt>
@@ -191,8 +185,6 @@ export default function AdminImageSettingsPage() {
           </div>
           <NumberField id="pf-max-bytes" label="سقف حجم (بایت)" error={errors.max_upload_bytes?.message} register={register('max_upload_bytes', { valueAsNumber: true })} />
           <NumberField id="pf-max-pixels" label="سقف پیکسل" error={errors.max_input_pixels?.message} register={register('max_input_pixels', { valueAsNumber: true })} />
-          <NumberField id="pf-max-w" label="حداکثر عرض ورودی" error={errors.max_input_width?.message} register={register('max_input_width', { valueAsNumber: true })} />
-          <NumberField id="pf-max-h" label="حداکثر ارتفاع ورودی" error={errors.max_input_height?.message} register={register('max_input_height', { valueAsNumber: true })} />
           <NumberField id="pf-target-w" label="عرض مقصد" error={errors.target_width?.message} register={register('target_width', { valueAsNumber: true })} />
           <NumberField id="pf-target-h" label="ارتفاع مقصد" error={errors.target_height?.message} register={register('target_height', { valueAsNumber: true })} />
           <div>
