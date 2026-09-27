@@ -12,7 +12,7 @@ export function useCreateAudioJob() {
       const form = new FormData();
       form.set('audio', file, file.name);
       if (modelId) form.set('model_id', modelId);
-      return apiPostForm<AudioJob>('/audio/jobs', form);
+      return apiPostForm<AudioJob>('/audio/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['audio', 'jobs'] });

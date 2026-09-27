@@ -50,10 +50,10 @@ export function useCreateImageJob() {
         if (input.size) form.set('size', input.size);
         if (input.quality) form.set('quality', input.quality);
         form.set('image', input.inputFile, input.inputFile.name);
-        return apiPostForm<ImageJob>('/image/jobs', form);
+        return apiPostForm<ImageJob>('/image/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
       }
       const { inputFile: _ignored, ...json } = input;
-      return apiPost<ImageJob>('/image/jobs', json);
+      return apiPost<ImageJob>('/image/jobs', json, undefined, { 'Idempotency-Key': crypto.randomUUID() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['image', 'jobs'] });

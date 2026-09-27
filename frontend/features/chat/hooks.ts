@@ -46,6 +46,8 @@ export function useSendMessage() {
       apiPost<{ user_message: ChatMessage; assistant_message: ChatMessage }>(
         `/conversations/${conversationId}/messages`,
         { content },
+        undefined,
+        { 'Idempotency-Key': crypto.randomUUID() },
       ),
     onSuccess: (_data, variables) => {
       // Messages are read from GET /conversations/{id}.

@@ -199,8 +199,8 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 export const apiGet = <T>(path: string, init?: RequestInit) =>
   apiFetch<T>(path, { method: 'GET', init });
 
-export const apiPost = <T>(path: string, body?: unknown, init?: RequestInit) =>
-  apiFetch<T>(path, { method: 'POST', body, init });
+export const apiPost = <T>(path: string, body?: unknown, init?: RequestInit, headers?: Record<string, string>) =>
+  apiFetch<T>(path, { method: 'POST', body, init, headers });
 
 export const apiPatch = <T>(path: string, body?: unknown, init?: RequestInit) =>
   apiFetch<T>(path, { method: 'PATCH', body, init });
@@ -211,8 +211,8 @@ export const apiPut = <T>(path: string, body?: unknown, init?: RequestInit) =>
 export const apiDelete = <T>(path: string, body?: unknown, init?: RequestInit) =>
   apiFetch<T>(path, { method: 'DELETE', body, init });
 
-export const apiPostForm = <T>(path: string, formData: FormData, init?: RequestInit) =>
-  apiFetch<T>(path, { method: 'POST', formData, init });
+export const apiPostForm = <T>(path: string, formData: FormData, init?: RequestInit, headers?: Record<string, string>) =>
+  apiFetch<T>(path, { method: 'POST', formData, init, headers });
 
 /** Build a query string from a params object, skipping undefined/null/empty values. */
 export function buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
