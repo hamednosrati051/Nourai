@@ -225,10 +225,17 @@ def _load_token(expected_kind: str):
     cookie_name = ADMIN_ACCESS_COOKIE if expected_kind == "admin" else USER_ACCESS_COOKIE
     token = request.cookies.get(cookie_name)
     if not token:
+        # TEMP (auth debug): distinguish "browser did not send cookie" from bad token.
+        log.warning(
+            "auth 401 no-cookie kind=%s want=%s got_cookies=%s",
+            expected_kind, cookie_name, sorted(request.cookies.keys()),
+        )
         return None, error_response("UNAUTHORIZED", status=401)
     try:
         claims = decode_token(token, expected_type="access", expected_kind=expected_kind)
-    except Exception:  # noqa: BLE001 - any decode problem -> 401
+    except Exception as exc:  # noqa: BLE001 - any decode problem -> 401
+        # TEMP (auth debug): log why the token was rejected.
+        log.warning("auth 401 bad-token kind=%s err=%s", expected_kind, type(exc).__name__)
         return None, error_response("UNAUTHORIZED", status=401)
     return claims, None
 
@@ -243,6 +250,8 @@ def login_required(fn):
             return err
         user = db.session.get(User, claims["sub"])
         if user is None:
+            # TEMP (auth debug): token valid but user row missing (wrong DB?).
+            log.warning("auth 401 user-not-found sub=%s", claims.get("sub"))
             return error_response("UNAUTHORIZED", status=401)
         if not user.is_active:
             return error_response("USER_DISABLED", status=403)
@@ -290,4 +299,3 @@ def utcnow() -> datetime:
     from datetime import timezone
 
     return datetime.now(timezone.utc).replace(tzinfo=None)
-
