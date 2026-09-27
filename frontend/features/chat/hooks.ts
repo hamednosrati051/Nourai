@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import type { ChatMessage, Conversation } from '@/types/api';
 
 export function useConversations() {
@@ -35,6 +35,18 @@ export function useCreateConversation() {
       apiPost<Conversation>('/conversations', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiDelete<{ id: string; deleted: boolean }>(`/conversations/${conversationId}`),
+    onSuccess: (_data, conversationId) => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.removeQueries({ queryKey: ['conversations', conversationId] });
     },
   });
 }

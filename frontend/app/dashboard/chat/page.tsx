@@ -8,6 +8,7 @@ import {
   useConversations,
   useConversationMessages,
   useCreateConversation,
+  useDeleteConversation,
   useSendMessage,
 } from '@/features/chat/hooks';
 import { useModels } from '@/features/models/hooks';
@@ -33,6 +34,7 @@ export default function ChatPage() {
   const models = useModels();
   const messages = useConversationMessages(activeId);
   const createConversation = useCreateConversation();
+  const deleteConversation = useDeleteConversation();
   const sendMessage = useSendMessage();
 
   const {
@@ -127,7 +129,7 @@ export default function ChatPage() {
               )}
               <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[60vh]">
                 {(conversations.data ?? []).map((c) => (
-                  <li key={c.id}>
+                  <li key={c.id} className="group flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setActiveId(c.id)}
@@ -142,6 +144,23 @@ export default function ChatPage() {
                       <span className="block text-xs text-neutral-500 dark:text-slate-400">
                         {formatDateTime(c.updated_at)}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('این گفت‌وگو حذف شود؟')) {
+                          deleteConversation.mutate(c.id, {
+                            onSuccess: () => {
+                              if (activeId === c.id) setActiveId(null);
+                            },
+                            onError: () => toast('حذف گفت‌وگو ناموفق بود.', 'error'),
+                          });
+                        }
+                      }}
+                      aria-label={`حذف ${c.title || 'گفت‌وگو'}`}
+                      className="shrink-0 rounded-lg px-2 py-2 text-neutral-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-900/20"
+                    >
+                      🗑️
                     </button>
                   </li>
                 ))}

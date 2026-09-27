@@ -84,7 +84,7 @@ def _message_payload(message: Message) -> dict:
     return {
         "id": message.id,
         "role": message.role,
-        "content_text": message.content_text,
+        "content": message.content_text,
         "input_tokens": message.input_tokens,
         "output_tokens": message.output_tokens,
         "status": message.status,
@@ -95,6 +95,8 @@ def _message_payload(message: Message) -> dict:
 def _get_owned_conversation(conversation_id: str) -> Conversation | None:
     conversation = db.session.get(Conversation, conversation_id)
     if conversation is None or conversation.user_id != g.current_user_id:
+        return None
+    if conversation.deleted_at is not None:
         return None
     return conversation
 
@@ -136,6 +138,7 @@ def list_conversations():
     query = (
         db.session.query(Conversation)
         .filter_by(user_id=g.current_user_id)
+        .filter(Conversation.deleted_at.is_(None))
         .order_by(Conversation.updated_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
@@ -177,6 +180,19 @@ def get_conversation(conversation_id: str):
     payload = _conversation_payload(conversation)
     payload["messages"] = [_message_payload(m) for m in messages]
     return success_response(payload)
+
+
+@bp.delete("/conversations/<conversation_id>")
+@login_required
+def delete_conversation(conversation_id: str):
+    """Soft-delete: hidden from the user, still visible to admin."""
+    conversation = _get_owned_conversation(conversation_id)
+    if conversation is None:
+        return error_response("NOT_FOUND", status=404)
+    if conversation.deleted_at is None:
+        conversation.deleted_at = utcnow()
+        db.session.commit()
+    return success_response({"id": conversation.id, "deleted": True})
 
 
 @bp.post("/conversations/<conversation_id>/messages")

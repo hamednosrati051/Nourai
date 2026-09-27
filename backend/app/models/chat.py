@@ -1,7 +1,9 @@
 """Conversations, messages and the message<->asset join table."""
 from __future__ import annotations
 
-from sqlalchemy import CHAR, ForeignKey, Index, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import CHAR, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -23,6 +25,8 @@ class Conversation(Base):
     model_id: Mapped[str | None] = mapped_column(
         CHAR(36), ForeignKey("ai_models.id"), nullable=True
     )
+    # Soft delete: user hides it, admin can still see it.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (
         Index("ix_conversations_user_created", "user_id", "created_at"),
