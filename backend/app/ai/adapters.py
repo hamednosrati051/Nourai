@@ -441,10 +441,11 @@ def _probe_dimensions(image_bytes: bytes) -> tuple[int | None, int | None]:
         return None, None
 
 
-class MetisGenerationImageProvider(ImageAiProvider):
-    """MetisAI generation API client (async: create -> poll -> download).
+class AsyncGenerationImageProvider(ImageAiProvider):
+    """Async generation API client (create -> poll -> download).
 
-    Endpoint: ``POST {base_url}/api/v2/generate`` with
+    Generic adapter for providers with an asynchronous generation protocol
+    (e.g. MetisAI): ``POST {base_url}/api/v2/generate`` with
     ``{"model": {"name": vendor, "model": name}, "operation": "Imagine",
     "args": {"prompt": ...}}``; result via ``GET {base_url}/api/v2/generate/{id}``
     polling until ``COMPLETED``. ``edit`` uploads the input image to
@@ -498,10 +499,10 @@ class MetisGenerationImageProvider(ImageAiProvider):
                 detail = exc.read().decode("utf-8")[:300]
             except Exception:  # noqa: BLE001
                 pass
-            log.warning("metis image provider %s %s http %s: %s",
+            log.warning("async-generation image provider %s %s http %s: %s",
                         self.provider_key, path, exc.code, detail)
         except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
-            log.warning("metis image provider %s %s failed: %s",
+            log.warning("async-generation image provider %s %s failed: %s",
                         self.provider_key, path, exc)
         return None
 
@@ -529,11 +530,11 @@ class MetisGenerationImageProvider(ImageAiProvider):
             if status == "COMPLETED":
                 return data
             if status in ("ERROR", "CANCELLED"):
-                log.warning("metis generation %s ended with %s: %s",
+                log.warning("async generation %s ended with %s: %s",
                             task_id, status, str(data.get("error"))[:200])
                 return None
             time.sleep(self.POLL_INTERVAL_SECONDS)
-        log.warning("metis generation %s polling timed out", task_id)
+        log.warning("async generation %s polling timed out", task_id)
         return None
 
     def _download(self, url: str) -> bytes:
@@ -541,7 +542,7 @@ class MetisGenerationImageProvider(ImageAiProvider):
             with urllib.request.urlopen(url, timeout=self.timeout_seconds) as resp:
                 return resp.read()
         except Exception as exc:  # noqa: BLE001
-            log.warning("metis image download failed: %s", exc)
+            log.warning("async image download failed: %s", exc)
             return b""
 
     def _finish(self, task_id: str) -> ImageResult:
@@ -561,7 +562,7 @@ class MetisGenerationImageProvider(ImageAiProvider):
         width, height = _probe_dimensions(image_bytes)
         usage = data.get("usage") or {}
         if usage.get("cost") is not None:
-            log.info("metis generation %s cost=%s cents", task_id, usage.get("cost"))
+            log.info("async generation %s cost=%s cents", task_id, usage.get("cost"))
         mime = "image/jpeg"
         if url.lower().endswith(".png"):
             mime = "image/png"
@@ -605,7 +606,7 @@ class MetisGenerationImageProvider(ImageAiProvider):
         try:
             image_bytes = storage.get_bytes(input_image_key)
         except Exception as exc:  # noqa: BLE001
-            log.warning("metis edit: failed to read input %s: %s", input_image_key, exc)
+            log.warning("async edit: failed to read input %s: %s", input_image_key, exc)
             return ImageResult(ok=False, error_code="STORAGE_ERROR",
                                error_message="could not read input image")
         if not image_bytes:
@@ -735,7 +736,7 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
     name = ((getattr(model, "provider_type", None) or config.ai_image_provider) or "fake").lower()
     if name == "fake":
         return FakeImageProvider()
-    if name in ("openai_compat", "metis_generation"):
+    if name in ("openai_compat", "async_generation"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
@@ -749,7 +750,7 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
                 base_url=base_url, api_key=api_key,
                 provider_key=provider_key or "default",
             )
-        return MetisGenerationImageProvider(
+        return AsyncGenerationImageProvider(
             base_url=base_url, api_key=api_key,
             provider_key=provider_key or "default",
         )

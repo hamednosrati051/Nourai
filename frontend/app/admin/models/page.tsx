@@ -33,14 +33,14 @@ const CAPABILITIES = Object.keys(CAPABILITY_LABELS) as ModelCapability[];
 /** Adapter families. Extend when new provider types are added. */
 const PROVIDER_TYPE_LABELS: Record<string, string> = {
   openai_compat: 'OpenAI Compatible',
-  metis_generation: 'Metis Generation (async)',
+  async_generation: 'Async Generation',
 };
 const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
-  provider_type: z.enum(['openai_compat' as const, 'metis_generation' as const]),
+  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
@@ -108,7 +108,7 @@ export default function AdminModelsPage() {
     reset({
       display_name: m.display_name,
       capability: m.capability,
-      provider_type: (m.provider_type as 'openai_compat' | 'metis_generation') ?? 'openai_compat',
+      provider_type: (m.provider_type as 'openai_compat' | 'async_generation') ?? 'openai_compat',
       provider_model_name: m.provider_model_name,
       base_url: m.base_url || '',
       api_key: '',
@@ -323,7 +323,7 @@ export default function AdminModelsPage() {
                   {errors.provider_model_name && (
                     <p role="alert" className="field-error">{errors.provider_model_name.message}</p>
                   )}
-                  <p className="field-hint">برای Metis Generation با فرمت vendor/model بنویسید، مثلاً google/nano-banana</p>
+                  <p className="field-hint">برای Async Generation با فرمت vendor/model بنویسید، مثلاً google/nano-banana</p>
                 </div>
               </div>
             </div>
