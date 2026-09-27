@@ -745,10 +745,13 @@ def create_model():
         description=data.description,
     )
     db.session.add(model)
+    # Flush first so model.id is assigned: single-active enforcement must
+    # not deactivate the model being created, and the audit needs its id.
+    db.session.flush()
     deactivated = 0
     if model.is_active:
         # Only one active model per capability: deactivate the rest first.
-        deactivated = _enforce_single_active(model.capability)
+        deactivated = _enforce_single_active(model.capability, except_id=model.id)
     _audit("model.created", "ai_model", model.id, {"slug": model.slug})
     db.session.commit()
     payload = _model_payload(model)
