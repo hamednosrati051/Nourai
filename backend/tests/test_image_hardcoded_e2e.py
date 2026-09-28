@@ -149,3 +149,30 @@ def test_hamed_panel_flow(app, client, admin, user, monkeypatch):
         )
         assert asset is not None
         assert asset.size_bytes > 0
+        storage_key = asset.storage_key
+
+    # 8. The user panel poll (GET /image/jobs/<id>) must return the frontend
+    #    contract — most importantly result_url, without which the panel
+    #    shows "no result" even for succeeded jobs.
+    #
+    # NOTE: the test-suite app fixture keeps one app context (and therefore
+    # one db.session) alive across requests, so the session still holds the
+    # pre-worker snapshot of the job. expire_all() simulates what a real
+    # request (fresh session) would see.
+    db.session.expire_all()
+    import types as _types
+    monkeypatch.setattr(
+        "app.api.v1.image.storage",
+        _types.SimpleNamespace(
+            presigned_get_url=lambda key: f"https://cdn.test/{key}"
+        ),
+    )
+    r = client.get(f"/api/v1/image/jobs/{job_id}", headers=uheaders)
+    assert r.status_code == 200, r.get_data(as_text=True)
+    data = r.get_json()["data"]
+    assert data["status"] == "succeeded"
+    assert data["type"] == "text_to_image"
+    assert data["prompt"] == "یک گربه روی فرش ایرانی"
+    assert data["result_url"] == f"https://cdn.test/{storage_key}"
+    assert data["result_width"] == 1024
+    assert data["result_height"] == 1024

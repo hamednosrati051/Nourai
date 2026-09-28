@@ -184,6 +184,13 @@ def ensure_system_image_model() -> AiModel:
 
 
 def _job_payload(job: GenerationJob) -> dict:
+    """Shape matching the frontend ImageJob contract.
+
+    The critical field is ``result_url``: without it the user panel can
+    never display the generated image (it renders "no result" even for
+    succeeded jobs). It is a fresh short-lived signed URL minted on each
+    poll; polling stops once the job is terminal.
+    """
     output_asset = (
         db.session.query(Asset)
         .filter_by(job_id=job.id, kind=ASSET_GENERATED_IMAGE)
@@ -191,19 +198,29 @@ def _job_payload(job: GenerationJob) -> dict:
         .first()
     )
     params = job.parameters_json or {}
+    result_url = None
+    if output_asset is not None:
+        try:
+            result_url = storage.presigned_get_url(output_asset.storage_key)
+        except Exception:  # noqa: BLE001 - storage optional/misconfigured
+            log.warning("could not mint result_url for image job %s", job.id)
+    model = db.session.get(AiModel, job.model_id) if job.model_id else None
+    width, height = params.get("width"), params.get("height")
     return {
         "id": job.id,
-        "mode": job.mode,
+        "type": job.mode,
         "status": job.status,
-        "prompt_text": job.prompt_text,
-        "parameters": params,
-        "error_code": job.error_code,
+        "model_id": job.model_id,
+        "model_name": model.display_name if model else None,
+        "prompt": job.prompt_text,
+        "size": f"{width}x{height}" if width and height else None,
+        "quality": params.get("quality"),
+        "result_url": result_url,
+        "result_width": output_asset.width if output_asset else None,
+        "result_height": output_asset.height if output_asset else None,
         "error_message": job.error_message,
-        "output_asset_id": output_asset.id if output_asset else None,
-        "output_width": output_asset.width if output_asset else params.get("width"),
-        "output_height": output_asset.height if output_asset else params.get("height"),
         "created_at": job.created_at.isoformat() if job.created_at else None,
-        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
     }
 
 
