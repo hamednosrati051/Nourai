@@ -1099,6 +1099,25 @@ def update_pricing_rule(rule_id: str):
     return success_response(_rule_payload(rule, names.get(rule.model_id)))
 
 
+@bp.delete("/admin/pricing-rules/<rule_id>")
+@admin_required
+def delete_pricing_rule(rule_id: str):
+    rule = db.session.get(ModelPricingRule, rule_id)
+    if rule is None:
+        return error_response("NOT_FOUND", status=404)
+    # Usage events keep a frozen snapshot of the rule, so history survives;
+    # only the link is cleared.
+    db.session.query(UsageEvent).filter_by(pricing_rule_id=rule.id).update(
+        {"pricing_rule_id": None}, synchronize_session=False
+    )
+    _audit("pricing_rule.deleted", "model_pricing_rule", rule.id,
+           {"model_id": rule.model_id, "billing_unit": rule.billing_unit,
+            "version": rule.version, "unit_price_irr": rule.unit_price_irr})
+    db.session.delete(rule)
+    db.session.commit()
+    return success_response({"deleted": True})
+
+
 class PricingEstimateSchema(BaseModel):
     kind: str  # text | audio | image
     model_id: str

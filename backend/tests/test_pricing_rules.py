@@ -91,3 +91,40 @@ def test_list_pricing_rules_includes_model_name(client, app, admin):
     assert match, "created rule not in list"
     assert match[0]["model_name"] == "Test"
     assert match[0]["model_id"] == model_id
+
+
+def test_delete_pricing_rule(client, app, admin):
+    """DELETE /admin/pricing-rules/<id> removes the rule (404 on unknown)."""
+    _, rule_id = _make_rule(app)
+    headers = admin_headers(client, admin)
+    resp = client.delete(f"/api/v1/admin/pricing-rules/{rule_id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()["data"]["deleted"] is True
+    with app.app_context():
+        assert db.session.get(ModelPricingRule, rule_id) is None
+    # second delete -> 404
+    resp = client.delete(f"/api/v1/admin/pricing-rules/{rule_id}", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_delete_pricing_rule_unlinks_usage_events(client, app, admin):
+    """Deleting a rule clears pricing_rule_id on usage events (snapshot kept)."""
+    from app.models import UsageEvent
+    model_id, rule_id = _make_rule(app)
+    with app.app_context():
+        ev = UsageEvent(
+            user_id="u1", model_id=model_id, pricing_rule_id=rule_id,
+            pricing_snapshot_json={"unit_price_irr": 10000},
+            charged_amount_irr=10000,
+        )
+        db.session.add(ev)
+        db.session.commit()
+        ev_id = ev.id
+    headers = admin_headers(client, admin)
+    resp = client.delete(f"/api/v1/admin/pricing-rules/{rule_id}", headers=headers)
+    assert resp.status_code == 200
+    with app.app_context():
+        ev = db.session.get(UsageEvent, ev_id)
+        assert ev.pricing_rule_id is None
+        assert ev.pricing_snapshot_json == {"unit_price_irr": 10000}
+        assert ev.charged_amount_irr == 10000

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   useAdminModels,
   useCreatePricingRule,
+  useDeletePricingRule,
   usePricingEstimate,
   usePricingRules,
   useUpdatePricingRule,
@@ -103,6 +104,7 @@ export default function AdminPricingPage() {
   const models = useAdminModels();
   const createRule = useCreatePricingRule();
   const updateRule = useUpdatePricingRule();
+  const deleteRule = useDeletePricingRule();
   const estimate = usePricingEstimate();
 
   const ruleForm = useForm<RuleForm>({ resolver: zodResolver(ruleSchema) });
@@ -193,6 +195,16 @@ export default function AdminPricingPage() {
     );
   };
 
+  const onDeleteRule = (rule: PricingRule) => {
+    const label = `${rule.model_name ?? rule.model_id} — ${BILLING_UNIT_LABELS[rule.billing_unit] ?? rule.billing_unit} (نسخه ${rule.version})`;
+    if (!window.confirm(`تعرفه «${label}» حذف شود؟ این عمل قابل بازگشت نیست.`)) return;
+    deleteRule.mutate(rule.id, {
+      onSuccess: () => toast('تعرفه حذف شد.', 'success'),
+      onError: (err: unknown) =>
+        toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'حذف تعرفه ناموفق بود.', 'error'),
+    });
+  };
+
   const onEstimate = (values: EstimateForm) => {
     estimate.mutate(
       {
@@ -262,9 +274,14 @@ export default function AdminPricingPage() {
             {
               header: 'عملیات',
               render: (r) => (
-                <button type="button" className="btn-secondary btn-sm" onClick={() => openEdit(r)}>
-                  ویرایش
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-secondary btn-sm" onClick={() => openEdit(r)}>
+                    ویرایش
+                  </button>
+                  <button type="button" className="btn-danger btn-sm" onClick={() => onDeleteRule(r)}>
+                    حذف
+                  </button>
+                </div>
               ),
               hideOnCard: true,
             },

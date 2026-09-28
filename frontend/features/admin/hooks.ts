@@ -247,6 +247,14 @@ export function useUpdatePricingRule() {
   });
 }
 
+export function useDeletePricingRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<unknown>(`/admin/pricing-rules/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
+  });
+}
+
 export function usePricingEstimate() {
   return useMutation({
     mutationFn: (input: Record<string, unknown>) =>
