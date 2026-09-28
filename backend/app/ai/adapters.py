@@ -432,6 +432,14 @@ class OpenAICompatImageProvider(ImageAiProvider):
         return self._result_from_data(data, "edit")
 
 
+class _ProviderError(Exception):
+    """Raised when the provider API itself rejects the call (auth/credit)."""
+
+    def __init__(self, code: str, detail: str = ""):
+        super().__init__(detail or code)
+        self.code = code
+
+
 def _probe_dimensions(image_bytes: bytes) -> tuple[int | None, int | None]:
     """Read (width, height) from image bytes; (None, None) on failure."""
     try:
@@ -501,6 +509,12 @@ class AsyncGenerationImageProvider(ImageAiProvider):
                 pass
             log.warning("async-generation image provider %s %s http %s: %s",
                         self.provider_key, path, exc.code, detail)
+            # Surface provider-side failures (e.g. 402 insufficient credit)
+            # instead of a bare None.
+            if exc.code == 402:
+                return {"_provider_error": "INSUFFICIENT_CREDIT", "_detail": detail}
+            if exc.code == 401:
+                return {"_provider_error": "INVALID_CREDENTIALS", "_detail": detail}
         except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
             log.warning("async-generation image provider %s %s failed: %s",
                         self.provider_key, path, exc)
@@ -516,6 +530,8 @@ class AsyncGenerationImageProvider(ImageAiProvider):
             "operation": "",
             "args": args,
         })
+        if data and data.get("_provider_error"):
+            raise _ProviderError(data["_provider_error"], data.get("_detail") or "")
         task_id = (data or {}).get("id")
         return str(task_id) if task_id else None
 
@@ -588,7 +604,11 @@ class AsyncGenerationImageProvider(ImageAiProvider):
                 error_message="provider_model_name must be 'vendor/model' (e.g. google/nano-banana)",
             )
         vendor, name = split
-        task_id = self._create(vendor, name, prompt)
+        try:
+            task_id = self._create(vendor, name, prompt)
+        except _ProviderError as exc:
+            return ImageResult(ok=False, error_code=exc.code,
+                               error_message=str(exc) or exc.code)
         if not task_id:
             return ImageResult(ok=False, error_code="PROVIDER_ERROR",
                                error_message="could not create generation")

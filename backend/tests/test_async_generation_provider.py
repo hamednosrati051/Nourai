@@ -35,3 +35,15 @@ def test_poll_path_matches_metis_docs():
         res = p.generate("google/nano-banana-2", "a sunset", {})
     assert ("GET", "/api/v2/generate/gen-123") in [(c[0], c[1]) for c in calls] or True
     assert res.ok is True
+
+
+def test_insufficient_credit_surfaces_clear_error():
+    """A 402 from the provider becomes INSUFFICIENT_CREDIT, not a bare failure."""
+    p = AsyncGenerationImageProvider(
+        base_url="https://platform-api.metisai.ir", api_key="k", provider_key="metis")
+    def fake_api(method, path, payload=None, content_type=None):
+        return {"_provider_error": "INSUFFICIENT_CREDIT", "_detail": "top up"}
+    with patch.object(p, "_api", side_effect=fake_api):
+        res = p.generate("google/nano-banana-2", "a sunset", {})
+    assert res.ok is False
+    assert res.error_code == "INSUFFICIENT_CREDIT"
