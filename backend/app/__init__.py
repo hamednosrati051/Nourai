@@ -51,6 +51,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     config.validate()
     _configure_logging(app)
+    app.logger.info("startup config: redis_url=%s db=%s", config.redis_url, config.database_url.split("@")[-1])
     redis_client.init(config.redis_url)
 
     db.init_app(app)
