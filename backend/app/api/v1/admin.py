@@ -681,6 +681,11 @@ def _model_payload(model: AiModel) -> dict:
 @bp.get("/admin/models")
 @admin_required
 def list_models_admin():
+    # Self-heal: the system image model (billing anchor for the hardcoded
+    # image backend) must exist before the admin can set its tariff, so make
+    # sure it is there on every admin listing.
+    from app.api.v1.image import ensure_system_image_model
+    ensure_system_image_model()
     capability = request.args.get("capability")
     query = db.session.query(AiModel)
     if capability:
