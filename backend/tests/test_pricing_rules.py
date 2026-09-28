@@ -78,3 +78,16 @@ def test_patch_unknown_rule_404(client, admin):
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+def test_list_pricing_rules_includes_model_name(client, app, admin):
+    """GET /admin/pricing-rules returns model_name for each rule."""
+    model_id, rule_id = _make_rule(app)
+    headers = admin_headers(client, admin)
+    resp = client.get("/api/v1/admin/pricing-rules", headers=headers)
+    assert resp.status_code == 200
+    items = resp.get_json()["data"]
+    match = [r for r in items if r["id"] == rule_id]
+    assert match, "created rule not in list"
+    assert match[0]["model_name"] == "Test"
+    assert match[0]["model_id"] == model_id

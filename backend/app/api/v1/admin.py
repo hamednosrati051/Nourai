@@ -979,9 +979,22 @@ class PricingRuleUpdateSchema(BaseModel):
     effective_to: str | None = None
 
 
-def _rule_payload(rule: ModelPricingRule) -> dict:
+def _model_display_names(model_ids: set[str]) -> dict[str, str]:
+    """Batch-load display names for pricing payloads (avoids N+1)."""
+    if not model_ids:
+        return {}
+    rows = (
+        db.session.query(AiModel.id, AiModel.display_name)
+        .filter(AiModel.id.in_(model_ids))
+        .all()
+    )
+    return {row[0]: row[1] for row in rows}
+
+
+def _rule_payload(rule: ModelPricingRule, model_name: str | None = None) -> dict:
     return {
-        "id": rule.id, "model_id": rule.model_id, "version": rule.version,
+        "id": rule.id, "model_id": rule.model_id, "model_name": model_name,
+        "version": rule.version,
         "billing_unit": rule.billing_unit, "unit_size": rule.unit_size,
         "unit_price_irr": rule.unit_price_irr,
         "dimension_key": rule.dimension_key, "quality_key": rule.quality_key,
@@ -1009,7 +1022,10 @@ def list_pricing_rules():
     query = query.order_by(ModelPricingRule.model_id, ModelPricingRule.version.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    return success_response([_rule_payload(r) for r in items], meta)
+    names = _model_display_names({r.model_id for r in items})
+    return success_response(
+        [_rule_payload(r, names.get(r.model_id)) for r in items], meta
+    )
 
 
 @bp.post("/admin/pricing-rules")
@@ -1048,7 +1064,8 @@ def create_pricing_rule():
            {"model_id": data.model_id, "billing_unit": data.billing_unit,
             "version": rule.version, "unit_price_irr": data.unit_price_irr})
     db.session.commit()
-    return success_response(_rule_payload(rule), status=201)
+    names = _model_display_names({rule.model_id})
+    return success_response(_rule_payload(rule, names.get(rule.model_id)), status=201)
 
 
 @bp.patch("/admin/pricing-rules/<rule_id>")
@@ -1078,7 +1095,8 @@ def update_pricing_rule(rule_id: str):
     # Price changes go through POST (new version); PATCH never rewrites history.
     _audit("pricing_rule.updated", "model_pricing_rule", rule.id, changes)
     db.session.commit()
-    return success_response(_rule_payload(rule))
+    names = _model_display_names({rule.model_id})
+    return success_response(_rule_payload(rule, names.get(rule.model_id)))
 
 
 class PricingEstimateSchema(BaseModel):
