@@ -227,3 +227,38 @@ def register_cli(app: Flask) -> None:
                 ))
         db.session.commit()
         click.echo("demo subscription plans seeded")
+
+    @app.cli.command("cancel-stuck-jobs")
+    @click.option("--status", "status_filter", default="queued",
+                  help="Job status to cancel (default: queued).")
+    def cancel_stuck_jobs(status_filter: str) -> None:
+        """Cancel stuck generation jobs and release their wallet reserves.
+
+        The worker skips any job whose status is not queued/processing,
+        so already-delivered Celery tasks become harmless no-ops.
+        """
+        from app.extensions import db
+        from app.models import GenerationJob, UsageEvent
+        from app.models.jobs import JOB_CANCELLED
+        from app.tasks import release_job_billing
+
+        jobs = db.session.query(GenerationJob).filter_by(status=status_filter).all()
+        if not jobs:
+            click.echo(f"no jobs with status '{status_filter}'; nothing to do")
+            return
+        cancelled = 0
+        for job in jobs:
+            usage = (
+                db.session.query(UsageEvent)
+                .filter_by(job_id=job.id)
+                .order_by(UsageEvent.created_at.desc())
+                .first()
+            )
+            if usage is not None:
+                release_job_billing(db.session, job=job, usage=usage,
+                                    reason="cancelled by operator")
+            job.status = JOB_CANCELLED
+            db.session.commit()
+            cancelled += 1
+            click.echo(f"cancelled job {job.id} ({job.capability})")
+        click.echo(f"done: {cancelled} job(s) cancelled, reserves released")
