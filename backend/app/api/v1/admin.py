@@ -52,7 +52,7 @@ from app.models import (
     WalletTransaction,
     new_uuid,
 )
-from app.models.catalog import CAPABILITIES
+from app.models.catalog import CAP_IMAGE, CAPABILITIES
 from app.models.gallery import GALLERY_APPROVED, GALLERY_PENDING, GALLERY_REJECTED
 from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET_KINDS
 from app.services import users as user_service
@@ -713,6 +713,15 @@ def create_model():
         return err
     if data.capability not in CAPABILITIES:
         return validation_error()
+    if data.capability == CAP_IMAGE:
+        # Image generation is hardcoded (system-managed); it cannot be
+        # defined through the model form. Only its tariff is configurable,
+        # in the pricing section.
+        return error_response(
+            "VALIDATION_ERROR",
+            "قابلیت تصویر سیستمی است و از فرم مدل‌ها قابل تعریف نیست؛ فقط تعرفه آن از بخش تعرفه‌ها تنظیم می‌شود.",
+            422,
+        )
     provider_type = (data.provider_type or "").strip().lower() or "openai_compat"
     if provider_type not in PROVIDER_TYPES:
         return error_response("VALIDATION_ERROR", "نوع provider نامعتبر است.", 422)

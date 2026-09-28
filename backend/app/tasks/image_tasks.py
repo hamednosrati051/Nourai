@@ -10,7 +10,7 @@ import hashlib
 import logging
 from decimal import Decimal
 
-from app.ai.adapters import get_image_provider
+from app.ai.adapters import IMAGE_GEN_MODEL, get_hardcoded_image_provider
 from app.billing.pricing import PricingService
 from app.extensions import db
 from app.models import Asset, GenerationJob, UsageEvent
@@ -104,13 +104,11 @@ def process_image_job(self, job_id: str) -> dict:
 
 def _run_provider(session, job: GenerationJob) -> Asset:
     from app.api.deps import utcnow
-    from app.models import AiModel
 
-    model = session.get(AiModel, job.model_id) if job.model_id else None
-    provider = get_image_provider(model.provider_key if model else None, model)
+    # Hardcoded image backend: no model row is consulted. job.model_id is
+    # the system row, used only as the billing anchor.
+    provider = get_hardcoded_image_provider()
     params = job.parameters_json or {}
-    # The provider needs the catalog's provider_model_name verbatim.
-    provider_model_name = (model.provider_model_name if model else None) or "default"
     options = {
         "width": params.get("width"),
         "height": params.get("height"),
@@ -124,13 +122,13 @@ def _run_provider(session, job: GenerationJob) -> Asset:
         )
         # Only the processed derivative leaves our infrastructure.
         result = provider.edit(
-            provider_model_name,
+            IMAGE_GEN_MODEL,
             job.prompt_text or "",
             processed.storage_key,
             options,
         )
     elif job.mode == MODE_TEXT_TO_IMAGE:
-        result = provider.generate(provider_model_name, job.prompt_text or "", options)
+        result = provider.generate(IMAGE_GEN_MODEL, job.prompt_text or "", options)
     else:
         raise ValueError(f"unknown image job mode: {job.mode}")
 

@@ -201,14 +201,7 @@ export interface ImageSizeOption {
   height: number;
 }
 
-export interface ImageConfigModel {
-  id: string;
-  slug: string;
-  display_name: string;
-}
-
 export interface ImageConfig {
-  models: ImageConfigModel[];
   sizes: ImageSizeOption[];
   /** Max upload size in bytes for the input image. */
   max_upload_bytes: number;
@@ -219,19 +212,6 @@ export interface ImageConfig {
   /** Allowed MIME types for the input image. */
   allowed_mime_types: string[];
   qualities: string[];
-}
-
-export interface EstimateLine {
-  label: string;
-  /** Amount in integer IRR. */
-  amount_irr: number;
-}
-
-export interface ImageEstimate {
-  /** Estimated total in integer IRR (before job creation; backend re-prices). */
-  total_irr: number;
-  breakdown: EstimateLine[];
-  currency: 'IRR';
 }
 
 export interface ImageJob {

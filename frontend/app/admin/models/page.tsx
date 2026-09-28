@@ -23,10 +23,13 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   text: 'متن',
   speech_to_text: 'گفتار → متن',
   text_to_speech: 'متن → گفتار',
-  image: 'تصویر',
+  image: 'تصویر (سیستمی)',
 };
 
-const CAPABILITIES = Object.keys(CAPABILITY_LABELS) as ModelCapability[];
+// Capabilities selectable in the model form. Image generation is hardcoded
+// and system-managed: it cannot be defined here, only its tariff (in the
+// pricing section). The label above is kept so the system row still renders.
+const CAPABILITIES: ModelCapability[] = ['text', 'speech_to_text', 'text_to_speech'];
 
 /** Adapter families. Extend when new provider types are added. */
 const PROVIDER_TYPE_LABELS: Record<string, string> = {
@@ -275,7 +278,7 @@ export default function AdminModelsPage() {
                       <option key={t} value={t}>{PROVIDER_TYPE_LABELS[t]}</option>
                     ))}
                   </select>
-                  <p className="field-hint">برای تولید تصویر: OpenAI Compatible یا Metis Generation</p>
+                  <p className="field-hint">تولید تصویر هاردکد و سیستمی است؛ از این فرم قابل تعریف نیست.</p>
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>

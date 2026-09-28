@@ -61,6 +61,10 @@ class Config:
     ai_text_provider: str = field(default_factory=lambda: _get("AI_TEXT_PROVIDER", "fake"))
     ai_audio_provider: str = field(default_factory=lambda: _get("AI_AUDIO_PROVIDER", "fake"))
     ai_image_provider: str = field(default_factory=lambda: _get("AI_IMAGE_PROVIDER", "fake"))
+    # API token for the hardcoded image generation backend. The endpoint,
+    # model and operation are fixed in code (see app.ai.adapters); only the
+    # token is configured here. Never commit a real value.
+    image_api_key: str = field(default_factory=lambda: _get("IMAGE_API_KEY", ""))
 
     def ai_provider_credentials(self, provider_key: str | None) -> tuple[str, str]:
         """Return ``(base_url, api_key)`` for a provider key like ``"metis"``.

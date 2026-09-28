@@ -12,7 +12,6 @@ import logging
 from decimal import Decimal
 
 from flask import Blueprint, g, request
-from pydantic import BaseModel, ValidationError
 
 from app.ai.image_pipeline import (
     HardCeilings,
@@ -41,7 +40,7 @@ from app.billing.ledger import (
 from app.billing.pricing import PricingRuleUnavailable, PricingService
 from app.config import config
 from app.extensions import db
-from app.models import AiModel, Asset, GenerationJob, ImageProcessingProfile, UsageEvent
+from app.models import AiModel, Asset, GenerationJob, ImageProcessingProfile, ModelPricingRule, UsageEvent
 from app.models.catalog import CAP_IMAGE
 from app.models.jobs import (
     ASSET_GENERATED_IMAGE,
@@ -127,18 +126,58 @@ def _profile_payload(profile: ImageProcessingProfile | None) -> dict | None:
     }
 
 
-def _resolve_image_model(model_id: str | None) -> AiModel | None:
-    if model_id:
-        model = db.session.get(AiModel, model_id)
-        if model and model.capability == CAP_IMAGE and model.is_active:
-            return model
-        return None
-    return (
-        db.session.query(AiModel)
-        .filter_by(capability=CAP_IMAGE, is_active=True)
-        .order_by(AiModel.created_at)
-        .first()
+# Slug of the system-managed image model row. Image generation is hardcoded
+# (see app.ai.adapters) and never reads provider config from the catalog;
+# this row exists only as a stable anchor for pricing rules, so the image
+# tariff stays configurable in the admin pricing section. It is created on
+# demand and must not be created through the admin model form.
+SYSTEM_IMAGE_MODEL_SLUG = "nourai-image"
+
+
+def ensure_system_image_model() -> AiModel:
+    """Get (creating if needed) the system image model used for billing.
+
+    One-time adoption: active pricing rules from legacy image model rows are
+    re-pointed onto the system row, and the legacy rows are deactivated.
+    """
+    model = (
+        db.session.query(AiModel).filter_by(slug=SYSTEM_IMAGE_MODEL_SLUG).one_or_none()
     )
+    if model is None:
+        model = AiModel(
+            slug=SYSTEM_IMAGE_MODEL_SLUG,
+            display_name="تولید تصویر",
+            capability=CAP_IMAGE,
+            provider_key="image",
+            provider_type="hardcoded",
+            provider_model_name="google/nano-banana-2",
+            is_active=True,
+            pricing_type="image",
+            description="مدل سیستمی تولید تصویر (تنظیمات هاردکد؛ فقط تعرفه قابل تغییر است)",
+        )
+        db.session.add(model)
+        db.session.flush()
+        legacy = (
+            db.session.query(AiModel)
+            .filter(AiModel.capability == CAP_IMAGE, AiModel.id != model.id)
+            .all()
+        )
+        for old in legacy:
+            moved = 0
+            for rule in (
+                db.session.query(ModelPricingRule)
+                .filter_by(model_id=old.id, is_active=True)
+                .all()
+            ):
+                rule.model_id = model.id
+                moved += 1
+            old.is_active = False
+            log.info("adopted legacy image model %s: moved %d pricing rules", old.id, moved)
+        db.session.flush()
+    elif not model.is_active:
+        model.is_active = True
+        db.session.flush()
+    return model
 
 
 def _job_payload(job: GenerationJob) -> dict:
@@ -168,8 +207,8 @@ def _job_payload(job: GenerationJob) -> dict:
 @bp.get("/image/config")
 @login_required
 def image_config():
-    model_id = request.args.get("model_id")
-    profile = get_active_profile(model_id)
+    # The image backend is hardcoded; no model selection is exposed.
+    profile = get_active_profile()
     # Flat shape matching the frontend ImageConfig contract. The nested
     # `profile` is kept for richer clients; the flat fields are what the
     # user-facing page reads.
@@ -177,13 +216,6 @@ def image_config():
     hard = payload.get("hard_ceilings") or {}
     return success_response({
         "profile": payload or None,
-        "models": [
-            {"id": m.id, "slug": m.slug, "display_name": m.display_name}
-            for m in db.session.query(AiModel)
-            .filter_by(capability=CAP_IMAGE, is_active=True)
-            .order_by(AiModel.display_name)
-            .all()
-        ],
         "sizes": [],
         "qualities": [],
         "max_upload_bytes": payload.get("max_upload_bytes") or hard.get("max_bytes") or 0,
@@ -191,69 +223,6 @@ def image_config():
         "max_input_width": hard.get("max_width") or 0,
         "max_input_height": hard.get("max_height") or 0,
         "allowed_mime_types": payload.get("allowed_mime_types") or [],
-    })
-
-
-class ImageEstimateSchema(BaseModel):
-    prompt: str
-    mode: str = MODE_TEXT_TO_IMAGE
-    # Frontend sends `type`; accepted as an alias for `mode`.
-    type: str | None = None
-    model_id: str | None = None
-    width: int | None = None
-    height: int | None = None
-    input_width: int | None = None
-    input_height: int | None = None
-    dimension_key: str | None = None
-    quality_key: str | None = None
-
-    @property
-    def resolved_mode(self) -> str:
-        return self.type or self.mode
-
-
-@bp.post("/image/estimate")
-@login_required
-def image_estimate():
-    """Cost breakdown without reserving any balance. The server recomputes
-    everything when the job is actually created; the client number is never
-    trusted."""
-    try:
-        data = ImageEstimateSchema(**(request.get_json(silent=True) or {}))
-    except ValidationError:
-        return validation_error()
-    if data.resolved_mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
-        return validation_error()
-
-    model = _resolve_image_model(data.model_id)
-    if model is None:
-        return error_response("MODEL_UNAVAILABLE", status=404)
-    profile = get_active_profile(model.id)
-
-    width = data.width or (profile.target_width if profile else 1024)
-    height = data.height or (profile.target_height if profile else 1024)
-    output_mp = Decimal(width * height) / Decimal(1_000_000)
-    input_mp = Decimal(0)
-    if data.resolved_mode == MODE_IMAGE_TO_IMAGE and data.input_width and data.input_height:
-        input_mp = Decimal(data.input_width * data.input_height) / Decimal(1_000_000)
-
-    pricing = PricingService(db.session)
-    try:
-        estimate = pricing.estimate_image(
-            model.id, image_count=1,
-            input_megapixels=input_mp, output_megapixels=output_mp,
-            dimension_key=data.dimension_key, quality_key=data.quality_key,
-        )
-    except PricingRuleUnavailable:
-        return error_response("PRICING_RULE_UNAVAILABLE", status=500)
-
-    return success_response({
-        "total_irr": estimate["total_irr"],
-        "lines": estimate["lines"],
-        "output_width": width,
-        "output_height": height,
-        "input_megapixels": str(input_mp),
-        "output_megapixels": str(output_mp),
     })
 
 
@@ -288,9 +257,9 @@ def create_image_job():
     if not prompt or mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
 
-    model = _resolve_image_model(_val("model_id"))
-    if model is None:
-        return error_response("MODEL_UNAVAILABLE", status=404)
+    # The image backend is hardcoded; the system model row is only the
+    # billing anchor for the pricing rules.
+    model = ensure_system_image_model()
     profile = get_active_profile(model.id)
     if profile is None:
         return error_response("MODEL_UNAVAILABLE", "پروفایل پردازش تصویر تنظیم نشده است.", 500)

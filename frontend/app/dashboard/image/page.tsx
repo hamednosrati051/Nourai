@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   useImageConfig,
-  useImageEstimate,
   useCreateImageJob,
   useImageJob,
 } from '@/features/image/hooks';
@@ -14,14 +13,12 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/components/Toast';
-import { formatToman } from '@/lib/currency';
 import { formatBytes, formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
-import type { ImageEstimate, ImageJob, ImageJobStatus } from '@/types/api';
+import type { ImageJob, ImageJobStatus } from '@/types/api';
 
 const formSchema = z.object({
   type: z.enum(['text_to_image', 'image_to_image']),
-  model_id: z.string().min(1, 'مدل را انتخاب کنید.'),
   prompt: z.string().trim().min(1, 'توضیح تصویر (prompt) را بنویسید.').max(2000, 'متن بیش از حد طولانی است.'),
 });
 type ImageForm = z.infer<typeof formSchema>;
@@ -33,18 +30,16 @@ const JOB_STATUS_META: Record<ImageJobStatus, { label: string; badge: string }> 
   failed: { label: 'ناموفق', badge: 'badge-danger' },
 };
 
-/** Image studio: text-to-image + image-to-image with limits, preview, estimate, polling. */
+/** Image studio: text-to-image + image-to-image with limits, preview, polling. */
 export default function ImagePage() {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [inputFile, setInputFile] = useState<File | null>(null);
   const [inputPreview, setInputPreview] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [estimate, setEstimate] = useState<ImageEstimate | null>(null);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
 
   const config = useImageConfig();
-  const estimateMutation = useImageEstimate();
   const createJob = useCreateImageJob();
   const trackedJob = useImageJob(trackedJobId);
 
@@ -59,7 +54,6 @@ export default function ImagePage() {
   });
 
   const jobType = watch('type');
-  const modelId = watch('model_id');
 
   // Object URL for the selected input image preview.
   useEffect(() => {
@@ -72,14 +66,7 @@ export default function ImagePage() {
     return () => URL.revokeObjectURL(url);
   }, [inputFile]);
 
-  // Clear the estimate whenever inputs change.
-  useEffect(() => {
-    setEstimate(null);
-  }, [jobType, modelId, inputFile]);
-
   const cfg = config.data;
-  // /image/config already returns only image-capable models.
-  const imageModels = cfg?.models ?? [];
 
   const onFileChange = (f: File | null) => {
     setFileError(null);
@@ -102,25 +89,6 @@ export default function ImagePage() {
     setInputFile(f);
   };
 
-  const runEstimate = handleSubmit((values) => {
-    if (values.type === 'image_to_image' && !inputFile) {
-      setFileError('برای ویرایش تصویر، یک فایل انتخاب کنید.');
-      return;
-    }
-    estimateMutation.mutate(
-      {
-        type: values.type,
-        model_id: values.model_id,
-        prompt: values.prompt,
-      },
-      {
-        onSuccess: (data) => setEstimate(data),
-        onError: (err) =>
-          toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'برآورد هزینه ناموفق بود.', 'error'),
-      },
-    );
-  });
-
   const onSubmit = handleSubmit((values) => {
     if (values.type === 'image_to_image' && !inputFile) {
       setFileError('برای ویرایش تصویر، یک فایل انتخاب کنید.');
@@ -129,14 +97,12 @@ export default function ImagePage() {
     createJob.mutate(
       {
         type: values.type,
-        model_id: values.model_id,
         prompt: values.prompt,
         inputFile: values.type === 'image_to_image' ? inputFile ?? undefined : undefined,
       },
       {
         onSuccess: (job) => {
           setTrackedJobId(job.id);
-          setEstimate(null);
           toast('درخواست ثبت شد؛ تولید تصویر آغاز شد.', 'success');
         },
         onError: (err) => {
@@ -183,26 +149,6 @@ export default function ImagePage() {
                   {opt.label}
                 </label>
               ))}
-            </div>
-
-            {/* Model */}
-            <div>
-              <label htmlFor="img-model" className="label">
-                مدل
-              </label>
-              <select id="img-model" className={`input ${errors.model_id ? 'input-error' : ''}`} {...register('model_id')}>
-                <option value="">انتخاب مدل…</option>
-                {imageModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name}
-                  </option>
-                ))}
-              </select>
-              {errors.model_id && (
-                <p role="alert" className="field-error">
-                  {errors.model_id.message}
-                </p>
-              )}
             </div>
 
             {/* Prompt */}
@@ -259,37 +205,7 @@ export default function ImagePage() {
               </div>
             )}
 
-            {/* Estimate */}
-            {estimate && (
-              <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900/50 dark:bg-brand-950/30" aria-live="polite">
-                <h2 className="font-bold">برآورد هزینه</h2>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {estimate.breakdown.map((line, i) => (
-                    <li key={i} className="flex justify-between gap-3">
-                      <span className="text-neutral-600 dark:text-slate-400">{line.label}</span>
-                      <span className="font-semibold tabular-nums">{formatToman(line.amount_irr)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 flex justify-between border-t border-brand-200 pt-2 font-bold dark:border-brand-900/50">
-                  <span>جمع برآورد</span>
-                  <span className="tabular-nums">{formatToman(estimate.total_irr)}</span>
-                </p>
-                <p className="mt-1 text-xs text-neutral-500">
-                  این مبلغ برآورد است؛ هزینه نهایی پس از تولید، بر اساس مصرف واقعی تسویه می‌شود.
-                </p>
-              </div>
-            )}
-
             <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                onClick={runEstimate}
-                disabled={estimateMutation.isPending || isSubmitting}
-                className="btn-secondary flex-1"
-              >
-                {estimateMutation.isPending ? 'در حال محاسبه…' : 'برآورد هزینه'}
-              </button>
               <button
                 type="submit"
                 disabled={isSubmitting || createJob.isPending}
@@ -341,10 +257,7 @@ function ImageJobResult({ job }: { job: ImageJob }) {
             <img src={job.result_url} alt="تصویر تولیدشده" className="absolute inset-0 h-full w-full object-contain bg-neutral-100 dark:bg-navy-800" />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-500 dark:text-slate-400">
-            <span>
-              {formatDateTime(job.created_at)}
-              {job.cost_irr != null && <> — هزینه نهایی: {formatToman(job.cost_irr)}</>}
-            </span>
+            <span>{formatDateTime(job.created_at)}</span>
             <a href={job.result_url} download className="btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">
               دانلود تصویر
             </a>

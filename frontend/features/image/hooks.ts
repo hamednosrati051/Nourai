@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPostForm, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
-import type { ImageConfig, ImageEstimate, ImageJob, Paginated } from '@/types/api';
+import type { ImageConfig, ImageJob, Paginated } from '@/types/api';
 
 export function useImageConfig() {
   return useQuery({
@@ -13,24 +13,8 @@ export function useImageConfig() {
   });
 }
 
-export function useImageEstimate() {
-  return useMutation({
-    mutationFn: (input: {
-      type: 'text_to_image' | 'image_to_image';
-      model_id: string;
-      prompt: string;
-      size?: string;
-      quality?: string;
-      /** Present for image_to_image estimates. */
-      image_width?: number;
-      image_height?: number;
-    }) => apiPost<ImageEstimate>('/image/estimate', input),
-  });
-}
-
 export interface CreateImageJobInput {
   type: 'text_to_image' | 'image_to_image';
-  model_id: string;
   prompt: string;
   size?: string;
   quality?: string;
@@ -45,7 +29,6 @@ export function useCreateImageJob() {
       if (input.type === 'image_to_image' && input.inputFile) {
         const form = new FormData();
         form.set('type', input.type);
-        form.set('model_id', input.model_id);
         form.set('prompt', input.prompt);
         if (input.size) form.set('size', input.size);
         if (input.quality) form.set('quality', input.quality);
