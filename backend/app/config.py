@@ -48,6 +48,8 @@ class Config:
     smsir_api_key: str = field(default_factory=lambda: _get("SMSIR_API_KEY", ""))
     smsir_template_id: str = field(default_factory=lambda: _get("SMSIR_TEMPLATE_ID", ""))
     smsir_api_base_url: str = field(default_factory=lambda: _get("SMSIR_API_BASE_URL", ""))
+    # Name of the OTP placeholder inside the sms.ir pattern (e.g. "Code" for #CODE#).
+    smsir_param_name: str = field(default_factory=lambda: _get("SMSIR_PARAM_NAME", "Code"))
 
     # --- payments ---
     payment_provider: str = field(default_factory=lambda: _get("PAYMENT_PROVIDER", "fake"))
