@@ -1077,19 +1077,22 @@ def update_pricing_rule(rule_id: str):
     rule = db.session.get(ModelPricingRule, rule_id)
     if rule is None:
         return error_response("NOT_FOUND", status=404)
+    # model_fields_set distinguishes "not sent" (leave alone) from
+    # "sent as null" (clear the value).
+    provided = data.model_fields_set
     changes: dict = {}
-    if data.is_active is not None:
+    if "is_active" in provided and data.is_active is not None:
         rule.is_active = data.is_active; changes["is_active"] = data.is_active
-    if data.minimum_charge_irr is not None:
+    if "minimum_charge_irr" in provided:
         rule.minimum_charge_irr = data.minimum_charge_irr
         changes["minimum_charge_irr"] = data.minimum_charge_irr
-    if data.maximum_charge_irr is not None:
+    if "maximum_charge_irr" in provided:
         rule.maximum_charge_irr = data.maximum_charge_irr
         changes["maximum_charge_irr"] = data.maximum_charge_irr
-    if data.effective_from is not None:
+    if "effective_from" in provided:
         rule.effective_from = _parse_date(data.effective_from)
         changes["effective_from"] = data.effective_from
-    if data.effective_to is not None:
+    if "effective_to" in provided:
         rule.effective_to = _parse_date(data.effective_to)
         changes["effective_to"] = data.effective_to
     # Price changes go through POST (new version); PATCH never rewrites history.

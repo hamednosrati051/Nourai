@@ -128,3 +128,23 @@ def test_delete_pricing_rule_unlinks_usage_events(client, app, admin):
         assert ev.pricing_rule_id is None
         assert ev.pricing_snapshot_json == {"unit_price_irr": 10000}
         assert ev.charged_amount_irr == 10000
+
+
+def test_patch_null_clears_optional_fields(client, app, admin):
+    """Sending null for an optional field clears it; omitted fields stay."""
+    _, rule_id = _make_rule(app)
+    headers = admin_headers(client, admin)
+    # set values first
+    client.patch(f"/api/v1/admin/pricing-rules/{rule_id}", headers=headers, json={
+        "minimum_charge_irr": 5000, "effective_from": "2026-09-01T00:00"})
+    # now clear them with explicit nulls; omit maximum_charge_irr entirely
+    resp = client.patch(f"/api/v1/admin/pricing-rules/{rule_id}", headers=headers, json={
+        "minimum_charge_irr": None, "effective_from": None})
+    assert resp.status_code == 200
+    body = resp.get_json()["data"]
+    assert body["minimum_charge_irr"] is None
+    assert body["effective_from"] is None
+    with app.app_context():
+        rule = db.session.get(ModelPricingRule, rule_id)
+        assert rule.minimum_charge_irr is None
+        assert rule.effective_from is None
