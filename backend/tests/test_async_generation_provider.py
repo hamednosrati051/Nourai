@@ -17,7 +17,7 @@ def test_create_payload_matches_metis_docs():
     assert captured["path"] == "/api/v2/generate"
     assert captured["payload"] == {
         "model": {"name": "google", "model": "nano-banana-2"},
-        "operation": "",
+        "operation": "Imagine",
         "args": {"prompt": "a sunset"},
     }
 

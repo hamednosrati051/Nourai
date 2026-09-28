@@ -454,7 +454,7 @@ class AsyncGenerationImageProvider(ImageAiProvider):
 
     Generic adapter for providers with an asynchronous generation protocol
     (e.g. MetisAI): ``POST {base_url}/api/v2/generate`` with
-    ``{"model": {"name": vendor, "model": name}, "operation": "",
+    ``{"model": {"name": vendor, "model": name}, "operation": "Imagine",
     "args": {"prompt": ...}}``; result via ``GET {base_url}/api/v2/generate/{id}``
     polling until ``COMPLETED``. ``edit`` uploads the input image to
     ``{base_url}/api/v1/storage`` first and passes its URL as ``image_input``.
@@ -527,7 +527,7 @@ class AsyncGenerationImageProvider(ImageAiProvider):
             args["image_input"] = image_input
         data = self._api("POST", "/api/v2/generate", {
             "model": {"name": vendor, "model": name},
-            "operation": "",
+            "operation": "Imagine",
             "args": args,
         })
         if data and data.get("_provider_error"):
