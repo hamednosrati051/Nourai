@@ -137,6 +137,9 @@ SYSTEM_IMAGE_MODEL_SLUG = "nourai-image"
 def ensure_system_image_model() -> AiModel:
     """Get (creating if needed) the system image model used for billing.
 
+    The row is committed before returning: callers include read-only
+    endpoints (e.g. the admin model listing) that never commit themselves.
+
     One-time adoption: active pricing rules from legacy image model rows are
     re-pointed onto the system row, and the legacy rows are deactivated.
     """
@@ -173,10 +176,10 @@ def ensure_system_image_model() -> AiModel:
                 moved += 1
             old.is_active = False
             log.info("adopted legacy image model %s: moved %d pricing rules", old.id, moved)
-        db.session.flush()
+        db.session.commit()
     elif not model.is_active:
         model.is_active = True
-        db.session.flush()
+        db.session.commit()
     return model
 
 
