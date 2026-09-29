@@ -79,11 +79,18 @@ export function useUserActivity(id: string | null, page = 1) {
   });
 }
 
+const USER_ASSET_KIND_MAP = {
+  generated: 'generated_image',
+  chat_input: 'chat_input_image',
+} as const;
+
 export function useUserAssets(id: string | null, kind?: 'generated' | 'chat_input', enabled = true) {
   return useQuery({
     queryKey: ['admin', 'users', id, 'assets', kind],
     queryFn: () =>
-      apiGet<AssetItem[]>(`/admin/users/${id}/assets${buildQuery({ kind: kind || undefined })}`),
+      apiGet<AssetItem[]>(
+        `/admin/users/${id}/assets${buildQuery({ kind: kind ? USER_ASSET_KIND_MAP[kind] : undefined })}`,
+      ),
     enabled: !!id && enabled,
   });
 }
