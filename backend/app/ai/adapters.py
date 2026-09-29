@@ -449,6 +449,21 @@ def _probe_dimensions(image_bytes: bytes) -> tuple[int | None, int | None]:
         return None, None
 
 
+def _metis_usage_cost_to_cents(usage: dict) -> int | None:
+    """Convert Metis ``usage.cost`` (US dollars) to integer cents.
+
+    Docs example: ``"usage": {"cost": 0.14}`` means $0.14 = 14 cents.
+    Returns None when the payload has no parseable cost.
+    """
+    raw = (usage or {}).get("cost")
+    if raw is None:
+        return None
+    try:
+        return int(round(float(raw) * 100))
+    except (TypeError, ValueError):
+        return None
+
+
 class AsyncGenerationImageProvider(ImageAiProvider):
     """Async generation API client (create -> poll -> download).
 
@@ -577,13 +592,8 @@ class AsyncGenerationImageProvider(ImageAiProvider):
                                error_message="could not download result image")
         width, height = _probe_dimensions(image_bytes)
         usage = data.get("usage") or {}
-        provider_cost_cents: int | None = None
-        if usage.get("cost") is not None:
-            try:
-                provider_cost_cents = int(float(usage.get("cost")))
-            except (TypeError, ValueError):
-                provider_cost_cents = None
-            log.info("async generation %s cost=%s cents", task_id, usage.get("cost"))
+        provider_cost_cents = _metis_usage_cost_to_cents(usage)
+        log.info("async generation %s cost=$%s (%s cents)", task_id, usage.get("cost"), provider_cost_cents)
         mime = "image/jpeg"
         if url.lower().endswith(".png"):
             mime = "image/png"

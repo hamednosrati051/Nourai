@@ -84,3 +84,16 @@ def test_cost_protection_above_tariff(app):
         assert info["applied"] is True
         assert info["provider_cost_irr"] == 500_000
         assert final == 650_000  # 500,000 * 1.3
+
+
+def test_metis_usage_cost_dollars_to_cents():
+    """Metis reports usage.cost in US dollars (docs: 0.14 = $0.14 = 14 cents)."""
+    from app.ai.adapters import _metis_usage_cost_to_cents
+
+    assert _metis_usage_cost_to_cents({"cost": 0.14}) == 14
+    assert _metis_usage_cost_to_cents({"cost": 1.0}) == 100
+    assert _metis_usage_cost_to_cents({"cost": 0.044}) == 4
+    assert _metis_usage_cost_to_cents({"cost": "0.25"}) == 25
+    assert _metis_usage_cost_to_cents({}) is None
+    assert _metis_usage_cost_to_cents({"cost": None}) is None
+    assert _metis_usage_cost_to_cents({"cost": "bogus"}) is None
