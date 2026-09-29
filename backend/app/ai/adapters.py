@@ -295,6 +295,70 @@ class OpenAICompatSttProvider(SpeechToTextProvider):
         )
 
 
+class OpenAICompatTtsProvider(TextToSpeechProvider):
+    """Shared OpenAI-compatible text-to-speech client — provider-agnostic.
+
+    POSTs JSON to ``{base_url}/audio/speech`` with ``model``, ``input``,
+    ``voice`` and ``response_format``. The endpoint returns raw audio bytes
+    (not JSON). ``model`` is the catalog's ``provider_model_name`` verbatim;
+    ``voice`` comes from ``options["voice"]`` or defaults to ``"alloy"``
+    (no voice selection UI yet).
+    """
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 180):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def synthesize(self, model: str, text: str, options: dict) -> AudioResult:
+        payload = json.dumps({
+            "model": model,
+            "input": text,
+            "voice": options.get("voice") or "alloy",
+            "response_format": options.get("response_format") or "mp3",
+        }).encode("utf-8")
+        url = f"{self.base_url}/audio/speech"
+        req = urllib.request.Request(
+            url, data=payload, method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                audio_bytes = resp.read()
+                mime_type = resp.headers.get("Content-Type", "audio/mpeg")
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("openai-compat tts provider %s http %s: %s",
+                        self.provider_key, exc.code, detail)
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=f"provider http {exc.code}")
+        except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
+            log.warning("openai-compat tts provider %s failed: %s",
+                        self.provider_key, exc)
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=str(exc)[:200])
+        if not audio_bytes:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty provider response")
+        return AudioResult(
+            ok=True,
+            audio_bytes=audio_bytes,
+            mime_type=mime_type.split(";")[0].strip() or "audio/mpeg",
+            duration_seconds=int(options.get("duration_seconds") or 0) or None,
+        )
+
+
 class OpenAICompatImageProvider(ImageAiProvider):
     """Shared OpenAI-compatible image client — provider-agnostic.
 
@@ -754,10 +818,30 @@ def get_stt_provider(provider_key: str | None = None, model=None) -> SpeechToTex
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 
-def get_tts_provider() -> TextToSpeechProvider:
-    name = (config.ai_audio_provider or "fake").lower()
+def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeechProvider:
+    """Select the text-to-speech provider.
+
+    ``provider_key`` is the model's catalog key; ``model`` is the catalog
+    row, used for form-stored credentials (env is fallback) and for the
+    per-model ``provider_type`` (env is fallback). Same pattern as the
+    text and STT selectors.
+    """
+    name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
     if name == "fake":
         return FakeTtsProvider()
+    if name == "openai_compat":
+        base_url, api_key = _resolve_credentials(provider_key, model)
+        if not base_url or not api_key:
+            raise ValueError(
+                f"missing credentials for provider {provider_key!r}: "
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        return OpenAICompatTtsProvider(
+            base_url=base_url, api_key=api_key,
+            provider_key=provider_key or "default",
+        )
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 

@@ -146,7 +146,7 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
         input_tokens = output_tokens = None
 
     # 3. reply -> speech
-    tts = get_tts_provider()
+    tts = get_tts_provider(tts_model.provider_key if tts_model else None, tts_model)
     audio_res = tts.synthesize(
         tts_model.provider_model_name if tts_model else "default", reply_text, {}
     )
