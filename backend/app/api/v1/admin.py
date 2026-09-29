@@ -1293,10 +1293,12 @@ def list_audit_logs():
     query = query.order_by(AuditLog.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
+    actor_labels = _audit_actor_labels(db.session, items)
     return paginated_response(
         [
             {
                 "id": e.id, "actor_type": e.actor_type, "actor_id": e.actor_id,
+                "actor_label": actor_labels.get((e.actor_type, e.actor_id)),
                 "action": e.action, "target_type": e.target_type, "target_id": e.target_id,
                 "metadata": e.metadata_json,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
@@ -1307,6 +1309,21 @@ def list_audit_logs():
         page_size,
         meta["total"],
     )
+
+
+def _audit_actor_labels(session, entries) -> dict:
+    """Human-readable actor names for audit rows: username for admins,
+    masked mobile for users. Bulk-fetched to avoid N+1 queries."""
+    admin_ids = {e.actor_id for e in entries if e.actor_type == "admin" and e.actor_id}
+    user_ids = {e.actor_id for e in entries if e.actor_type == "user" and e.actor_id}
+    labels: dict = {}
+    if admin_ids:
+        for admin in session.query(AdminUser).filter(AdminUser.id.in_(admin_ids)).all():
+            labels[("admin", admin.id)] = admin.username
+    if user_ids:
+        for user in session.query(User).filter(User.id.in_(user_ids)).all():
+            labels[("user", user.id)] = mask_mobile(user.mobile_normalized)
+    return labels
 
 
 # ---------------------------------------------------------------------------

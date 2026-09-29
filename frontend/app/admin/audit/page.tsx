@@ -31,9 +31,10 @@ export default function AdminAuditPage() {
             rows={audit.data.items}
             cardHeader={(a) => a.action}
             columns={[
+              { header: 'زمان', render: (a) => formatDateTime(a.created_at) },
               { header: 'اقدام', render: (a) => <span className="font-semibold">{a.action}</span> },
-              { header: 'کنشگر', render: (a) => a.actor_label ?? `${a.actor_type}:${a.actor_id ?? '—'}` },
-              { header: 'هدف', render: (a) => (a.target_type ? `${a.target_type}:${a.target_id ?? ''}` : '—'), hideOnCard: true },
+              { header: 'کنشگر', render: (a) => a.actor_label ?? a.actor_type },
+              { header: 'هدف', render: (a) => a.target_type ?? '—', hideOnCard: true },
               {
                 header: 'جزئیات',
                 render: (a) =>
@@ -46,7 +47,6 @@ export default function AdminAuditPage() {
                   ),
                 hideOnCard: true,
               },
-              { header: 'زمان', render: (a) => formatDateTime(a.created_at) },
             ]}
           />
           <Pagination page={page} totalPages={audit.data.meta.total_pages} totalItems={audit.data.meta.total_items} onPageChange={setPage} />
