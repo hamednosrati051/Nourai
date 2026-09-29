@@ -8,10 +8,12 @@ import {
   useImageConfig,
   useCreateImageJob,
   useImageJob,
+  useImageJobs,
 } from '@/features/image/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { formatBytes, formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -39,10 +41,13 @@ export default function ImagePage() {
   const [inputPreview, setInputPreview] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [viewingJob, setViewingJob] = useState<ImageJob | null>(null);
 
   const config = useImageConfig();
   const createJob = useCreateImageJob();
   const trackedJob = useImageJob(trackedJobId);
+  const history = useImageJobs(historyPage);
 
   const {
     register,
@@ -227,6 +232,107 @@ export default function ImagePage() {
               {trackedJob.data && <ImageJobResult job={trackedJob.data} />}
             </section>
           )}
+
+          {/* User's image history */}
+          <section aria-label="تصاویر شما" className="flex flex-col gap-3">
+            <h2 className="text-lg font-extrabold">تصاویر شما</h2>
+            {history.isLoading && <LoadingSpinner label="در حال بارگذاری تصاویر…" />}
+            {history.isError && (
+              <ErrorState message="بارگذاری تصاویر ناموفق بود." onRetry={() => history.refetch()} />
+            )}
+            {history.data && history.data.items.length === 0 && (
+              <EmptyState
+                icon="🎨"
+                title="هنوز تصویری تولید نکرده‌اید"
+                description="از فرم بالا اولین تصویرتان را بسازید."
+              />
+            )}
+            {history.data && history.data.items.length > 0 && (
+              <>
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {history.data.items.map((job) => (
+                    <li key={job.id} className="card group !p-2">
+                      <button
+                        type="button"
+                        onClick={() => setViewingJob(job)}
+                        className="relative block w-full overflow-hidden rounded-lg bg-neutral-100 dark:bg-navy-800"
+                        style={{ aspectRatio: '1 / 1' }}
+                        aria-label={`مشاهده تصویر: ${job.prompt}`}
+                      >
+                        {job.result_url ? (
+                          <img
+                            src={job.result_url}
+                            alt={job.prompt}
+                            loading="lazy"
+                            className="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        ) : (
+                          <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">
+                            {JOB_STATUS_META[job.status]?.label ?? job.status}
+                          </span>
+                        )}
+                      </button>
+                      <p className="mt-1 line-clamp-1 px-1 text-xs text-neutral-600 dark:text-slate-400">
+                        {job.prompt}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                {history.data.meta.total_pages > 1 && (
+                  <div className="flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                      disabled={historyPage <= 1}
+                      className="btn-secondary btn-sm"
+                    >
+                      قبلی
+                    </button>
+                    <span className="text-sm text-neutral-500">
+                      صفحه {historyPage} از {history.data.meta.total_pages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((p) => p + 1)}
+                      disabled={historyPage >= history.data.meta.total_pages}
+                      className="btn-secondary btn-sm"
+                    >
+                      بعدی
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          {/* Full-size viewer */}
+          <Modal
+            open={!!viewingJob}
+            title="مشاهده تصویر"
+            onClose={() => setViewingJob(null)}
+          >
+            {viewingJob?.result_url && (
+              <div className="flex flex-col gap-3">
+                <img
+                  src={viewingJob.result_url}
+                  alt={viewingJob.prompt}
+                  className="max-h-[70vh] w-full rounded-xl object-contain bg-neutral-100 dark:bg-navy-800"
+                />
+                <p className="line-clamp-2 text-sm text-neutral-600 dark:text-slate-400">
+                  {viewingJob.prompt}
+                </p>
+                <a
+                  href={viewingJob.result_url}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary w-full text-center"
+                >
+                  دانلود تصویر
+                </a>
+              </div>
+            )}
+          </Modal>
         </>
       )}
     </div>

@@ -565,9 +565,9 @@ def list_gallery():
                 "mime_type": asset.mime_type, "size_bytes": asset.size_bytes,
             })
             try:
-                item["preview_url"] = storage.presigned_get_url(asset.storage_key)
+                item["image_url"] = storage.presigned_get_url(asset.storage_key)
             except Exception:  # noqa: BLE001
-                item["preview_url"] = None
+                item["image_url"] = None
         results.append(item)
     return success_response(results, meta)
 
