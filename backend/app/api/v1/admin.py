@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError
@@ -54,6 +54,7 @@ from app.models import (
     new_uuid,
 )
 from app.models.catalog import CAP_IMAGE, CAPABILITIES
+from app.models.payment import PAY_PAID
 from app.models.gallery import GALLERY_APPROVED, GALLERY_PENDING, GALLERY_REJECTED
 from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET_KINDS
 from app.services import users as user_service
@@ -98,31 +99,55 @@ def _parse_date(value: str | None):
 def dashboard():
     total_users = db.session.query(func.count(User.id)).scalar()
     active_users = db.session.query(func.count(User.id)).filter_by(is_active=True).scalar()
-    paid_sum = (
+    total_revenue_irr = (
         db.session.query(func.coalesce(func.sum(Payment.amount_irr), 0))
-        .filter_by(status="paid").scalar()
+        .filter_by(status=PAY_PAID).scalar()
     )
-    charged_sum = (
-        db.session.query(func.coalesce(func.sum(UsageEvent.charged_amount_irr), 0)).scalar()
+    today_start = _tehran_day_start_utc()
+    revenue_today_irr = (
+        db.session.query(func.coalesce(func.sum(Payment.amount_irr), 0))
+        .filter(Payment.status == PAY_PAID, Payment.created_at >= today_start)
+        .scalar()
     )
-    jobs_by_status = {
-        status: count
-        for status, count in db.session.query(
-            GenerationJob.status, func.count(GenerationJob.id)
-        ).group_by(GenerationJob.status).all()
-    }
-    pending_gallery = (
+    payments_today = (
+        db.session.query(func.count(Payment.id))
+        .filter(Payment.status == PAY_PAID, Payment.created_at >= today_start)
+        .scalar()
+    )
+    jobs_today = (
+        db.session.query(func.count(GenerationJob.id))
+        .filter(GenerationJob.created_at >= today_start)
+        .scalar()
+    )
+    active_models = (
+        db.session.query(func.count(AiModel.id)).filter_by(is_active=True).scalar()
+    )
+    pending_gallery_items = (
         db.session.query(func.count(GalleryEntry.id))
         .filter_by(status=GALLERY_PENDING).scalar()
     )
     return success_response({
         "total_users": total_users,
         "active_users": active_users,
-        "total_paid_irr": int(paid_sum or 0),
-        "total_charged_irr": int(charged_sum or 0),
-        "jobs_by_status": jobs_by_status,
-        "pending_gallery": pending_gallery,
+        "total_revenue_irr": int(total_revenue_irr or 0),
+        "revenue_today_irr": int(revenue_today_irr or 0),
+        "payments_today": payments_today,
+        "jobs_today": jobs_today,
+        "active_models": active_models,
+        "pending_gallery_items": pending_gallery_items,
     })
+
+
+def _tehran_day_start_utc():
+    """Naive-UTC datetime of today's 00:00 in Asia/Tehran.
+
+    Timestamps are stored as naive UTC; the dashboard's "today" cards
+    follow the admin's local day.
+    """
+    from zoneinfo import ZoneInfo
+    tehran_now = datetime.now(ZoneInfo("Asia/Tehran"))
+    day_start_tehran = tehran_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return day_start_tehran.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
