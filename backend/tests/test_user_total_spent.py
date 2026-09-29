@@ -1,35 +1,29 @@
-"""total_spent_irr in the admin user summary."""
+"""total_spent_irr in the admin user summary comes from usage charges."""
 from app.extensions import db
-from app.models import User
-from app.models.wallet import WalletAccount, WalletTransaction
+from app.models import UsageEvent, User
+from app.models.wallet import WalletAccount
 from app.services.users import user_summary
-from tests.conftest import admin_headers
 
 
-def _tx(wallet_id, amount_irr, key):
-    db.session.add(WalletTransaction(
-        wallet_id=wallet_id, type="test", amount_irr=amount_irr,
-        balance_after_irr=0, idempotency_key=key,
-    ))
+def _usage(user_id, charged, status="succeeded"):
+    db.session.add(UsageEvent(user_id=user_id, status=status,
+                              charged_amount_irr=charged))
 
 
-def test_user_summary_includes_total_spent(app, client, admin, user):
+def test_user_summary_includes_total_spent(app, user):
     uid = user if isinstance(user, str) else user.id
     with app.app_context():
-        wallet = WalletAccount(user_id=uid, balance_irr=700_000)
-        db.session.add(wallet)
-        db.session.flush()
-        _tx(wallet.id, 1_000_000, "dep-1")    # deposit: not spent
-        _tx(wallet.id, -200_000, "chg-1")     # charges: spent
-        _tx(wallet.id, -100_000, "chg-2")
-        _tx(wallet.id, 50_000, "adj-1")       # positive adjustment: not spent
+        db.session.add(WalletAccount(user_id=uid, balance_irr=700_000))
+        _usage(uid, 200_000)              # chat/image/audio charges
+        _usage(uid, 100_000)
+        _usage(uid, 0, status="failed")   # failed request: not spent
         db.session.commit()
         summary = user_summary(db.session, db.session.get(User, uid))
     assert summary["total_spent_irr"] == 300_000
     assert summary["balance_irr"] == 700_000
 
 
-def test_user_summary_total_spent_zero_without_wallet(app, user):
+def test_user_summary_total_spent_zero_without_usage(app, user):
     uid = user if isinstance(user, str) else user.id
     with app.app_context():
         summary = user_summary(db.session, db.session.get(User, uid))
@@ -37,12 +31,10 @@ def test_user_summary_total_spent_zero_without_wallet(app, user):
 
 
 def test_admin_user_detail_returns_total_spent(app, client, admin, user):
+    from tests.conftest import admin_headers
     uid = user if isinstance(user, str) else user.id
     with app.app_context():
-        wallet = WalletAccount(user_id=uid, balance_irr=0)
-        db.session.add(wallet)
-        db.session.flush()
-        _tx(wallet.id, -500_000, "chg-9")
+        _usage(uid, 500_000)
         db.session.commit()
     r = client.get(f"/api/v1/admin/users/{uid}", headers=admin_headers(client, admin))
     assert r.status_code == 200

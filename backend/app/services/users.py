@@ -65,18 +65,19 @@ def user_summary(session, user: User) -> dict:
 
 
 def _total_spent_irr(session, user_id: str) -> int:
-    """Total consumption in IRR: absolute sum of negative wallet transactions.
+    """Total consumption in IRR: sum of final charged amounts.
 
-    WalletTransaction.amount_irr is signed (deposits positive, charges
-    negative), so total spent is the negated sum of the negative rows.
+    UsageEvent.charged_amount_irr holds the final settled charge per AI
+    usage (0 for failed requests). Summing wallet transactions would
+    overcount: reserves are pre-run estimates that get released or
+    adjusted on settle, so only the usage records carry the true charge.
     """
     total = (
-        session.query(func.coalesce(func.sum(WalletTransaction.amount_irr), 0))
-        .join(WalletAccount, WalletTransaction.wallet_id == WalletAccount.id)
-        .filter(WalletAccount.user_id == user_id, WalletTransaction.amount_irr < 0)
+        session.query(func.coalesce(func.sum(UsageEvent.charged_amount_irr), 0))
+        .filter(UsageEvent.user_id == user_id)
         .scalar()
     )
-    return abs(int(total or 0))
+    return int(total or 0)
 
 
 def _iso(value) -> str | None:
