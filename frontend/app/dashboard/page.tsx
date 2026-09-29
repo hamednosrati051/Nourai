@@ -124,9 +124,16 @@ export default function DashboardPage() {
             <ServiceCard
               href="/dashboard/voice"
               icon="🎙️"
-              title="تعامل صوتی"
-              description="ارسال صوت و دریافت پاسخ متنی یا صوتی"
+              title="تبدیل صوت به متن"
+              description="ارسال صوت و دریافت متن پیاده‌شده"
               color="#f472b6"
+            />
+            <ServiceCard
+              href="/dashboard/tts"
+              icon="🔊"
+              title="تبدیل متن به صوت"
+              description="تبدیل متن به گفتار و دانلود فایل صوتی"
+              color="#34d399"
             />
           </div>
         </section>

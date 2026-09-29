@@ -123,7 +123,7 @@ export default function VoicePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-extrabold">تعامل صوتی</h1>
+      <h1 className="text-2xl font-extrabold">تبدیل صوت به متن</h1>
 
       {jobs.isLoading && <LoadingSpinner label="در حال بارگذاری گفتگو…" />}
       {jobs.isError && <ErrorState message="بارگذاری گفتگو ناموفق بود." onRetry={() => jobs.refetch()} />}

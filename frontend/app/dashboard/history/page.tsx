@@ -117,7 +117,7 @@ export default function HistoryPage() {
           {audioJobs.isLoading && <LoadingSpinner />}
           {audioJobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => audioJobs.refetch()} />}
           {audioJobs.data && audioJobs.data.items.length === 0 && (
-            <EmptyState icon="🎙️" title="پردازش صوتی نیست" description="هنوز فایل صوتی ارسال نکرده‌اید." actionLabel="تعامل صوتی" actionHref="/dashboard/voice" />
+            <EmptyState icon="🎙️" title="پردازش صوتی نیست" description="هنوز فایل صوتی ارسال نکرده‌اید." actionLabel="تبدیل صوت به متن" actionHref="/dashboard/voice" />
           )}
           {audioJobs.data && audioJobs.data.items.length > 0 && (
             <>
