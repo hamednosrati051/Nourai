@@ -20,7 +20,12 @@ from app.models.jobs import (
     JOB_SUCCEEDED,
 )
 from app.services.storage import asset_key, storage
-from app.tasks import get_flask_app, release_job_billing, settle_job_billing
+from app.tasks import (
+    aborted_during_processing,
+    get_flask_app,
+    release_job_billing,
+    settle_job_billing,
+)
 from app.tasks.celery_app import celery
 
 log = logging.getLogger(__name__)
@@ -65,6 +70,11 @@ def process_tts_job(self, job_id: str) -> dict:
                 release_job_billing(session, job=job, usage=usage, reason="provider failed")
             session.commit()
             return {"ok": False, "error": "PROVIDER_ERROR"}
+
+        # The job may have been cancelled (admin) while the provider call
+        # was in flight: release the hold instead of settling.
+        if aborted_during_processing(session, job):
+            return {"ok": False, "error": "CANCELLED"}
 
         final_amount = usage.reserved_amount_irr or 0 if usage else 0
         if usage is not None:

@@ -64,6 +64,62 @@ def release_job_billing(session, *, job: GenerationJob, usage: UsageEvent, reaso
     usage.status = "failed"
 
 
-from app.tasks import audio_tasks, image_tasks  # noqa: E402,F401
+def cancel_job(session, *, job: GenerationJob, reason: str) -> bool:
+    """Cancel a queued/processing job and release its wallet hold.
 
-__all__ = ["audio_tasks", "image_tasks", "get_flask_app", "settle_job_billing", "release_job_billing"]
+    Returns True when the job was cancelled, False when it was already
+    terminal (succeeded/failed/cancelled). Safe to call on redelivered
+    worker tasks: the status guard at task start turns them into no-ops.
+    """
+    from app.api.deps import utcnow
+    from app.models.jobs import JOB_CANCELLED, JOB_PROCESSING, JOB_QUEUED
+
+    if job.status not in (JOB_QUEUED, JOB_PROCESSING):
+        return False
+    usage = (
+        session.query(UsageEvent)
+        .filter_by(job_id=job.id)
+        .order_by(UsageEvent.created_at.desc())
+        .first()
+    )
+    if usage is not None:
+        release_job_billing(session, job=job, usage=usage, reason=reason)
+    job.status = JOB_CANCELLED
+    job.error_code = "CANCELLED"
+    job.finished_at = utcnow()
+    log.info("job %s cancelled (%s)", job.id, reason)
+    return True
+
+
+def aborted_during_processing(session, job: GenerationJob) -> bool:
+    """Re-read the job row after a provider call: True if it left the
+    processing state meanwhile (e.g. cancelled by an admin mid-flight).
+
+    When aborted, the wallet hold is released instead of settled — the user
+    is not charged for a job they cancelled. Any already-created output
+    asset is left orphaned (the provider cost was already incurred).
+    """
+    from app.models.jobs import JOB_PROCESSING
+
+    session.refresh(job)
+    if job.status == JOB_PROCESSING:
+        return False
+    usage = (
+        session.query(UsageEvent)
+        .filter_by(job_id=job.id)
+        .order_by(UsageEvent.created_at.desc())
+        .first()
+    )
+    if usage is not None:
+        release_job_billing(
+            session, job=job, usage=usage, reason="cancelled during processing"
+        )
+    session.commit()
+    log.info("job %s aborted during processing (now %s); hold released",
+             job.id, job.status)
+    return True
+
+
+from app.tasks import audio_tasks, image_tasks, sweep_tasks, tts_tasks  # noqa: E402,F401
+
+__all__ = ["audio_tasks", "image_tasks", "sweep_tasks", "tts_tasks", "get_flask_app", "settle_job_billing", "release_job_billing", "cancel_job", "aborted_during_processing"]

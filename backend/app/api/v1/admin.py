@@ -60,6 +60,8 @@ from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET
 from app.services import users as user_service
 from app.services.audit import audit
 from app.services.storage import storage
+from app.tasks import cancel_job
+from app.auth.otp import mask_mobile
 
 log = logging.getLogger(__name__)
 
@@ -1579,3 +1581,23 @@ def delete_plan(plan_id: str):
     db.session.delete(plan)
     db.session.commit()
     return success_response({"deleted": True})
+
+
+# ---------------------------------------------------------------------------
+# Job management: cancel stuck jobs.
+# NOTE: GET /admin/jobs (list_jobs, with ?status= filter) already exists
+# above; the frontend queries it with ?status=queued / ?status=processing.
+# ---------------------------------------------------------------------------
+@bp.post("/admin/jobs/<job_id>/cancel")
+@admin_required
+def admin_cancel_job(job_id: str):
+    job = db.session.get(GenerationJob, job_id)
+    if job is None:
+        return error_response("NOT_FOUND", status=404)
+    if not cancel_job(db.session, job=job, reason="cancelled by admin"):
+        return error_response("JOB_NOT_CANCELLABLE", "این درخواست در وضعیت پایانی است.", 409)
+    db.session.commit()
+    _audit("job.cancelled", "job", job.id,
+           {"capability": job.capability, "user_id": job.user_id})
+    db.session.commit()
+    return success_response({"id": job.id, "status": job.status})

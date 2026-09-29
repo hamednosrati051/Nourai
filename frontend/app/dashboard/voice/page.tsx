@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob } from '@/features/voice/hooks';
+import { CancelJobButton } from '@/features/jobs/CancelJobButton';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
@@ -213,6 +214,11 @@ function VoiceExchange({ job }: { job: AudioJob }) {
           <JobAudio assetId={job.input_asset_id} label="صدای شما" />
           {processing && !job.transcript && (
             <p className="mt-2 text-sm opacity-90">در حال پردازش صدا…</p>
+          )}
+          {job.status === 'queued' && (
+            <div className="mt-2">
+              <CancelJobButton jobId={job.id} invalidateKeys={[['audio', 'jobs']]} />
+            </div>
           )}
           {job.transcript && <p className="mt-2 text-sm leading-7">{job.transcript}</p>}
           <p className="mt-1 text-left text-[11px] opacity-70">{formatDateTime(job.created_at)}</p>

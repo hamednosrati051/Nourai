@@ -149,6 +149,12 @@ def make_celery(flask_app=None):
         enable_utc=True,
         task_acks_late=True,
         worker_prefetch_multiplier=1,
+        beat_schedule={
+            "sweep-stuck-jobs": {
+                "task": "nourai.jobs.sweep_stuck",
+                "schedule": 900.0,  # every 15 minutes
+            },
+        },
     )
 
     if flask_app is not None:

@@ -262,3 +262,13 @@ def register_cli(app: Flask) -> None:
             cancelled += 1
             click.echo(f"cancelled job {job.id} ({job.capability})")
         click.echo(f"done: {cancelled} job(s) cancelled, reserves released")
+
+    @app.cli.command("sweep-stuck-jobs")
+    @click.option("--minutes", default=30, show_default=True,
+                  help="Fail 'processing' jobs older than this many minutes.")
+    def sweep_stuck_jobs(minutes: int) -> None:
+        """Fail stuck processing jobs and release their wallet reserves."""
+        from app.tasks.sweep_tasks import sweep_stuck_jobs
+
+        swept = sweep_stuck_jobs(max_age_minutes=minutes)
+        click.echo(f"done: {swept} stuck job(s) failed, reserves released")

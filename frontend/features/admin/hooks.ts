@@ -411,3 +411,33 @@ export function useDeleteAdminPlan() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
   });
 }
+
+export interface AdminJob {
+  id: string;
+  capability: string;
+  status: string;
+  user_id: string;
+  user_mobile_masked: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  prompt_text: string | null;
+}
+
+export function useAdminJobs(status: 'queued' | 'processing') {
+  return useQuery({
+    queryKey: ['admin', 'jobs', status],
+    queryFn: () =>
+      apiGet<Paginated<AdminJob>>(`/admin/jobs${buildQuery({ status })}`),
+  });
+}
+
+export function useAdminCancelJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) => apiPost<{ id: string; status: string }>(`/admin/jobs/${jobId}/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+    },
+  });
+}

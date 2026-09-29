@@ -11,6 +11,7 @@ import {
   useImageJobs,
 } from '@/features/image/hooks';
 import { useModels } from '@/features/models/hooks';
+import { CancelJobButton } from '@/features/jobs/CancelJobButton';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
@@ -379,6 +380,11 @@ function ImageJobResult({ job }: { job: ImageJob }) {
       <p>
         وضعیت: <span className={meta.badge}>{meta.label}</span>
       </p>
+      {job.status === 'queued' && (
+        <div>
+          <CancelJobButton jobId={job.id} invalidateKeys={[['image', 'jobs']]} />
+        </div>
+      )}
       {(job.status === 'queued' || job.status === 'processing') && (
         <LoadingSpinner label="تصویر در حال تولید است… لطفاً صبر کنید." />
       )}
