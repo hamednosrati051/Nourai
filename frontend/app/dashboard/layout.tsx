@@ -12,6 +12,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'داشبورد', icon: '🏠' },
   { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬' },
   { href: '/dashboard/voice', label: 'تعامل صوتی', icon: '🎙️' },
+  { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊' },
   { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨' },
   { href: '/dashboard/history', label: 'تاریخچه', icon: '🕘' },
   { href: '/dashboard/wallet', label: 'کیف پول', icon: '💰' },

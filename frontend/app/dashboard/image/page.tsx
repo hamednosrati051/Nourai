@@ -28,6 +28,7 @@ const JOB_STATUS_META: Record<ImageJobStatus, { label: string; badge: string }> 
   processing: { label: 'در حال تولید', badge: 'badge-info' },
   succeeded: { label: 'آماده', badge: 'badge-success' },
   failed: { label: 'ناموفق', badge: 'badge-danger' },
+  cancelled: { label: 'لغوشده', badge: 'badge-neutral' },
 };
 
 /** Image studio: text-to-image + image-to-image with limits, preview, polling. */

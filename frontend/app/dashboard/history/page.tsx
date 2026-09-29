@@ -19,6 +19,7 @@ const IMAGE_STATUS: Record<ImageJobStatus, { label: string; badge: string }> = {
   processing: { label: 'در حال تولید', badge: 'badge-info' },
   succeeded: { label: 'آماده', badge: 'badge-success' },
   failed: { label: 'ناموفق', badge: 'badge-danger' },
+  cancelled: { label: 'لغوشده', badge: 'badge-neutral' },
 };
 
 const AUDIO_STATUS: Record<AudioJobStatus, { label: string; badge: string }> = {
@@ -26,6 +27,7 @@ const AUDIO_STATUS: Record<AudioJobStatus, { label: string; badge: string }> = {
   processing: { label: 'در حال پردازش', badge: 'badge-info' },
   succeeded: { label: 'موفق', badge: 'badge-success' },
   failed: { label: 'ناموفق', badge: 'badge-danger' },
+  cancelled: { label: 'لغوشده', badge: 'badge-neutral' },
 };
 
 /** Output history: generated images + voice jobs in tabs. */

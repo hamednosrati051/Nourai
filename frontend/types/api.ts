@@ -166,7 +166,7 @@ export interface ChatMessage {
 // Audio
 // ---------------------------------------------------------------------------
 
-export type AudioJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed';
+export type AudioJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface AudioJob {
   id: string;
@@ -188,12 +188,25 @@ export interface AssetDownload {
   size_bytes: number;
 }
 
+export type TtsJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface TtsJob {
+  id: string;
+  status: TtsJobStatus;
+  text: string | null;
+  output_asset_id: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at: string;
+  finished_at?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Image
 // ---------------------------------------------------------------------------
 
 export type ImageJobType = 'text_to_image' | 'image_to_image';
-export type ImageJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed';
+export type ImageJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface ImageSizeOption {
   /** e.g. "1024x1024". */

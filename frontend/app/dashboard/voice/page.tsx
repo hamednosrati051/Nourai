@@ -35,7 +35,7 @@ export default function VoicePage() {
   // Refresh the thread when the tracked job finishes.
   useEffect(() => {
     const status = trackedJob.data?.status;
-    if (status === 'succeeded' || status === 'failed') {
+    if (status === 'succeeded' || status === 'failed' || status === 'cancelled') {
       queryClient.invalidateQueries({ queryKey: ['audio', 'jobs'] });
       setTrackedJobId(null);
     }
@@ -231,7 +231,9 @@ function VoiceExchange({ job }: { job: AudioJob }) {
               </>
             ) : (
               <p className="text-sm text-red-600 dark:text-red-400">
-                {job.error_message || 'پردازش صوت ناموفق بود.'}
+                {job.status === 'cancelled'
+                  ? 'این پردازش لغو شد.'
+                  : job.error_message || 'پردازش صوت ناموفق بود.'}
               </p>
             )}
           </div>
