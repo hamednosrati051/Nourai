@@ -3,15 +3,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPostForm, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
-import type { AudioJob, Paginated } from '@/types/api';
+import type { AssetDownload, AudioJob, Paginated } from '@/types/api';
 
 export function useCreateAudioJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ file, modelId }: { file: File; modelId?: string }) => {
+    mutationFn: ({ file }: { file: File }) => {
       const form = new FormData();
-      form.set('audio', file, file.name);
-      if (modelId) form.set('model_id', modelId);
+      // Backend reads request.files["file"]; models resolve to defaults.
+      form.set('file', file, file.name);
       return apiPostForm<AudioJob>('/audio/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
     },
     onSuccess: () => {
@@ -40,5 +40,15 @@ export function useAudioJobs(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
     queryKey: ['audio', 'jobs', page, pageSize],
     queryFn: () =>
       apiGet<Paginated<AudioJob>>(`/audio/jobs${buildQuery({ page, page_size: pageSize })}`),
+  });
+}
+
+/** Signed download URL for an asset (e.g. the synthesized reply audio). */
+export function useAssetDownloadUrl(assetId: string | null) {
+  return useQuery({
+    queryKey: ['assets', assetId, 'download'],
+    queryFn: () => apiGet<AssetDownload>(`/assets/${assetId}/download`),
+    enabled: !!assetId,
+    staleTime: 1000 * 60 * 5,
   });
 }

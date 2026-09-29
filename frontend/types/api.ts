@@ -171,19 +171,21 @@ export type AudioJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed';
 export interface AudioJob {
   id: string;
   status: AudioJobStatus;
-  model_id: string;
-  model_name?: string;
   transcript: string | null;
   reply_text: string | null;
-  /** Signed, short-lived URL of the synthesized reply audio. */
-  reply_audio_url: string | null;
-  /** Duration of the input audio in seconds. */
-  duration_seconds?: number | null;
-  /** Cost in integer IRR. */
-  cost_irr?: number | null;
+  input_asset_id: string | null;
+  output_asset_id: string | null;
+  error_code?: string | null;
   error_message?: string | null;
   created_at: string;
-  updated_at: string;
+  finished_at?: string | null;
+}
+
+export interface AssetDownload {
+  download_url: string;
+  expires_in_seconds: number;
+  mime_type: string;
+  size_bytes: number;
 }
 
 // ---------------------------------------------------------------------------

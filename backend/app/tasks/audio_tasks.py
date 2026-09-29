@@ -84,6 +84,7 @@ def process_audio_job(self, job_id: str) -> dict:
 
         job.status = JOB_SUCCEEDED
         job.result_text = reply_text
+        job.prompt_text = transcript
         job.finished_at = utcnow()
         minutes = max(1, math.ceil(duration / 60))
         PlanLimitService(session).increment(job.user_id, "audio", amount=minutes)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useImageJobs } from '@/features/image/hooks';
-import { useAudioJobs } from '@/features/voice/hooks';
+import { useAudioJobs, useAssetDownloadUrl } from '@/features/voice/hooks';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -132,17 +132,8 @@ export default function HistoryPage() {
                   { header: 'متن استخراج‌شده', render: (j) => <span className="line-clamp-2 max-w-xs">{j.transcript ?? '—'}</span>, hideOnCard: true },
                   {
                     header: 'پاسخ صوتی',
-                    render: (j) =>
-                      j.reply_audio_url ? (
-                        <audio controls src={j.reply_audio_url} className="w-48" aria-label="پاسخ صوتی" />
-                      ) : (
-                        <span className="text-neutral-400">—</span>
-                      ),
+                    render: (j) => <HistoryAudioCell assetId={j.output_asset_id} />,
                     hideOnCard: true,
-                  },
-                  {
-                    header: 'هزینه',
-                    render: (j) => (j.cost_irr != null ? <span className="tabular-nums">{formatToman(j.cost_irr)}</span> : '—'),
                   },
                   { header: 'تاریخ', render: (j) => formatDateTime(j.created_at) },
                 ]}
@@ -154,4 +145,13 @@ export default function HistoryPage() {
       )}
     </div>
   );
+}
+
+/** Audio player cell backed by a signed asset download URL. */
+function HistoryAudioCell({ assetId }: { assetId: string | null }) {
+  const { data, isLoading } = useAssetDownloadUrl(assetId);
+  if (!assetId) return <span className="text-neutral-400">—</span>;
+  if (isLoading) return <span className="text-xs text-neutral-400">در حال آماده‌سازی…</span>;
+  if (!data?.download_url) return <span className="text-neutral-400">—</span>;
+  return <audio controls src={data.download_url} className="w-48" aria-label="پاسخ صوتی" />;
 }

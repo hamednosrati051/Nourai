@@ -1,268 +1,251 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { useCreateAudioJob, useAudioJob, useAudioJobs } from '@/features/voice/hooks';
-import { useModels } from '@/features/models/hooks';
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob } from '@/features/voice/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { Pagination } from '@/components/Pagination';
 import { useToast } from '@/components/Toast';
 import { formatDateTime, formatDuration } from '@/lib/format';
-import { formatBytes } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
-import type { AudioJob, AudioJobStatus } from '@/types/api';
+import type { AudioJob } from '@/types/api';
 
 const MAX_AUDIO_MB = 25;
+const PAGE_SIZE = 50;
 
-const STATUS_META: Record<AudioJobStatus, { label: string; badge: string }> = {
-  queued: { label: 'در صف', badge: 'badge-neutral' },
-  processing: { label: 'در حال پردازش', badge: 'badge-info' },
-  succeeded: { label: 'موفق', badge: 'badge-success' },
-  failed: { label: 'ناموفق', badge: 'badge-danger' },
-};
-
-/** Voice interaction: upload audio -> STT -> text model -> TTS reply, with job polling. */
+/** Chat-like voice interaction: mic recording / audio upload -> STT -> reply -> TTS. */
 export default function VoicePage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const models = useModels();
+  const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const jobs = useAudioJobs(1, PAGE_SIZE);
   const createJob = useCreateAudioJob();
   const trackedJob = useAudioJob(trackedJobId);
-  const jobs = useAudioJobs(page);
 
-  const audioModels = (models.data ?? []).filter(
-    (m) => m.capability === 'speech_to_text' || m.capability === 'text_to_speech',
-  );
-  const [modelId, setModelId] = useState('');
+  // Refresh the thread when the tracked job finishes.
+  useEffect(() => {
+    const status = trackedJob.data?.status;
+    if (status === 'succeeded' || status === 'failed') {
+      queryClient.invalidateQueries({ queryKey: ['audio', 'jobs'] });
+      setTrackedJobId(null);
+    }
+  }, [trackedJob.data?.status, queryClient]);
 
-  const onFileChange = (f: File | null) => {
-    setFileError(null);
-    if (!f) {
-      setFile(null);
+  const items = [...(jobs.data?.items ?? [])].reverse(); // oldest first, chat order
+  const trackedVisible =
+    trackedJobId && trackedJob.data && !items.some((j) => j.id === trackedJobId)
+      ? trackedJob.data
+      : null;
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [items.length, trackedVisible?.id, trackedVisible?.status]);
+
+  // Recording timer.
+  useEffect(() => {
+    if (recording) {
+      setRecSeconds(0);
+      timerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [recording]);
+
+  const uploadFile = (file: File) => {
+    if (!file.type.startsWith('audio/')) {
+      toast('فایل باید صوتی باشد.', 'error');
       return;
     }
-    if (!f.type.startsWith('audio/')) {
-      setFileError('فایل باید صوتی باشد.');
-      setFile(null);
-      return;
-    }
-    if (f.size > MAX_AUDIO_MB * 1024 * 1024) {
-      setFileError(`حجم فایل نباید بیشتر از ${MAX_AUDIO_MB} مگابایت باشد.`);
-      setFile(null);
-      return;
-    }
-    setFile(f);
-  };
-
-  const submit = () => {
-    if (!file) {
-      setFileError('یک فایل صوتی انتخاب کنید.');
+    if (file.size > MAX_AUDIO_MB * 1024 * 1024) {
+      toast(`حجم فایل نباید بیشتر از ${MAX_AUDIO_MB} مگابایت باشد.`, 'error');
       return;
     }
     createJob.mutate(
-      { file, modelId: modelId || undefined },
+      { file },
       {
         onSuccess: (job) => {
           setTrackedJobId(job.id);
-          setFile(null);
-          if (fileRef.current) fileRef.current.value = '';
-          toast('فایل ارسال شد؛ پردازش آغاز شد.', 'success');
+          toast('صوت ارسال شد؛ پردازش آغاز شد.', 'success');
         },
         onError: (err) => {
           if (err instanceof ApiError && err.code === 'INSUFFICIENT_BALANCE') {
             toast('موجودی کافی نیست؛ لطفاً کیف پول را شارژ کنید.', 'error');
           } else {
-            toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ارسال فایل ناموفق بود.', 'error');
+            toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ارسال صوت ناموفق بود.', 'error');
           }
         },
       },
     );
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+        if (blob.size > 0) {
+          uploadFile(new File([blob], `recording-${Date.now()}.webm`, { type: blob.type }));
+        }
+      };
+      rec.start();
+      mediaRecorderRef.current = rec;
+      setRecording(true);
+    } catch {
+      toast('دسترسی به میکروفن ممکن نشد. لطفاً اجازه میکروفن را بدهید.', 'error');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-extrabold">تعامل صوتی</h1>
 
-      {/* Upload card */}
-      <section aria-labelledby="upload-heading" className="card">
-        <h2 id="upload-heading" className="text-lg font-bold">
-          ارسال صوت جدید
-        </h2>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400">
-          صدای شما به متن تبدیل می‌شود، مدل پاسخ می‌دهد و پاسخ به‌صورت صوتی برمی‌گردد.
-        </p>
+      {jobs.isLoading && <LoadingSpinner label="در حال بارگذاری گفتگو…" />}
+      {jobs.isError && <ErrorState message="بارگذاری گفتگو ناموفق بود." onRetry={() => jobs.refetch()} />}
 
-        <div className="mt-4 flex flex-col gap-4">
-          <div>
-            <label htmlFor="audio-file" className="label">
-              فایل صوتی
-            </label>
+      {jobs.data && items.length === 0 && !trackedVisible && (
+        <EmptyState
+          icon="🎙️"
+          title="هنوز گفتگویی ندارید"
+          description="با دکمه میکروفن صحبت کنید یا یک فایل صوتی بفرستید؛ نورا گوش می‌دهد، جواب می‌دهد و جواب را می‌خواند."
+        />
+      )}
+
+      {(items.length > 0 || trackedVisible) && (
+        <div className="flex flex-col gap-5" aria-live="polite">
+          {items.map((job) => (
+            <VoiceExchange key={job.id} job={job} />
+          ))}
+          {trackedVisible && <VoiceExchange job={trackedVisible} />}
+          <div ref={bottomRef} />
+        </div>
+      )}
+
+      {/* Composer */}
+      <div className="sticky bottom-0 -mx-2 border-t border-neutral-200 bg-white/90 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/90">
+        {recording ? (
+          <div className="flex items-center justify-center gap-4" role="status" aria-label="در حال ضبط">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
+            </span>
+            <span className="font-bold tabular-nums">{formatDuration(recSeconds)}</span>
+            <button type="button" onClick={stopRecording} className="btn-danger rounded-full px-8 py-3">
+              ⏹ توقف و ارسال
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={createJob.isPending}
+              className="btn-primary rounded-full px-8 py-4 text-lg"
+              aria-label="شروع ضبط صدا"
+            >
+              🎙️ شروع ضبط
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={createJob.isPending}
+              className="btn-secondary rounded-full px-6 py-4"
+              aria-label="ارسال فایل صوتی"
+            >
+              📎 فایل صوتی
+            </button>
             <input
-              id="audio-file"
               ref={fileRef}
               type="file"
               accept="audio/*"
-              onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-              className="input cursor-pointer"
-              aria-describedby="audio-hint"
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadFile(f);
+                e.target.value = '';
+              }}
             />
-            <p id="audio-hint" className="field-hint">
-              فرمت‌های صوتی رایج؛ حداکثر {MAX_AUDIO_MB} مگابایت.
-            </p>
-            {file && (
-              <p className="mt-2 text-sm text-neutral-700 dark:text-slate-300">
-                انتخاب‌شده: <span className="font-semibold">{file.name}</span> ({formatBytes(file.size)})
-              </p>
-            )}
-            {fileError && (
-              <p role="alert" className="field-error">
-                {fileError}
-              </p>
-            )}
           </div>
-
-          {audioModels.length > 0 && (
-            <div>
-              <label htmlFor="voice-model" className="label">
-                مدل (اختیاری)
-              </label>
-              <select
-                id="voice-model"
-                className="input"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-              >
-                <option value="">پیش‌فرض</option>
-                {audioModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <button type="button" onClick={submit} disabled={createJob.isPending || !file} className="btn-primary w-full sm:w-auto">
-            {createJob.isPending ? 'در حال ارسال…' : 'ارسال و پردازش'}
-          </button>
-        </div>
-      </section>
-
-      {/* Tracked job */}
-      {trackedJobId && (
-        <section aria-labelledby="job-heading" aria-live="polite" className="card">
-          <h2 id="job-heading" className="text-lg font-bold">
-            نتیجه پردازش
-          </h2>
-          {trackedJob.isLoading && <LoadingSpinner label="در حال بررسی وضعیت…" />}
-          {trackedJob.data && <AudioJobResult job={trackedJob.data} />}
-        </section>
-      )}
-
-      {/* History */}
-      <section aria-labelledby="history-heading">
-        <h2 id="history-heading" className="mb-3 text-lg font-bold">
-          سوابق صوتی
-        </h2>
-        {jobs.isLoading && <LoadingSpinner />}
-        {jobs.isError && <ErrorState message="بارگذاری سوابق ناموفق بود." onRetry={() => jobs.refetch()} />}
-        {jobs.data && jobs.data.items.length === 0 && (
-          <EmptyState icon="🎙️" title="سابقه‌ای نیست" description="هنوز فایل صوتی ارسال نکرده‌اید." />
         )}
-        {jobs.data && jobs.data.items.length > 0 && (
-          <>
-            <ul className="flex flex-col gap-3">
-              {jobs.data.items.map((job) => {
-                const meta = STATUS_META[job.status];
-                return (
-                  <li key={job.id} className="card !p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className={meta.badge}>{meta.label}</span>
-                      <span className="text-xs text-neutral-500 dark:text-slate-400">
-                        {formatDateTime(job.created_at)}
-                      </span>
-                    </div>
-                    {job.transcript && (
-                      <p className="mt-2 text-sm">
-                        <span className="font-semibold">متن استخراج‌شده: </span>
-                        {job.transcript}
-                      </p>
-                    )}
-                    {job.reply_text && (
-                      <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400">
-                        <span className="font-semibold">پاسخ متنی: </span>
-                        {job.reply_text}
-                      </p>
-                    )}
-                    {job.reply_audio_url && (
-                      <audio controls src={job.reply_audio_url} className="mt-3 w-full" aria-label="پاسخ صوتی" />
-                    )}
-                    {job.duration_seconds != null && (
-                      <p className="mt-1 text-xs text-neutral-500">مدت: {formatDuration(job.duration_seconds)}</p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setTrackedJobId(job.id)}
-                      className="inline-link mt-2 text-sm font-semibold text-brand-700 hover:underline dark:text-brand-400"
-                    >
-                      مشاهده جزئیات
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <Pagination page={page} totalPages={jobs.data.meta.total_pages} totalItems={jobs.data.meta.total_items} onPageChange={setPage} />
-          </>
+        {createJob.isPending && (
+          <p className="mt-2 text-center text-sm text-neutral-500">در حال ارسال صوت…</p>
         )}
-      </section>
+      </div>
     </div>
   );
 }
 
-function AudioJobResult({ job }: { job: AudioJob }) {
-  const meta = STATUS_META[job.status];
-
+/** One voice exchange: the user's audio bubble + Nourai's reply bubble. */
+function VoiceExchange({ job }: { job: AudioJob }) {
+  const processing = job.status === 'queued' || job.status === 'processing';
   return (
-    <div className="mt-3 flex flex-col gap-3">
-      <p>
-        وضعیت: <span className={meta.badge}>{meta.label}</span>
-      </p>
-      {(job.status === 'queued' || job.status === 'processing') && (
-        <LoadingSpinner label="در حال پردازش صوت… لطفاً صبر کنید." />
-      )}
-      {job.status === 'failed' && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          پردازش ناموفق بود. مبلغ رزروشده به کیف پول برگشت.
-        </p>
-      )}
-      {job.status === 'succeeded' && (
-        <>
-          {job.transcript && (
-            <div>
-              <h3 className="text-sm font-bold">متن استخراج‌شده</h3>
-              <p className="mt-1 rounded-xl bg-neutral-100 p-3 text-sm dark:bg-navy-800">{job.transcript}</p>
-            </div>
+    <div className="flex flex-col gap-2">
+      {/* User */}
+      <div className="flex justify-end">
+        <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-brand-600 px-4 py-3 text-white dark:bg-brand-500">
+          <JobAudio assetId={job.input_asset_id} label="صدای شما" />
+          {processing && !job.transcript && (
+            <p className="mt-2 text-sm opacity-90">در حال پردازش صدا…</p>
           )}
-          {job.reply_text && (
-            <div>
-              <h3 className="text-sm font-bold">پاسخ متنی</h3>
-              <p className="mt-1 rounded-xl bg-neutral-100 p-3 text-sm dark:bg-navy-800">{job.reply_text}</p>
-            </div>
-          )}
-          {job.reply_audio_url && (
-            <div>
-              <h3 className="text-sm font-bold">پاسخ صوتی</h3>
-              <audio controls src={job.reply_audio_url} className="mt-2 w-full" aria-label="پاسخ صوتی" />
-            </div>
-          )}
-        </>
+          {job.transcript && <p className="mt-2 text-sm leading-7">{job.transcript}</p>}
+          <p className="mt-1 text-left text-[11px] opacity-70">{formatDateTime(job.created_at)}</p>
+        </div>
+      </div>
+      {/* Nourai */}
+      {!processing && (
+        <div className="flex justify-start">
+          <div className="card max-w-[88%] !p-4">
+            {job.status === 'succeeded' ? (
+              <>
+                {job.reply_text && <p className="text-sm leading-7">{job.reply_text}</p>}
+                <div className="mt-2">
+                  <JobAudio assetId={job.output_asset_id} label="پاسخ صوتی نورا" />
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {job.error_message || 'پردازش صوت ناموفق بود.'}
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+/** Audio player backed by a signed asset download URL. */
+function JobAudio({ assetId, label }: { assetId: string | null; label: string }) {
+  const { data, isLoading } = useAssetDownloadUrl(assetId);
+  if (!assetId) return null;
+  if (isLoading) return <span className="text-xs opacity-80">در حال آماده‌سازی صوت…</span>;
+  if (!data?.download_url) return null;
+  return <audio controls src={data.download_url} className="w-full min-w-52" aria-label={label} />;
 }

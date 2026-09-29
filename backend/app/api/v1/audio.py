@@ -31,7 +31,7 @@ from app.config import config
 from app.extensions import db
 from app.models import AiModel, Asset, GenerationJob, UsageEvent
 from app.models.catalog import CAP_STT, CAP_TEXT, CAP_TTS
-from app.models.jobs import ASSET_INPUT_AUDIO, JOB_QUEUED
+from app.models.jobs import ASSET_INPUT_AUDIO, ASSET_OUTPUT_AUDIO, JOB_QUEUED
 from app.services.storage import asset_key, storage
 from app.services.audit import audit
 from app.services.plans import PlanLimitExceeded, PlanLimitService
@@ -84,14 +84,15 @@ class AudioJobSchema(BaseModel):
 def _job_payload(job: GenerationJob) -> dict:
     output_asset = (
         db.session.query(Asset)
-        .filter_by(job_id=job.id, kind="output_audio")
+        .filter_by(job_id=job.id, kind=ASSET_OUTPUT_AUDIO)
         .order_by(Asset.created_at.desc())
         .first()
     )
     return {
         "id": job.id,
         "status": job.status,
-        "result_text": job.result_text,
+        "transcript": job.prompt_text,
+        "reply_text": job.result_text,
         "error_code": job.error_code,
         "error_message": job.error_message,
         "input_asset_id": (job.parameters_json or {}).get("input_asset_id"),
