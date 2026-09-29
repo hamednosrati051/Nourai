@@ -22,8 +22,8 @@ import type { AiModel, ModelCapability } from '@/types/api';
 
 const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   text: 'متن',
-  speech_to_text: 'گفتار → متن',
-  text_to_speech: 'متن → گفتار',
+  speech_to_text: 'stt',
+  text_to_speech: 'tts',
   image: 'تصویر',
 };
 
