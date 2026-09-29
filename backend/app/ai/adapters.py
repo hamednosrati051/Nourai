@@ -935,7 +935,7 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
     name = ((getattr(model, "provider_type", None)) or "fake").lower()
     if name == "fake":
         return FakeImageProvider()
-    if name in ("openai_compat", "async_generation", "metis", "metis_image"):
+    if name in ("openai_compat", "async_generation", "metis_image"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(

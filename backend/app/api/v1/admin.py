@@ -685,7 +685,6 @@ _PROVIDER_CREDS_KEY = "__provider__"
 PROVIDER_TYPES = {
     "openai_compat": "OpenAI Compatible",
     "async_generation": "Async Generation",
-    "metis": "Metis",
     "metis_tts": "Metis TTS",
     "metis_image": "Metis Image",
 }
