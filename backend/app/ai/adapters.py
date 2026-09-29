@@ -101,62 +101,6 @@ class FakeTtsProvider(TextToSpeechProvider):
         )
 
 
-ELEVENLABS_BASE_URL = "https://api.elevenlabs.io"
-# Multilingual model with Persian support.
-ELEVENLABS_TTS_MODEL = "eleven_v3"
-
-
-class ElevenLabsTtsProvider(TextToSpeechProvider):
-    """ElevenLabs text-to-speech.
-
-    API key from the ELEVENLABS_API_KEY environment variable. The ``model``
-    argument is the ElevenLabs voice_id (taken from the admin TTS model
-    row's provider_model_name).
-    """
-
-    def __init__(self, api_key: str, base_url: str = ELEVENLABS_BASE_URL):
-        if not api_key:
-            raise ValueError("ElevenLabs API key is not set")
-        self.api_key = api_key
-        self.base_url = (base_url or ELEVENLABS_BASE_URL).rstrip("/")
-
-    def synthesize(self, model: str, text: str, options: dict) -> AudioResult:
-        voice_id = (model or "").strip()
-        if not voice_id:
-            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
-                               error_message="TTS voice id is not configured")
-        payload = json.dumps({"text": text, "model_id": ELEVENLABS_TTS_MODEL}).encode()
-        req = urllib.request.Request(
-            f"{self.base_url}/v1/text-to-speech/{voice_id}",
-            data=payload, method="POST",
-            headers={
-                "xi-api-key": self.api_key,
-                "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                audio = resp.read()
-        except urllib.error.HTTPError as exc:
-            try:
-                detail = exc.read().decode("utf-8", "replace")[:300]
-            except Exception:  # noqa: BLE001
-                detail = ""
-            log.warning("elevenlabs tts failed: HTTP %s %s", exc.code, detail)
-            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
-                               error_message=f"TTS provider error (HTTP {exc.code})")
-        except Exception:  # noqa: BLE001
-            log.exception("elevenlabs tts request failed")
-            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
-                               error_message="TTS provider unreachable")
-        if not audio:
-            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
-                               error_message="TTS provider returned empty audio")
-        return AudioResult(ok=True, audio_bytes=audio, mime_type="audio/mpeg",
-                           provider_request_id=f"elevenlabs-{voice_id}")
-
-
 class FakeImageProvider(ImageAiProvider):
     def __init__(self):
         _guard_not_production()
@@ -810,27 +754,10 @@ def get_stt_provider(provider_key: str | None = None, model=None) -> SpeechToTex
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 
-def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeechProvider:
-    """Select the text-to-speech provider.
-
-    ``provider_key`` is the model's catalog key; ``model`` is the catalog row,
-    used for form-stored credentials (env is fallback) and for the per-model
-    ``provider_type`` (env is fallback). Mirrors get_stt_provider: everything
-    except the image backend is definable from the admin model form.
-    """
-    name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
+def get_tts_provider() -> TextToSpeechProvider:
+    name = (config.ai_audio_provider or "fake").lower()
     if name == "fake":
         return FakeTtsProvider()
-    if name == "elevenlabs":
-        base_url, api_key = _resolve_credentials(provider_key, model)
-        if not base_url or not api_key:
-            raise ValueError(
-                f"missing credentials for provider {provider_key!r}: "
-                "set endpoint and token in the admin model form or via "
-                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
-                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
-            )
-        return ElevenLabsTtsProvider(api_key, base_url)
     raise ValueError(f"unknown AI_AUDIO_PROVIDER: {name}")
 
 
