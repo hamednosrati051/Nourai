@@ -310,7 +310,7 @@ export default function AdminPricingPage() {
             <label htmlFor="est-model" className="label">مدل</label>
             <select id="est-model" className="input" {...estimateForm.register('model_id')}>
               <option value="">انتخاب مدل…</option>
-              {(models.data ?? []).map((m) => (
+              {(models.data ?? []).filter((m) => m.is_active).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.display_name} ({CAPABILITY_LABELS[m.capability] ?? m.capability})
                 </option>
@@ -395,7 +395,7 @@ export default function AdminPricingPage() {
             <label htmlFor="rule-model" className="label">مدل</label>
             <select id="rule-model" className={`input ${ruleForm.formState.errors.model_id ? 'input-error' : ''}`} {...ruleForm.register('model_id')}>
               <option value="">انتخاب مدل…</option>
-              {(models.data ?? []).map((m) => (
+              {(models.data ?? []).filter((m) => m.is_active).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.display_name} ({CAPABILITY_LABELS[m.capability] ?? m.capability})
                 </option>
