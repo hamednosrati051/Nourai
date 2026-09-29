@@ -48,6 +48,9 @@ export default function ImagePage() {
   const createJob = useCreateImageJob();
   const trackedJob = useImageJob(trackedJobId);
   const history = useImageJobs(historyPage);
+  const doneImages = (history.data?.items ?? []).filter(
+    (job) => job.status === 'succeeded' && job.result_url,
+  );
 
   const {
     register,
@@ -240,17 +243,17 @@ export default function ImagePage() {
             {history.isError && (
               <ErrorState message="بارگذاری تصاویر ناموفق بود." onRetry={() => history.refetch()} />
             )}
-            {history.data && history.data.items.length === 0 && (
+            {history.data && doneImages.length === 0 && (
               <EmptyState
                 icon="🎨"
                 title="هنوز تصویری تولید نکرده‌اید"
                 description="از فرم بالا اولین تصویرتان را بسازید."
               />
             )}
-            {history.data && history.data.items.length > 0 && (
+            {doneImages.length > 0 && (
               <>
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {history.data.items.map((job) => (
+                  {doneImages.map((job) => (
                     <li key={job.id} className="card group !p-2">
                       <button
                         type="button"
@@ -278,7 +281,7 @@ export default function ImagePage() {
                     </li>
                   ))}
                 </ul>
-                {history.data.meta.total_pages > 1 && (
+                {(history.data?.meta.total_pages ?? 1) > 1 && (
                   <div className="flex items-center justify-center gap-3">
                     <button
                       type="button"
@@ -289,12 +292,12 @@ export default function ImagePage() {
                       قبلی
                     </button>
                     <span className="text-sm text-neutral-500">
-                      صفحه {historyPage} از {history.data.meta.total_pages}
+                      صفحه {historyPage} از {history.data?.meta.total_pages}
                     </span>
                     <button
                       type="button"
                       onClick={() => setHistoryPage((p) => p + 1)}
-                      disabled={historyPage >= history.data.meta.total_pages}
+                      disabled={historyPage >= (history.data?.meta.total_pages ?? 1)}
                       className="btn-secondary btn-sm"
                     >
                       بعدی
