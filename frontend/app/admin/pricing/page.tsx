@@ -369,9 +369,9 @@ export default function AdminPricingPage() {
         {estimate.data && (
           <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900/50 dark:bg-brand-950/30" aria-live="polite">
             <ul className="space-y-1 text-sm">
-              {estimate.data.breakdown.map((line, i) => (
+              {(estimate.data.lines ?? []).map((line, i) => (
                 <li key={i} className="flex justify-between gap-3">
-                  <span className="text-neutral-600 dark:text-slate-400">{line.label}</span>
+                  <span className="text-neutral-600 dark:text-slate-400">{BILLING_UNIT_LABELS[line.billing_unit] ?? line.billing_unit}</span>
                   <span className="font-semibold tabular-nums">{formatToman(line.amount_irr)}</span>
                 </li>
               ))}

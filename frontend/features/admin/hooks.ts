@@ -255,10 +255,19 @@ export function useDeletePricingRule() {
   });
 }
 
+export interface PricingEstimateLine {
+  billing_unit: string;
+  amount_irr: number;
+  quantity: string;
+  units_charged: number;
+  unit_price_irr: number;
+  rule_version: number;
+}
+
 export function usePricingEstimate() {
   return useMutation({
     mutationFn: (input: Record<string, unknown>) =>
-      apiPost<{ total_irr: number; breakdown: { label: string; amount_irr: number }[] }>(
+      apiPost<{ total_irr: number; lines: PricingEstimateLine[] }>(
         '/admin/pricing/estimate',
         input,
       ),
