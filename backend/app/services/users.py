@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from sqlalchemy import func
+
 from app.auth.otp import mask_mobile
 from app.models import AuditLog, Payment, UsageEvent, User, WalletTransaction
 from app.models.wallet import WalletAccount
@@ -57,8 +59,24 @@ def user_summary(session, user: User) -> dict:
         "mobile_verified_at": _iso(user.mobile_verified_at),
         "last_login_at": _iso(user.last_login_at),
         "balance_irr": wallet.balance_irr if wallet else 0,
+        "total_spent_irr": _total_spent_irr(session, user.id),
         "created_at": _iso(user.created_at),
     }
+
+
+def _total_spent_irr(session, user_id: str) -> int:
+    """Total consumption in IRR: absolute sum of negative wallet transactions.
+
+    WalletTransaction.amount_irr is signed (deposits positive, charges
+    negative), so total spent is the negated sum of the negative rows.
+    """
+    total = (
+        session.query(func.coalesce(func.sum(WalletTransaction.amount_irr), 0))
+        .join(WalletAccount, WalletTransaction.wallet_id == WalletAccount.id)
+        .filter(WalletAccount.user_id == user_id, WalletTransaction.amount_irr < 0)
+        .scalar()
+    )
+    return abs(int(total or 0))
 
 
 def _iso(value) -> str | None:
