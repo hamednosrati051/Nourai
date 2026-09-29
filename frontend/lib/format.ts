@@ -13,10 +13,21 @@ const timeFormatter = new Intl.DateTimeFormat('fa-IR', {
   minute: '2-digit',
 });
 
+/**
+ * Parse a backend ISO timestamp. The backend stores timestamps in UTC but
+ * serializes naive datetimes (no offset suffix); a bare ISO string is parsed
+ * by `new Date()` as *local* time, shifting every displayed time by the UTC
+ * offset. Interpret offset-less strings as UTC by appending "Z".
+ */
+function parseBackendDateTime(iso: string): Date {
+  const hasOffset = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso.trim());
+  return new Date(hasOffset ? iso : `${iso.trim()}Z`);
+}
+
 /** Format an ISO timestamp as a Persian date+time string. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseBackendDateTime(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return dateTimeFormatter.format(d);
 }
@@ -24,7 +35,7 @@ export function formatDateTime(iso: string | null | undefined): string {
 /** Format an ISO timestamp as a Persian date string. */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseBackendDateTime(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return dateFormatter.format(d);
 }
@@ -32,7 +43,7 @@ export function formatDate(iso: string | null | undefined): string {
 /** Format an ISO timestamp as a Persian time string. */
 export function formatTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseBackendDateTime(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return timeFormatter.format(d);
 }
