@@ -15,7 +15,7 @@ def _model(provider_type):
 
 
 def test_get_tts_provider_metis():
-    p = get_tts_provider("k", _model("metis_tts"))
+    p = get_tts_provider("k", _model("metis"))
     assert isinstance(p, AsyncGenerationTtsProvider)
 
 

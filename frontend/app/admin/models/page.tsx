@@ -35,15 +35,14 @@ const CAPABILITIES: ModelCapability[] = ['text', 'speech_to_text', 'text_to_spee
 const PROVIDER_TYPE_LABELS: Record<string, string> = {
   openai_compat: 'OpenAI Compatible',
   async_generation: 'Async Generation',
-  metis_tts: 'Metis TTS',
-  metis_image: 'Metis Image',
+  metis: 'Metis',
 };
 const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
-  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const, 'metis_tts' as const, 'metis_image' as const]),
+  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const, 'metis' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
@@ -305,7 +304,7 @@ export default function AdminModelsPage() {
                       <option key={t} value={t}>{PROVIDER_TYPE_LABELS[t]}</option>
                     ))}
                   </select>
-                  <p className="field-hint">برای متیس: تصویر «Metis Image» و گفتار «Metis TTS».</p>
+                  <p className="field-hint">برای Metis از «Async Generation» و برای AvalAI از «OpenAI Compatible» استفاده کنید.</p>
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="model-provider-name" className="label">نام مدل در provider</label>
