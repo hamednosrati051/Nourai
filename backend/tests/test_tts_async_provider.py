@@ -19,11 +19,6 @@ def test_get_tts_provider_async_generation():
     assert isinstance(p, AsyncGenerationTtsProvider)
 
 
-def test_get_tts_provider_async_generation():
-    p = get_tts_provider("k", _model("async_generation"))
-    assert isinstance(p, AsyncGenerationTtsProvider)
-
-
 def test_synthesize_create_poll_download():
     p = AsyncGenerationTtsProvider(
         base_url="https://platform-api.metisai.ir", api_key="k", provider_key="t",
