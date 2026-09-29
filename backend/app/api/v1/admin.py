@@ -1315,16 +1315,28 @@ def list_audit_logs():
     action = request.args.get("action")
     if action:
         query = query.filter(AuditLog.action.startswith(action))
+    search = (request.args.get("search") or "").strip()
+    if search:
+        user = _find_user_by_search(db.session, search)
+        if user is None:
+            query = query.filter(db.false())
+        else:
+            query = query.filter(
+                ((AuditLog.actor_type == "user") & (AuditLog.actor_id == user.id))
+                | ((AuditLog.target_type == "user") & (AuditLog.target_id == user.id))
+            )
     query = query.order_by(AuditLog.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
-    actor_labels = _audit_actor_labels(db.session, items)
+    labels = _audit_party_labels(db.session, items)
     return paginated_response(
         [
             {
                 "id": e.id, "actor_type": e.actor_type, "actor_id": e.actor_id,
-                "actor_label": actor_labels.get((e.actor_type, e.actor_id)),
-                "action": e.action, "target_type": e.target_type, "target_id": e.target_id,
+                "actor_label": labels.get((e.actor_type, e.actor_id)),
+                "action": e.action,
+                "target_type": e.target_type, "target_id": e.target_id,
+                "target_label": labels.get((e.target_type, e.target_id)),
                 "metadata": e.metadata_json,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
@@ -1336,11 +1348,30 @@ def list_audit_logs():
     )
 
 
-def _audit_actor_labels(session, entries) -> dict:
-    """Human-readable actor names for audit rows: username for admins,
-    masked mobile for users. Bulk-fetched to avoid N+1 queries."""
-    admin_ids = {e.actor_id for e in entries if e.actor_type == "admin" and e.actor_id}
-    user_ids = {e.actor_id for e in entries if e.actor_type == "user" and e.actor_id}
+def _find_user_by_search(session, search: str):
+    """Find a user by mobile number (exact normalized match)."""
+    try:
+        normalized = normalize_mobile(search)
+    except ValueError:
+        normalized = "".join(c for c in search if c.isdigit())
+    if not normalized:
+        return None
+    return session.query(User).filter_by(mobile_normalized=normalized).one_or_none()
+
+
+def _audit_party_labels(session, entries) -> dict:
+    """Human-readable names for audit actors and targets: username for
+    admins, masked mobile for users. Bulk-fetched to avoid N+1 queries."""
+    admin_ids: set = set()
+    user_ids: set = set()
+    for e in entries:
+        for party_type, party_id in ((e.actor_type, e.actor_id), (e.target_type, e.target_id)):
+            if not party_id:
+                continue
+            if party_type == "admin":
+                admin_ids.add(party_id)
+            elif party_type == "user":
+                user_ids.add(party_id)
     labels: dict = {}
     if admin_ids:
         for admin in session.query(AdminUser).filter(AdminUser.id.in_(admin_ids)).all():

@@ -343,12 +343,12 @@ export function useImageProfilePreview() {
 // Audit log
 // ---------------------------------------------------------------------------
 
-export function useAuditLog(page = 1) {
+export function useAuditLog(page = 1, search?: string) {
   return useQuery({
-    queryKey: ['admin', 'audit', page],
+    queryKey: ['admin', 'audit', page, search || ''],
     queryFn: () =>
       apiGet<Paginated<AuditLogEntry>>(
-        `/admin/audit-logs${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+        `/admin/audit-logs${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, search: search || undefined })}`,
       ),
   });
 }
