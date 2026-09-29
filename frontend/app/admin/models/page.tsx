@@ -35,13 +35,14 @@ const CAPABILITIES: ModelCapability[] = ['text', 'speech_to_text', 'text_to_spee
 const PROVIDER_TYPE_LABELS: Record<string, string> = {
   openai_compat: 'OpenAI Compatible',
   async_generation: 'Async Generation',
+  metis: 'Metis',
 };
 const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image']),
-  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const]),
+  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const, 'metis' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),

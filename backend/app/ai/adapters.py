@@ -528,15 +528,12 @@ def _metis_usage_cost_to_cents(usage: dict) -> int | None:
         return None
 
 
-class AsyncGenerationImageProvider(ImageAiProvider):
-    """Async generation API client (create -> poll -> download).
-
-    Generic adapter for providers with an asynchronous generation protocol
+class _AsyncGenerationBase:
+    """Shared create -> poll -> download client for async generation APIs
     (e.g. MetisAI): ``POST {base_url}/api/v2/generate`` with
-    ``{"model": {"name": vendor, "model": name}, "operation": "Imagine",
-    "args": {"prompt": ...}}``; result via ``GET {base_url}/api/v2/generate/{id}``
-    polling until ``COMPLETED``. ``edit`` uploads the input image to
-    ``{base_url}/api/v1/storage`` first and passes its URL as ``image_input``.
+    ``{"model": {"name": vendor, "model": name}, "operation": ..., "args": ...}``;
+    result via ``GET {base_url}/api/v2/generate/{id}`` polling until
+    ``COMPLETED``.
 
     The catalog's ``provider_model_name`` uses the ``vendor/model`` format
     (e.g. ``google/nano-banana``), matching the API's model object.
@@ -599,14 +596,11 @@ class AsyncGenerationImageProvider(ImageAiProvider):
                         self.provider_key, path, exc)
         return None
 
-    def _create(self, vendor: str, name: str, prompt: str,
-                image_input: str | None = None) -> str | None:
-        args: dict = {"prompt": prompt}
-        if image_input:
-            args["image_input"] = image_input
+    def _create_task(self, vendor: str, name: str, operation: str,
+                     args: dict) -> str | None:
         data = self._api("POST", "/api/v2/generate", {
             "model": {"name": vendor, "model": name},
-            "operation": "Imagine",
+            "operation": operation,
             "args": args,
         })
         if data and data.get("_provider_error"):
@@ -637,8 +631,24 @@ class AsyncGenerationImageProvider(ImageAiProvider):
             with urllib.request.urlopen(url, timeout=self.timeout_seconds) as resp:
                 return resp.read()
         except Exception as exc:  # noqa: BLE001
-            log.warning("async image download failed: %s", exc)
+            log.warning("async download failed: %s", exc)
             return b""
+
+
+class AsyncGenerationImageProvider(_AsyncGenerationBase, ImageAiProvider):
+    """Async image generation (create -> poll -> download).
+
+    ``operation`` is ``"Imagine"``; ``args`` carries ``prompt`` and,
+    for edits, ``image_input`` (a URL — ``edit`` uploads the input image
+    to ``{base_url}/api/v1/storage`` first).
+    """
+
+    def _create(self, vendor: str, name: str, prompt: str,
+                image_input: str | None = None) -> str | None:
+        args: dict = {"prompt": prompt}
+        if image_input:
+            args["image_input"] = image_input
+        return self._create_task(vendor, name, "Imagine", args)
 
     def _finish(self, task_id: str) -> ImageResult:
         data = self._poll(task_id)
@@ -723,6 +733,68 @@ class AsyncGenerationImageProvider(ImageAiProvider):
             return ImageResult(ok=False, error_code="PROVIDER_ERROR",
                                error_message="could not create generation")
         return self._finish(task_id)
+
+
+def _guess_audio_mime(url: str) -> str:
+    lower = (url or "").lower().split("?")[0]
+    if lower.endswith(".wav"):
+        return "audio/wav"
+    if lower.endswith(".ogg") or lower.endswith(".oga"):
+        return "audio/ogg"
+    if lower.endswith(".webm"):
+        return "audio/webm"
+    if lower.endswith(".m4a"):
+        return "audio/mp4"
+    return "audio/mpeg"
+
+
+class AsyncGenerationTtsProvider(_AsyncGenerationBase, TextToSpeechProvider):
+    """Async text-to-speech (create -> poll -> download).
+
+    ``operation`` is ``"TTS"``; ``args`` carries ``prompt`` (the text)
+    and, when given, ``voice``. The finished generation's
+    ``generations[0].url`` is downloaded as the audio file.
+    """
+
+    def synthesize(self, model: str, text: str, options: dict) -> AudioResult:
+        split = self._split_model(model)
+        if not split:
+            return AudioResult(
+                ok=False, error_code="MODEL_MISCONFIGURED",
+                error_message="provider_model_name must be 'vendor/model' (e.g. openai/tts-1)",
+            )
+        vendor, name = split
+        args: dict = {"prompt": text}
+        voice = (options or {}).get("voice")
+        if voice:
+            args["voice"] = voice
+        try:
+            task_id = self._create_task(vendor, name, "TTS", args)
+        except _ProviderError as exc:
+            return AudioResult(ok=False, error_code=exc.code,
+                               error_message=str(exc) or exc.code)
+        if not task_id:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not create tts generation")
+        data = self._poll(task_id)
+        if not data:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="tts generation failed or timed out")
+        generations = data.get("generations") or []
+        url = (generations[0].get("url") if generations else None)
+        if not url:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty tts result")
+        audio_bytes = self._download(url)
+        if not audio_bytes:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not download tts audio")
+        return AudioResult(
+            ok=True, audio_bytes=audio_bytes,
+            mime_type=_guess_audio_mime(url),
+            provider_request_id=task_id,
+        )
+
 
 
 def _encode_multipart(fields: dict, file_field: str, filename: str,
@@ -829,7 +901,7 @@ def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeec
     name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
     if name == "fake":
         return FakeTtsProvider()
-    if name == "openai_compat":
+    if name in ("openai_compat", "async_generation", "metis"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
@@ -838,7 +910,12 @@ def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeec
                 f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
                 f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
             )
-        return OpenAICompatTtsProvider(
+        cls = (
+            OpenAICompatTtsProvider
+            if name == "openai_compat"
+            else AsyncGenerationTtsProvider
+        )
+        return cls(
             base_url=base_url, api_key=api_key,
             provider_key=provider_key or "default",
         )
@@ -858,7 +935,7 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
     name = ((getattr(model, "provider_type", None)) or "fake").lower()
     if name == "fake":
         return FakeImageProvider()
-    if name in ("openai_compat", "async_generation"):
+    if name in ("openai_compat", "async_generation", "metis"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
