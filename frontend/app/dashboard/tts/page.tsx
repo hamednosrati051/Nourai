@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TTS_MAX_CHARS, useCreateTtsJob, useTtsJob, useTtsJobs } from '@/features/tts/hooks';
-import { CancelJobButton } from '@/features/jobs/CancelJobButton';
 import { useAssetDownloadUrl } from '@/features/voice/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
@@ -137,9 +136,6 @@ export default function TtsPage() {
             <div className="flex items-center justify-between gap-2">
               <span className="badge-neutral badge">{TTS_STATUS_LABEL[job.status] ?? job.status}</span>
               <span className="flex items-center gap-2">
-                {job.status === 'queued' && (
-                  <CancelJobButton jobId={job.id} invalidateKeys={[['tts', 'jobs']]} />
-                )}
                 <span className="text-xs text-neutral-500">{formatDateTime(job.created_at)}</span>
               </span>
             </div>
@@ -170,9 +166,6 @@ function TtsResult({ job }: { job: TtsJob }) {
       ) : (
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm text-neutral-500">{TTS_STATUS_LABEL[job.status] ?? job.status}</p>
-          {job.status === 'queued' && (
-            <CancelJobButton jobId={job.id} invalidateKeys={[['tts', 'jobs']]} />
-          )}
         </div>
       )}
     </div>

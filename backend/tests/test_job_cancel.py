@@ -12,7 +12,7 @@ from app.models import GenerationJob, UsageEvent, WalletAccount
 from app.models.jobs import JOB_CANCELLED, JOB_FAILED, JOB_PROCESSING, JOB_QUEUED, JOB_SUCCEEDED
 from app.tasks import aborted_during_processing, cancel_job
 from app.tasks.sweep_tasks import sweep_stuck_jobs
-from tests.conftest import admin_headers, user_headers
+from tests.conftest import admin_headers
 
 
 def _job(app, user_id, status=JOB_QUEUED, capability="image"):
@@ -62,26 +62,7 @@ def test_cancel_job_terminal_is_noop(app, user):
         assert job.status == JOB_SUCCEEDED
 
 
-def test_user_can_cancel_own_queued_job(client, app, user):
-    _fund(app, user)
-    job_id = _job(app, user, JOB_QUEUED)
-    r = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=user_headers(client, user))
-    assert r.status_code == 200, r.get_data(as_text=True)
-    assert r.get_json()["data"]["status"] == "cancelled"
 
-
-def test_user_cannot_cancel_processing_job(client, app, user):
-    _fund(app, user)
-    job_id = _job(app, user, JOB_PROCESSING)
-    r = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=user_headers(client, user))
-    assert r.status_code == 409
-
-
-def test_user_cannot_cancel_others_job(client, app, user, admin):
-    _fund(app, admin)
-    job_id = _job(app, admin, JOB_QUEUED)
-    r = client.post(f"/api/v1/jobs/{job_id}/cancel", headers=user_headers(client, user))
-    assert r.status_code == 404
 
 
 def test_admin_can_cancel_processing_job(client, app, user, admin):
