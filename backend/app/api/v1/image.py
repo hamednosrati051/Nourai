@@ -134,6 +134,27 @@ def _profile_payload(profile: ImageProcessingProfile | None) -> dict | None:
 SYSTEM_IMAGE_MODEL_SLUG = "nourai-image"
 
 
+def _resolve_image_model(model_id: str | None) -> AiModel | None:
+    """Explicit model_id wins; else the first active non-hardcoded image model."""
+    if model_id:
+        model = db.session.get(AiModel, model_id)
+        if (
+            model
+            and model.capability == CAP_IMAGE
+            and model.is_active
+            and (model.provider_type or "").lower() != "hardcoded"
+        ):
+            return model
+        return None
+    return (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_IMAGE, is_active=True)
+        .filter(AiModel.provider_type != "hardcoded")
+        .order_by(AiModel.created_at)
+        .first()
+    )
+
+
 def ensure_system_image_model() -> AiModel:
     """Get (creating if needed) the system image model used for billing.
 
@@ -277,9 +298,12 @@ def create_image_job():
     if not prompt or mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
 
-    # The image backend is hardcoded; the system model row is only the
-    # billing anchor for the pricing rules.
-    model = ensure_system_image_model()
+    # Model-driven image backend: explicit model_id wins, else the first
+    # active non-hardcoded image model. The legacy system row ("hardcoded")
+    # is never selected for new jobs.
+    model = _resolve_image_model(_val("model_id"))
+    if model is None:
+        return error_response("MODEL_UNAVAILABLE", "مدل فعال تولید تصویر یافت نشد.", 404)
     profile = get_active_profile(model.id)
     if profile is None:
         return error_response("MODEL_UNAVAILABLE", "پروفایل پردازش تصویر تنظیم نشده است.", 500)
@@ -358,6 +382,7 @@ def create_image_job():
             "input_megapixels": str(input_mp),
             "output_megapixels": str(output_mp),
             "image_count": 1,
+            "model_id": model.id,
         },
         processing_profile_snapshot_json=profile_snapshot,
     )

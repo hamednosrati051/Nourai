@@ -846,29 +846,34 @@ def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeec
 
 
 # ---------------------------------------------------------------------------
-# Hardcoded image generation backend.
+# Image provider selection (model-driven).
 #
-# Image generation no longer reads provider configuration from AiModel rows
-# and cannot be defined through the admin model form. Endpoint, model and
-# operation are fixed here (Metis platform API, docs:
-# https://docs.metisai.ir/api/generation/); only the API token comes from
-# the IMAGE_API_KEY environment variable. Pricing stays configurable via
-# the admin pricing rules, anchored on the system image model row.
+# ``get_image_provider`` reads ``provider_type`` from the AiModel row
+# (``fake`` | ``openai_compat`` | ``async_generation``), the same pattern
+# as the text/STT/TTS selectors. Provider credentials come from the admin
+# model form (env is fallback).
 # ---------------------------------------------------------------------------
-IMAGE_GEN_BASE_URL = "https://platform-api.metisai.ir"
-# "vendor/model" format, passed verbatim as the API's model object.
-IMAGE_GEN_MODEL = "google/nano-banana-2"
-
-
-def get_hardcoded_image_provider() -> ImageAiProvider:
-    """Build the image provider from hardcoded settings + env token."""
-    api_key = (config.image_api_key or "").strip()
-    if not api_key:
-        raise ValueError(
-            "missing image API key: set the IMAGE_API_KEY environment variable"
+def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiProvider:
+    """Select the image provider from the model row."""
+    name = ((getattr(model, "provider_type", None)) or "fake").lower()
+    if name == "fake":
+        return FakeImageProvider()
+    if name in ("openai_compat", "async_generation"):
+        base_url, api_key = _resolve_credentials(provider_key, model)
+        if not base_url or not api_key:
+            raise ValueError(
+                f"missing credentials for provider {provider_key!r}: "
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        cls = (
+            OpenAICompatImageProvider
+            if name == "openai_compat"
+            else AsyncGenerationImageProvider
         )
-    return AsyncGenerationImageProvider(
-        base_url=IMAGE_GEN_BASE_URL,
-        api_key=api_key,
-        provider_key="image",
-    )
+        return cls(
+            base_url=base_url, api_key=api_key,
+            provider_key=provider_key or "default",
+        )
+    raise ValueError(f"unknown image provider_type: {name}")

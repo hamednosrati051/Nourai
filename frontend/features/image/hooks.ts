@@ -20,6 +20,8 @@ export interface CreateImageJobInput {
   quality?: string;
   /** Raw input file for image_to_image; backend validates and derives a safe copy. */
   inputFile?: File;
+  /** Optional image model id; backend falls back to the active image model. */
+  model_id?: string;
 }
 
 export function useCreateImageJob() {
@@ -32,6 +34,7 @@ export function useCreateImageJob() {
         form.set('prompt', input.prompt);
         if (input.size) form.set('size', input.size);
         if (input.quality) form.set('quality', input.quality);
+        if (input.model_id) form.set('model_id', input.model_id);
         form.set('image', input.inputFile, input.inputFile.name);
         return apiPostForm<ImageJob>('/image/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
       }

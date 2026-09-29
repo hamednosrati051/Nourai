@@ -10,6 +10,7 @@ import {
   useImageJob,
   useImageJobs,
 } from '@/features/image/hooks';
+import { useModels } from '@/features/models/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
@@ -48,6 +49,11 @@ export default function ImagePage() {
   const createJob = useCreateImageJob();
   const trackedJob = useImageJob(trackedJobId);
   const history = useImageJobs(historyPage);
+  const modelsQuery = useModels();
+  const imageModels = (modelsQuery.data ?? []).filter(
+    (m) => m.capability === 'image' && m.slug !== 'nourai-image',
+  );
+  const [modelId, setModelId] = useState<string>('');
   const doneImages = (history.data?.items ?? []).filter(
     (job) => job.status === 'succeeded' && job.result_url,
   );
@@ -108,6 +114,7 @@ export default function ImagePage() {
         type: values.type,
         prompt: values.prompt,
         inputFile: values.type === 'image_to_image' ? inputFile ?? undefined : undefined,
+        model_id: modelId || undefined,
       },
       {
         onSuccess: (job) => {
@@ -159,6 +166,28 @@ export default function ImagePage() {
                 </label>
               ))}
             </div>
+
+            {/* Model picker (only when several image models are active) */}
+            {imageModels.length > 1 && (
+              <div>
+                <label htmlFor="img-model" className="label">
+                  مدل تولید تصویر
+                </label>
+                <select
+                  id="img-model"
+                  className="input"
+                  value={modelId}
+                  onChange={(e) => setModelId(e.target.value)}
+                >
+                  <option value="">پیش‌فرض (مدل فعال)</option>
+                  {imageModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Prompt */}
             <div>
