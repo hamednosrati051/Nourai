@@ -101,6 +101,9 @@ class ImageResult:
     revised_prompt: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+    # Provider-reported generation cost in USD cents (when the API reports
+    # it). Used for cost-plus-margin protection; None = unknown.
+    provider_cost_cents: int | None = None
 
 
 class TextAiProvider(ABC):

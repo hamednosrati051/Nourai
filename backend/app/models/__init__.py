@@ -8,7 +8,7 @@ from app.models.gallery import GalleryEntry
 from app.models.jobs import Asset, GenerationJob
 from app.models.payment import Payment
 from app.models.plans import Plan, UserPlanSubscription
-from app.models.settings import ImageProcessingProfile
+from app.models.settings import CurrencySettings, ImageProcessingProfile
 from app.models.usage import UsageEvent
 from app.models.user import OtpChallenge, User
 from app.models.wallet import WalletAccount, WalletTransaction
@@ -20,6 +20,7 @@ __all__ = [
     "AuditLog",
     "Base",
     "Conversation",
+    "CurrencySettings",
     "GalleryEntry",
     "GenerationJob",
     "ImageProcessingProfile",

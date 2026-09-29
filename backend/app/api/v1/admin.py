@@ -38,6 +38,7 @@ from app.models import (
     AiModel,
     Asset,
     AuditLog,
+    CurrencySettings,
     GalleryEntry,
     GenerationJob,
     ImageProcessingProfile,
@@ -967,6 +968,57 @@ def preview_image_profile():
         "resize_mode": processed.metadata["resize_mode"],
         "encoder": processed.metadata["encoder"],
     })
+
+
+# ---------------------------------------------------------------------------
+# Currency settings (USD->IRR rate + image cost-protection margin)
+# ---------------------------------------------------------------------------
+def get_currency_settings() -> CurrencySettings:
+    """Get-or-create the singleton currency settings row."""
+    settings = (
+        db.session.query(CurrencySettings)
+        .order_by(CurrencySettings.created_at)
+        .first()
+    )
+    if settings is None:
+        settings = CurrencySettings(usd_to_irr=0, image_cost_margin_pct=30.0)
+        db.session.add(settings)
+        db.session.flush()
+    return settings
+
+
+class CurrencySettingsSchema(BaseModel):
+    usd_to_irr: int
+    image_cost_margin_pct: float
+
+
+@bp.get("/admin/settings/currency")
+@admin_required
+def get_currency():
+    return success_response(get_currency_settings().snapshot())
+
+
+@bp.put("/admin/settings/currency")
+@admin_required
+def update_currency():
+    data, err = _parse(CurrencySettingsSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    if data.usd_to_irr < 0:
+        return error_response("VALIDATION_ERROR", "نرخ دلار نامعتبر است.", 422)
+    if not 0 <= data.image_cost_margin_pct <= 100:
+        return error_response("VALIDATION_ERROR", "درصد مارجین باید بین ۰ تا ۱۰۰ باشد.", 422)
+    settings = get_currency_settings()
+    changes = {}
+    if settings.usd_to_irr != data.usd_to_irr:
+        changes["usd_to_irr"] = data.usd_to_irr
+        settings.usd_to_irr = data.usd_to_irr
+    if settings.image_cost_margin_pct != data.image_cost_margin_pct:
+        changes["image_cost_margin_pct"] = data.image_cost_margin_pct
+        settings.image_cost_margin_pct = data.image_cost_margin_pct
+    _audit("currency_settings.updated", "currency_settings", settings.id, changes)
+    db.session.commit()
+    return success_response(settings.snapshot())
 
 
 # ---------------------------------------------------------------------------

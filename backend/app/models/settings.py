@@ -6,7 +6,7 @@ may never exceed the hard security ceilings from the environment.
 """
 from __future__ import annotations
 
-from sqlalchemy import CHAR, BigInteger, Boolean, ForeignKey, Index, Integer, JSON, String
+from sqlalchemy import CHAR, BigInteger, Boolean, Float, ForeignKey, Index, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -61,4 +61,27 @@ class ImageProcessingProfile(Base):
             "output_format": self.output_format,
             "output_quality": self.output_quality,
             "strip_metadata": self.strip_metadata,
+        }
+
+
+class CurrencySettings(Base):
+    """Singleton row: USD->IRR rate and image cost-protection margin.
+
+    The image worker converts the provider-reported generation cost
+    (USD cents) to IRR with ``usd_to_irr`` and, when that cost exceeds the
+    admin tariff, charges cost * (1 + image_cost_margin_pct / 100) instead.
+    ``usd_to_irr = 0`` means "not configured" -> tariff-only billing.
+    """
+
+    __tablename__ = "currency_settings"
+
+    usd_to_irr: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    image_cost_margin_pct: Mapped[float] = mapped_column(
+        Float, default=30.0, nullable=False
+    )
+
+    def snapshot(self) -> dict:
+        return {
+            "usd_to_irr": self.usd_to_irr,
+            "image_cost_margin_pct": self.image_cost_margin_pct,
         }

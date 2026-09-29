@@ -275,6 +275,31 @@ export function usePricingEstimate() {
 }
 
 // ---------------------------------------------------------------------------
+// Currency settings (USD rate + image cost-protection margin)
+// ---------------------------------------------------------------------------
+
+export interface CurrencySettings {
+  usd_to_irr: number;
+  image_cost_margin_pct: number;
+}
+
+export function useCurrencySettings() {
+  return useQuery({
+    queryKey: ['admin', 'currency-settings'],
+    queryFn: () => apiGet<CurrencySettings>('/admin/settings/currency'),
+  });
+}
+
+export function useUpdateCurrencySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { usd_to_irr: number; image_cost_margin_pct: number }) =>
+      apiPut<CurrencySettings>('/admin/settings/currency', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'currency-settings'] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Image processing profiles
 // ---------------------------------------------------------------------------
 

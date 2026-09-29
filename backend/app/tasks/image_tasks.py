@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING
 
 from app.ai.adapters import IMAGE_GEN_MODEL, get_hardcoded_image_provider
 from app.billing.pricing import PricingService
 from app.extensions import db
-from app.models import Asset, GenerationJob, UsageEvent
+from app.models import Asset, CurrencySettings, GenerationJob, UsageEvent
 from app.models.jobs import (
     ASSET_GENERATED_IMAGE,
     ASSET_INPUT_IMAGE_PROCESSED,
@@ -31,6 +31,63 @@ from app.tasks.celery_app import celery
 log = logging.getLogger(__name__)
 
 _SAFE_ERROR = "تولید تصویر ناموفق بود. لطفاً دوباره تلاش کنید."
+
+
+def _apply_cost_protection(
+    session, tariff_amount_irr: int, provider_cost_cents: int | None
+) -> tuple[int, dict]:
+    """Apply provider cost-plus-margin protection.
+
+    Converts the provider-reported cost (USD cents) to IRR with the admin
+    USD rate. When that cost exceeds our tariff, the user is charged
+    cost * (1 + margin) instead. Returns (final_amount_irr, protection_info).
+
+    Falls back to the tariff when the provider cost is unknown or the USD
+    rate is not configured, so billing is never worse than before.
+    """
+    info: dict = {"applied": False}
+    if not provider_cost_cents:
+        return tariff_amount_irr, info
+    settings = (
+        session.query(CurrencySettings)
+        .order_by(CurrencySettings.created_at)
+        .first()
+    )
+    if settings is None or not settings.usd_to_irr:
+        log.warning("image cost protection skipped: USD rate not configured")
+        return tariff_amount_irr, info
+    cost_irr = (
+        Decimal(provider_cost_cents) / Decimal(100) * Decimal(settings.usd_to_irr)
+    )
+    info.update(
+        {
+            "provider_cost_cents": provider_cost_cents,
+            "usd_to_irr": settings.usd_to_irr,
+            "provider_cost_irr": int(cost_irr),
+        }
+    )
+    if cost_irr > tariff_amount_irr:
+        margin_pct = float(settings.image_cost_margin_pct or 0)
+        final = int(
+            (cost_irr * (Decimal(1) + Decimal(str(margin_pct)) / Decimal(100)))
+            .to_integral_value(rounding=ROUND_CEILING)
+        )
+        info.update(
+            {
+                "applied": True,
+                "margin_pct": margin_pct,
+                "tariff_irr": tariff_amount_irr,
+            }
+        )
+        log.info(
+            "image cost protection applied: tariff=%s cost_irr=%s margin=%s%% final=%s",
+            tariff_amount_irr,
+            int(cost_irr),
+            margin_pct,
+            final,
+        )
+        return final, info
+    return tariff_amount_irr, info
 
 
 @celery.task(bind=True, name="nourai.image.process", max_retries=2)
@@ -86,11 +143,23 @@ def process_image_job(self, job_id: str) -> dict:
             quality_key=params.get("quality_key"),
         )
         final_amount = estimate["total_irr"]
+        # --- provider cost protection ----------------------------------
+        # If the provider's actual cost exceeds our tariff, charge
+        # cost * (1 + margin) instead so we never lose money.
+        provider_cost_cents = (result_asset.processing_metadata_json or {}).get(
+            "provider_cost_cents"
+        )
+        final_amount, protection = _apply_cost_protection(
+            session, final_amount, provider_cost_cents
+        )
         if usage is not None:
             usage.final_output_tokens = None
             usage.image_count = image_count
             usage.output_pixels = result_asset.width * result_asset.height
-            usage.pricing_snapshot_json = estimate["pricing_snapshots"]
+            snapshots = estimate["pricing_snapshots"]
+            if protection.get("applied"):
+                snapshots = list(snapshots) + [{"cost_protection": protection}]
+            usage.pricing_snapshot_json = snapshots
             settle_job_billing(session, job=job, usage=usage, final_amount_irr=final_amount)
 
         job.status = JOB_SUCCEEDED
@@ -148,7 +217,10 @@ def _run_provider(session, job: GenerationJob) -> Asset:
         sha256=hashlib.sha256(result.image_bytes).hexdigest(),
         width=result.width,
         height=result.height,
-        processing_metadata_json={"provider_request_id": result.provider_request_id},
+        processing_metadata_json={
+            "provider_request_id": result.provider_request_id,
+            "provider_cost_cents": result.provider_cost_cents,
+        },
     )
     session.add(asset)
     session.flush()

@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/models', label: 'مدل‌ها', icon: '🤖' },
   { href: '/admin/plans', label: 'پلن‌ها', icon: '💳' },
   { href: '/admin/pricing', label: 'تعرفه‌ها', icon: '💲' },
+  { href: '/admin/currency', label: 'تنظیمات نرخ ارز', icon: '💱' },
   { href: '/admin/image-settings', label: 'تنظیمات تصویر', icon: '⚙️' },
   { href: '/admin/audit', label: 'گزارش حسابرسی', icon: '📋' },
 ];

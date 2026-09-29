@@ -577,7 +577,12 @@ class AsyncGenerationImageProvider(ImageAiProvider):
                                error_message="could not download result image")
         width, height = _probe_dimensions(image_bytes)
         usage = data.get("usage") or {}
+        provider_cost_cents: int | None = None
         if usage.get("cost") is not None:
+            try:
+                provider_cost_cents = int(float(usage.get("cost")))
+            except (TypeError, ValueError):
+                provider_cost_cents = None
             log.info("async generation %s cost=%s cents", task_id, usage.get("cost"))
         mime = "image/jpeg"
         if url.lower().endswith(".png"):
@@ -587,6 +592,7 @@ class AsyncGenerationImageProvider(ImageAiProvider):
         return ImageResult(
             ok=True, image_bytes=image_bytes, mime_type=mime,
             width=width, height=height, provider_request_id=task_id,
+            provider_cost_cents=provider_cost_cents,
         )
 
     def _upload(self, image_bytes: bytes, filename: str) -> str | None:
