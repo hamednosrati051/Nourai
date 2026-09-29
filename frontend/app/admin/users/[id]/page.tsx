@@ -307,7 +307,7 @@ export default function AdminUserDetailPage() {
               id="adjust-amount"
               type="number"
               inputMode="numeric"
-              step={1000}
+              step={1}
               dir="ltr"
               className={`input text-left ${adjustForm.formState.errors.amountToman ? 'input-error' : ''}`}
               {...adjustForm.register('amountToman', { valueAsNumber: true })}
