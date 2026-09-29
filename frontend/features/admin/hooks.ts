@@ -262,6 +262,14 @@ export function useDeletePricingRule() {
   });
 }
 
+export function useDeleteModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<unknown>(`/admin/models/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
+  });
+}
+
 export interface PricingEstimateLine {
   billing_unit: string;
   amount_irr: number;

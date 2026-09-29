@@ -887,6 +887,35 @@ def update_model(model_id: str):
     return success_response(payload)
 
 
+@bp.delete("/admin/models/<model_id>")
+@admin_required
+def delete_model(model_id: str):
+    model = db.session.get(AiModel, model_id)
+    if model is None:
+        return error_response("NOT_FOUND", status=404)
+    if model.slug == "nourai-image":
+        return error_response(
+            "VALIDATION_ERROR", "مدل سیستمی تصویر قابل حذف نیست.", 422
+        )
+    refs = []
+    if db.session.query(GenerationJob).filter_by(model_id=model.id).limit(1).first():
+        refs.append("jobها")
+    if db.session.query(ModelPricingRule).filter_by(model_id=model.id).limit(1).first():
+        refs.append("تعرفه‌ها")
+    if db.session.query(UsageEvent).filter_by(model_id=model.id).limit(1).first():
+        refs.append("رویدادهای مصرف")
+    if refs:
+        return error_response(
+            "MODEL_IN_USE",
+            f"این مدل در {'، '.join(refs)} استفاده شده و قابل حذف نیست؛ غیرفعالش کنید.",
+            409,
+        )
+    _audit("model.deleted", "ai_model", model.id, {"slug": model.slug})
+    db.session.delete(model)
+    db.session.commit()
+    return success_response({"deleted": model_id})
+
+
 # ---------------------------------------------------------------------------
 # Image processing profiles
 # ---------------------------------------------------------------------------

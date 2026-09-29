@@ -8,6 +8,7 @@ import {
   useAdminModels,
   useCreateAdminModel,
   useUpdateAdminModel,
+  useDeleteModel,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
@@ -79,6 +80,7 @@ export default function AdminModelsPage() {
   const models = useAdminModels();
   const createModel = useCreateAdminModel();
   const updateModel = useUpdateAdminModel();
+  const deleteModel = useDeleteModel();
 
   const {
     register,
@@ -194,6 +196,22 @@ export default function AdminModelsPage() {
     );
   };
 
+  const removeModel = (m: AiModel) => {
+    if (!window.confirm(`مدل «${m.display_name}» حذف شود؟ این عمل قابل بازگشت نیست.`)) return;
+    deleteModel.mutate(m.id, {
+      onSuccess: () => toast('مدل حذف شد.', 'success'),
+      onError: (err) =>
+        toast(
+          err instanceof ApiError && err.code === 'MODEL_IN_USE'
+            ? err.message
+            : err instanceof ApiError
+              ? getErrorMessage(err.code, err.message)
+              : 'حذف مدل ناموفق بود.',
+          'error',
+        ),
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
@@ -238,6 +256,14 @@ export default function AdminModelsPage() {
                   </button>
                   <button type="button" onClick={() => openEdit(m)} className="btn-ghost btn-sm">
                     ویرایش
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeModel(m)}
+                    className="btn-ghost btn-sm text-red-600 dark:text-red-400"
+                    disabled={deleteModel.isPending}
+                  >
+                    حذف
                   </button>
                 </div>
               ),
