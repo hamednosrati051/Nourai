@@ -861,7 +861,8 @@ def _profile_payload(profile: ImageProcessingProfile) -> dict:
 def list_image_profiles():
     profiles = (
         db.session.query(ImageProcessingProfile)
-        .order_by(ImageProcessingProfile.model_id.nullsfirst(),
+        # NULLS FIRST is not valid MySQL syntax; IS NULL DESC is portable.
+        .order_by(ImageProcessingProfile.model_id.is_(None).desc(),
                    ImageProcessingProfile.version.desc())
         .all()
     )
