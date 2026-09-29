@@ -168,8 +168,48 @@ def user_activity(user_id: str):
     user = db.session.get(User, user_id)
     if user is None:
         return error_response("NOT_FOUND", status=404)
-    limit = min(int(request.args.get("limit", 100) or 100), 200)
-    return success_response(user_service.activity_timeline(db.session, user_id, limit=limit))
+    page, page_size = pagination_params()
+    events = user_service.activity_timeline(db.session, user_id, limit=200)
+    total = len(events)
+    start = (page - 1) * page_size
+    items = [_activity_item(e, i) for i, e in enumerate(events[start:start + page_size], start=start)]
+    return paginated_response(items, page, page_size, total)
+
+
+# Maps the raw timeline event kinds to the frontend's ActivityKind labels.
+_ACTIVITY_UI_KIND = {
+    "payment": "payment",
+    "usage": "ai_request",
+    "wallet": "wallet",
+}
+
+
+def _activity_item(event: dict, index: int) -> dict:
+    """Shape one timeline event as the frontend's ActivityItem."""
+    kind = event.get("kind") or ""
+    action = event.get("action") or ""
+    if kind == "audit":
+        if action in ("user.login", "user.logout"):
+            ui_kind = "login"
+        elif action.startswith("payment"):
+            ui_kind = "payment"
+        elif action.startswith(("chat.", "image.", "audio.")):
+            ui_kind = "ai_request"
+        else:
+            ui_kind = "admin_action"
+    else:
+        ui_kind = _ACTIVITY_UI_KIND.get(kind, "admin_action")
+    detail = event.get("detail")
+    description = None
+    if isinstance(detail, dict):
+        description = ", ".join(f"{k}={v}" for k, v in detail.items() if v is not None) or None
+    return {
+        "id": f"{kind}-{index}",
+        "kind": ui_kind,
+        "title": action,
+        "description": description,
+        "created_at": event.get("at") or "",
+    }
 
 
 @bp.get("/admin/users/<user_id>/assets")
