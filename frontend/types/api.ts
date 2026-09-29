@@ -422,6 +422,6 @@ export interface AuditLogEntry {
   action: string;
   target_type?: string | null;
   target_id?: string | null;
-  details?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }

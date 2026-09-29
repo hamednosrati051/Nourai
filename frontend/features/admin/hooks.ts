@@ -348,7 +348,7 @@ export function useAuditLog(page = 1) {
     queryKey: ['admin', 'audit', page],
     queryFn: () =>
       apiGet<Paginated<AuditLogEntry>>(
-        `/admin/audit${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+        `/admin/audit-logs${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
       ),
   });
 }

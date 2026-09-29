@@ -37,9 +37,9 @@ export default function AdminAuditPage() {
               {
                 header: 'جزئیات',
                 render: (a) =>
-                  a.details ? (
-                    <span dir="ltr" className="block max-w-xs truncate text-xs tabular-nums" title={JSON.stringify(a.details)}>
-                      {JSON.stringify(a.details)}
+                  a.metadata ? (
+                    <span dir="ltr" className="block max-w-xs truncate text-xs tabular-nums" title={JSON.stringify(a.metadata)}>
+                      {JSON.stringify(a.metadata)}
                     </span>
                   ) : (
                     '—'
