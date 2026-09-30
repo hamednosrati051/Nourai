@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMyPlan } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
+import { useModels } from '@/features/models/hooks';
+import type { ModelCapability } from '@/types/api';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { BRAND } from '@/lib/config';
@@ -23,6 +25,16 @@ export default function DashboardPage() {
   const { data: user } = useMe();
   const wallet = useWallet();
   const myPlan = useMyPlan(!!user);
+  const models = useModels();
+
+  // Capabilities that have at least one active model. While loading (or on
+  // error) keep every card enabled so a slow/failed request never breaks
+  // navigation; only a confirmed-empty capability disables its card.
+  const readyCaps = new Set(
+    (models.data ?? []).map((m) => m.capability),
+  );
+  const settled = models.isSuccess;
+  const hasCap = (cap: ModelCapability) => !settled || readyCaps.has(cap);
 
   return (
     <div className="min-h-screen">
@@ -113,6 +125,7 @@ export default function DashboardPage() {
               title="گفت‌وگوی متنی"
               description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
               color="#38bdf8"
+              disabled={!hasCap('text')}
             />
             <ServiceCard
               href="/dashboard/image"
@@ -120,6 +133,7 @@ export default function DashboardPage() {
               title="تولید تصویر"
               description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
               color="#a78bfa"
+              disabled={!hasCap('image')}
             />
             <ServiceCard
               href="/dashboard/voice"
@@ -127,6 +141,7 @@ export default function DashboardPage() {
               title="تبدیل صوت به متن"
               description="ارسال صوت و دریافت متن پیاده‌شده"
               color="#f472b6"
+              disabled={!hasCap('speech_to_text')}
             />
             <ServiceCard
               href="/dashboard/tts"
@@ -134,6 +149,7 @@ export default function DashboardPage() {
               title="تبدیل متن به صوت"
               description="تبدیل متن به گفتار و دانلود فایل صوتی"
               color="#34d399"
+              disabled={!hasCap('text_to_speech')}
             />
           </div>
         </section>
