@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob } from '@/features/voice/hooks';
+import { useRecorder } from '@/features/voice/useRecorder';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/components/Toast';
 import { NouraiMascot } from '@/components/NouraiMascot';
 import { VoicePlayer } from '@/components/VoicePlayer';
+import { ListeningVisualizer } from '@/components/ListeningVisualizer';
+import { MicIcon } from '@/components/MicIcon';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import type { AudioJob } from '@/types/api';
@@ -33,20 +36,41 @@ export default function VoicePage() {
 
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [lastDoneId, setLastDoneId] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [recSeconds, setRecSeconds] = useState(0);
   const [voiceReply, setVoiceReply] = useState(true);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startingRef = useRef(false);
 
   const jobs = useAudioJobs(1, PAGE_SIZE);
   const createJob = useCreateAudioJob();
   const trackedJob = useAudioJob(trackedJobId);
+
+  const uploadFile = (file: File) => {
+    if (!file.type.startsWith('audio/')) {
+      toast('فایل باید صوتی باشد.', 'error');
+      return;
+    }
+    if (file.size > MAX_AUDIO_MB * 1024 * 1024) {
+      toast(`حجم فایل نباید بیشتر از ${MAX_AUDIO_MB} مگابایت باشد.`, 'error');
+      return;
+    }
+    createJob.mutate(
+      { file },
+      {
+        onSuccess: (job) => {
+          setLastDoneId(null);
+          setTrackedJobId(job.id);
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.code === 'INSUFFICIENT_BALANCE') {
+            toast('موجودی کافی نیست؛ لطفاً کیف پول را شارژ کنید.', 'error');
+          } else {
+            toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ارسال صوت ناموفق بود.', 'error');
+          }
+        },
+      },
+    );
+  };
+
+  const { recording, analyser, recSeconds, toggleRecording } = useRecorder(uploadFile);
 
   // Refresh the thread when the tracked job finishes; remember it for auto-play.
   useEffect(() => {
@@ -78,110 +102,11 @@ export default function VoicePage() {
 
   const lastDone = lastDoneId ? items.find((j) => j.id === lastDoneId) : undefined;
 
-  // Recording timer.
-  useEffect(() => {
-    if (recording) {
-      setRecSeconds(0);
-      timerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [recording]);
-
-  const uploadFile = (file: File) => {
-    if (!file.type.startsWith('audio/')) {
-      toast('فایل باید صوتی باشد.', 'error');
-      return;
-    }
-    if (file.size > MAX_AUDIO_MB * 1024 * 1024) {
-      toast(`حجم فایل نباید بیشتر از ${MAX_AUDIO_MB} مگابایت باشد.`, 'error');
-      return;
-    }
-    createJob.mutate(
-      { file },
-      {
-        onSuccess: (job) => {
-          setLastDoneId(null);
-          setTrackedJobId(job.id);
-        },
-        onError: (err) => {
-          if (err instanceof ApiError && err.code === 'INSUFFICIENT_BALANCE') {
-            toast('موجودی کافی نیست؛ لطفاً کیف پول را شارژ کنید.', 'error');
-          } else {
-            toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ارسال صوت ناموفق بود.', 'error');
-          }
-        },
-      },
-    );
-  };
-
-  const beginCapture = async () => {
-    if (startingRef.current) return;
-    startingRef.current = true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
-        if (blob.size > 0) {
-          uploadFile(new File([blob], `recording-${Date.now()}.webm`, { type: blob.type }));
-        }
-      };
-      rec.start();
-      mediaRecorderRef.current = rec;
-      // Live visualizer: analyse the mic stream.
-      try {
-        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const ctx = new AC();
-        const src = ctx.createMediaStreamSource(stream);
-        const an = ctx.createAnalyser();
-        an.fftSize = 64;
-        an.smoothingTimeConstant = 0.72;
-        src.connect(an);
-        audioCtxRef.current = ctx;
-        setAnalyser(an);
-      } catch {
-        // Visualizer is decorative; recording works without it.
-      }
-      setRecording(true);
-    } catch {
-      toast('دسترسی به میکروفن ممکن نشد. لطفاً اجازه میکروفن را بدهید.', 'error');
-    } finally {
-      startingRef.current = false;
-    }
-  };
-
-  const finishCapture = () => {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current = null;
-    audioCtxRef.current?.close().catch(() => {});
-    audioCtxRef.current = null;
-    setAnalyser(null);
-  };
-
-  const toggleRecording = () => {
-    if (createJob.isPending || trackedJobId) return;
-    if (recording) {
-      setRecording(false);
-      finishCapture();
-    } else {
-      beginCapture();
-    }
-  };
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">تعامل صوتی</h1>
+        <h1 className="text-2xl font-extrabold">نورا</h1>
         <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
           پاسخ صوتی
           <input
@@ -325,70 +250,6 @@ function ReplyAutoPlayer({
   }, [data?.download_url, enabled, jobId, onPlaying]);
 
   return null;
-}
-
-/** Live listening visualizer: gradient bars driven by the real mic level. */
-function ListeningVisualizer({ analyser }: { analyser: AnalyserNode }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    const N = 28;
-    let raf = 0;
-
-    const draw = () => {
-      raf = requestAnimationFrame(draw);
-      analyser.getByteFrequencyData(data);
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-      const gap = 6;
-      const bw = (w - gap * (N - 1)) / N;
-      const grad = ctx.createLinearGradient(0, h, 0, 0);
-      grad.addColorStop(0, '#f59e0b');
-      grad.addColorStop(1, '#ec4899');
-      ctx.fillStyle = grad;
-      for (let i = 0; i < N; i++) {
-        // favour lower (voice) frequencies
-        const v = (data[Math.floor((i / N) * data.length * 0.7)] ?? 0) / 255;
-        const bh = Math.max(6, v * h);
-        const x = i * (bw + gap);
-        const y = (h - bh) / 2;
-        ctx.beginPath();
-        if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, bw, bh, bw / 2);
-        else ctx.rect(x, y, bw, bh);
-        ctx.fill();
-      }
-    };
-    draw();
-    return () => cancelAnimationFrame(raf);
-  }, [analyser]);
-
-  return <canvas ref={canvasRef} width={520} height={96} className="h-12 w-64" />;
-}
-
-function MicIcon({ className = 'h-14 w-14 text-white' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <path d="M12 17v4" />
-      <path d="M8 21h8" />
-    </svg>
-  );
 }
 
 /** One voice exchange: the user's audio bubble + Nourai's reply bubble. */

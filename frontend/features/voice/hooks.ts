@@ -8,10 +8,11 @@ import type { AssetDownload, AudioJob, Paginated } from '@/types/api';
 export function useCreateAudioJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ file }: { file: File }) => {
+    mutationFn: ({ file, mode }: { file: File; mode?: 'assistant' | 'transcribe' }) => {
       const form = new FormData();
       // Backend reads request.files["file"]; models resolve to defaults.
       form.set('file', file, file.name);
+      form.set('mode', mode ?? 'assistant');
       return apiPostForm<AudioJob>('/audio/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
     },
     onSuccess: () => {

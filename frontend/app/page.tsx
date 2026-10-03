@@ -27,7 +27,7 @@ const SERVICES = [
   },
   {
     icon: '🎙️',
-    title: 'تعامل صوتی',
+    title: 'نورا',
     description: 'صدا بفرستید، متن و پاسخ صوتی بگیرید؛ یک رفت‌وبرگشت کامل و روان.',
     href: '/dashboard/voice',
     color: '#10b981',

@@ -181,6 +181,7 @@ export type AudioJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 
 export interface AudioJob {
   id: string;
   status: AudioJobStatus;
+  mode: 'assistant' | 'transcribe';
   transcript: string | null;
   reply_text: string | null;
   input_asset_id: string | null;

@@ -5,7 +5,7 @@ import hashlib
 import logging
 
 from flask import Blueprint, g, request
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from app.api.deps import (
     client_ip,
@@ -79,6 +79,15 @@ class AudioJobSchema(BaseModel):
     stt_model_id: str | None = None
     text_model_id: str | None = None
     tts_model_id: str | None = None
+    mode: str = "assistant"
+
+    @field_validator("mode")
+    @classmethod
+    def _check_mode(cls, v: str | None) -> str:
+        v = (v or "assistant").strip().lower()
+        if v not in ("assistant", "transcribe"):
+            raise ValueError("mode must be 'assistant' or 'transcribe'")
+        return v
 
 
 def _job_payload(job: GenerationJob) -> dict:
@@ -91,6 +100,7 @@ def _job_payload(job: GenerationJob) -> dict:
     return {
         "id": job.id,
         "status": job.status,
+        "mode": (job.parameters_json or {}).get("mode", "assistant"),
         "transcript": job.prompt_text,
         "reply_text": job.result_text,
         "error_code": job.error_code,
@@ -116,7 +126,7 @@ def create_audio_job():
 
     try:
         data = AudioJobSchema(**{k: request.form.get(k) or None
-                                 for k in ("stt_model_id", "text_model_id", "tts_model_id")})
+                                 for k in ("stt_model_id", "text_model_id", "tts_model_id", "mode")})
     except ValidationError:
         return validation_error()
 
@@ -134,9 +144,14 @@ def create_audio_job():
         return error_response("VALIDATION_ERROR", "نوع فایل صوتی پشتیبانی نمی‌شود.", 422)
 
     stt_model = _resolve_model(data.stt_model_id, CAP_STT)
-    text_model = _resolve_model(data.text_model_id, CAP_TEXT)
-    tts_model = _resolve_model(data.tts_model_id, CAP_TTS)
-    if not stt_model or not tts_model or not text_model:
+    if data.mode == "transcribe":
+        # Transcribe-only: no text reply, no TTS.
+        text_model = None
+        tts_model = None
+    else:
+        text_model = _resolve_model(data.text_model_id, CAP_TEXT)
+        tts_model = _resolve_model(data.tts_model_id, CAP_TTS)
+    if not stt_model or (data.mode == "assistant" and (not text_model or not tts_model)):
         return error_response("MODEL_UNAVAILABLE", status=404)
 
     idempotency_key = request.headers.get("Idempotency-Key")
@@ -148,7 +163,7 @@ def create_audio_job():
     pricing = PricingService(db.session)
     try:
         estimate = pricing.estimate_audio(stt_model.id, config.audio_max_duration_seconds,
-                                          text_model_id=text_model.id)
+                                          text_model_id=text_model.id if text_model else None)
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
     estimated_irr = estimate["total_irr"]
@@ -177,10 +192,11 @@ def create_audio_job():
         model_id=stt_model.id,
         status=JOB_QUEUED,
         parameters_json={
+            "mode": data.mode,
             "input_asset_id": input_asset.id,
             "stt_model_id": stt_model.id,
-            "text_model_id": text_model.id,
-            "tts_model_id": tts_model.id,
+            "text_model_id": text_model.id if text_model else None,
+            "tts_model_id": tts_model.id if tts_model else None,
             "mime_type": mime,
             "size_bytes": len(raw),
         },

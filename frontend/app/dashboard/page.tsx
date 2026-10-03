@@ -144,9 +144,18 @@ export default function DashboardPage() {
               <ServiceCard
                 href="/dashboard/voice"
                 icon="🎙️"
+                title="نورا"
+                description="دستیار صوتی نورا؛ حرف بزن، جواب متنی و صوتی بگیر"
+                color="#f472b6"
+              />
+            )}
+            {hasCap('speech_to_text') && (
+              <ServiceCard
+                href="/dashboard/stt"
+                icon="📝"
                 title="تبدیل صوت به متن"
                 description="ارسال صوت و دریافت متن پیاده‌شده"
-                color="#f472b6"
+                color="#38bdf8"
               />
             )}
             {hasCap('text_to_speech') && (

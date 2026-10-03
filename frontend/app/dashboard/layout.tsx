@@ -16,7 +16,8 @@ type NavEntry = NavItem & { capability?: ModelCapability; capabilities?: ModelCa
 const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard', label: 'داشبورد', icon: '🏠' },
   { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬', capability: 'text' },
-  { href: '/dashboard/voice', label: 'تعامل صوتی', icon: '🎙️', capability: 'speech_to_text' },
+  { href: '/dashboard/voice', label: 'نورا', icon: '🎙️', capability: 'speech_to_text' },
+  { href: '/dashboard/stt', label: 'تبدیل صوت به متن', icon: '📝', capability: 'speech_to_text' },
   { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊', capability: 'text_to_speech' },
   { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨', capabilities: IMAGE_CAPABILITIES },
   { href: '/dashboard/history', label: 'تاریخچه', icon: '🕘' },

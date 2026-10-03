@@ -100,10 +100,10 @@ def process_audio_job(self, job_id: str) -> dict:
         PlanLimitService(session).increment(job.user_id, "audio", amount=minutes)
         session.commit()
         log.info("audio job %s succeeded transcript=%d chars", job_id, len(transcript))
-        return {"ok": True, "asset_id": output_asset.id}
+        return {"ok": True, "asset_id": output_asset.id if output_asset else None}
 
 
-def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
+def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset | None]:
     params = job.parameters_json or {}
     duration = int(params.get("duration_seconds") or 0)
 
@@ -112,8 +112,6 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
     )
 
     stt_model = session.get(AiModel, params.get("stt_model_id") or job.model_id)
-    text_model = session.get(AiModel, params.get("text_model_id"))
-    tts_model = session.get(AiModel, params.get("tts_model_id") or job.model_id)
 
     # 1. speech -> text
     stt = get_stt_provider(stt_model.provider_key if stt_model else None, stt_model)
@@ -125,6 +123,13 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset]:
     if not transcript_res.ok:
         raise RuntimeError(transcript_res.error_code or "stt failed")
     transcript = transcript_res.text
+
+    if (params.get("mode") or "assistant") == "transcribe":
+        # Transcribe-only: skip the text-reply and TTS legs entirely.
+        return transcript, "", None
+
+    text_model = session.get(AiModel, params.get("text_model_id"))
+    tts_model = session.get(AiModel, params.get("tts_model_id") or job.model_id)
 
     # 2. text -> reply
     if text_model is None:
