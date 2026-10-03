@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/pricing', label: 'تعرفه‌ها', icon: '💲' },
   { href: '/admin/currency', label: 'تنظیمات نرخ ارز', icon: '💱' },
   { href: '/admin/image-settings', label: 'تنظیمات تصویر', icon: '⚙️' },
+  { href: '/admin/prompt-filter', label: 'فیلتر پرامت', icon: '🛡️' },
   { href: '/admin/jobs', label: 'درخواست‌های جاری', icon: '⏳' },
   { href: '/admin/audit', label: 'گزارش حسابرسی', icon: '📋' },
 ];

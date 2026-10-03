@@ -5,6 +5,7 @@ from app.models.base import Base, new_uuid, utcnow
 from app.models.catalog import AiModel, ModelPricingRule
 from app.models.chat import Conversation, Message, MessageAsset
 from app.models.gallery import GalleryEntry
+from app.models.moderation import ModerationSettings, PromptBlocklist
 from app.models.jobs import Asset, GenerationJob
 from app.models.payment import Payment
 from app.models.plans import Plan, UserPlanSubscription
@@ -25,9 +26,11 @@ __all__ = [
     "GenerationJob",
     "ImageProcessingProfile",
     "Message",
+    "ModerationSettings",
     "MessageAsset",
     "ModelPricingRule",
     "OtpChallenge",
+    "PromptBlocklist",
     "Payment",
     "Plan",
     "UserPlanSubscription",

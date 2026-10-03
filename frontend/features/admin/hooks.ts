@@ -442,3 +442,65 @@ export function useAdminCancelJob() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Prompt filter: global toggle + blocklist words.
+// ---------------------------------------------------------------------------
+export interface PromptBlocklistWord {
+  id: string;
+  phrase: string;
+  category?: string | null;
+  is_active: boolean;
+  note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function usePromptFilter() {
+  return useQuery({
+    queryKey: ['admin', 'prompt-filter'],
+    queryFn: () => apiGet<{ enabled: boolean }>('/admin/prompt-filter'),
+  });
+}
+
+export function useSetPromptFilter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiPut<{ enabled: boolean }>('/admin/prompt-filter', { enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter'] }),
+  });
+}
+
+export function useBlocklistWords() {
+  return useQuery({
+    queryKey: ['admin', 'prompt-filter', 'words'],
+    queryFn: () => apiGet<PromptBlocklistWord[]>('/admin/prompt-filter/words'),
+  });
+}
+
+export function useCreateBlocklistWord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { phrase: string; category?: string; is_active?: boolean }) =>
+      apiPost<PromptBlocklistWord>('/admin/prompt-filter/words', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
+  });
+}
+
+export function useUpdateBlocklistWord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<PromptBlocklistWord, 'phrase' | 'category' | 'is_active' | 'note'>> }) =>
+      apiPatch<PromptBlocklistWord>(`/admin/prompt-filter/words/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
+  });
+}
+
+export function useDeleteBlocklistWord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<void>(`/admin/prompt-filter/words/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
+  });
+}

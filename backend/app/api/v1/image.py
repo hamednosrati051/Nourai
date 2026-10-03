@@ -52,6 +52,7 @@ from app.models.jobs import (
 )
 from app.services.audit import audit
 from app.services.plans import PlanLimitExceeded, PlanLimitService
+from app.services.prompt_filter import find_blocked_phrase
 from app.services.storage import asset_key, storage
 
 log = logging.getLogger(__name__)
@@ -305,6 +306,14 @@ def create_image_job():
     mode = _val("mode", "type") or MODE_TEXT_TO_IMAGE
     if not prompt or mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
+
+    # Prompt blocklist: reject before any wallet hold or provider call.
+    if find_blocked_phrase(db.session, prompt):
+        return error_response(
+            "PROMPT_BLOCKED",
+            "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.",
+            422,
+        )
 
     # Model-driven image backend: explicit model_id wins, else the active
     # image model matching the mode (edit model for image_to_image,

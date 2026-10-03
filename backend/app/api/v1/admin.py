@@ -41,11 +41,13 @@ from app.models import (
     CurrencySettings,
     GalleryEntry,
     GenerationJob,
+    ModerationSettings,
     ImageProcessingProfile,
     Message,
     ModelPricingRule,
     Payment,
     Plan,
+    PromptBlocklist,
     UserPlanSubscription,
     UsageEvent,
     User,
@@ -1609,3 +1611,154 @@ def admin_cancel_job(job_id: str):
            {"capability": job.capability, "user_id": job.user_id})
     db.session.commit()
     return success_response({"id": job.id, "status": job.status})
+
+
+# ---------------------------------------------------------------------------
+# Prompt filter: global kill switch + admin-managed blocklist.
+# ---------------------------------------------------------------------------
+def _get_moderation_settings() -> ModerationSettings:
+    """Get-or-create the singleton moderation settings row."""
+    settings = (
+        db.session.query(ModerationSettings)
+        .order_by(ModerationSettings.created_at)
+        .first()
+    )
+    if settings is None:
+        settings = ModerationSettings(prompt_filter_enabled=True)
+        db.session.add(settings)
+        db.session.flush()
+    return settings
+
+
+@bp.get("/admin/prompt-filter")
+@admin_required
+def get_prompt_filter():
+    settings = _get_moderation_settings()
+    return success_response({"enabled": settings.prompt_filter_enabled})
+
+
+class PromptFilterToggleSchema(BaseModel):
+    enabled: bool
+
+
+@bp.put("/admin/prompt-filter")
+@admin_required
+def set_prompt_filter():
+    data, err = _parse(PromptFilterToggleSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    settings = _get_moderation_settings()
+    settings.prompt_filter_enabled = data.enabled
+    _audit("prompt_filter.toggled", "moderation_settings", settings.id,
+           {"enabled": data.enabled})
+    db.session.commit()
+    return success_response({"enabled": settings.prompt_filter_enabled})
+
+
+def _blocklist_payload(word: PromptBlocklist) -> dict:
+    return {
+        "id": word.id,
+        "phrase": word.phrase,
+        "category": word.category,
+        "is_active": word.is_active,
+        "note": word.note,
+        "created_at": word.created_at.isoformat() if word.created_at else None,
+        "updated_at": word.updated_at.isoformat() if word.updated_at else None,
+    }
+
+
+@bp.get("/admin/prompt-filter/words")
+@admin_required
+def list_blocklist_words():
+    words = (
+        db.session.query(PromptBlocklist)
+        .order_by(PromptBlocklist.created_at.desc())
+        .all()
+    )
+    return success_response([_blocklist_payload(w) for w in words])
+
+
+class BlocklistCreateSchema(BaseModel):
+    phrase: str
+    category: str | None = None
+    is_active: bool = True
+    note: str | None = None
+
+
+@bp.post("/admin/prompt-filter/words")
+@admin_required
+def create_blocklist_word():
+    from app.services.prompt_filter import normalize_text
+
+    data, err = _parse(BlocklistCreateSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    phrase = (data.phrase or "").strip()
+    if not phrase:
+        return validation_error()
+    norm = normalize_text(phrase)
+    for w in db.session.query(PromptBlocklist).all():
+        if normalize_text(w.phrase) == norm:
+            return error_response("DUPLICATE", "این عبارت قبلاً ثبت شده است.", 409)
+    word = PromptBlocklist(
+        phrase=phrase,
+        category=(data.category or "").strip() or None,
+        is_active=data.is_active,
+        note=(data.note or "").strip() or None,
+        created_by_admin_id=g.current_admin_id,
+    )
+    db.session.add(word)
+    db.session.flush()
+    _audit("prompt_blocklist.created", "prompt_blocklist", word.id, {"phrase": phrase})
+    db.session.commit()
+    return success_response(_blocklist_payload(word), status=201)
+
+
+class BlocklistUpdateSchema(BaseModel):
+    phrase: str | None = None
+    category: str | None = None
+    is_active: bool | None = None
+    note: str | None = None
+
+
+@bp.patch("/admin/prompt-filter/words/<word_id>")
+@admin_required
+def update_blocklist_word(word_id: str):
+    from app.services.prompt_filter import normalize_text
+
+    word = db.session.get(PromptBlocklist, word_id)
+    if word is None:
+        return error_response("NOT_FOUND", status=404)
+    data, err = _parse(BlocklistUpdateSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    if data.phrase is not None:
+        phrase = data.phrase.strip()
+        if not phrase:
+            return validation_error()
+        norm = normalize_text(phrase)
+        for w in db.session.query(PromptBlocklist).all():
+            if w.id != word.id and normalize_text(w.phrase) == norm:
+                return error_response("DUPLICATE", "این عبارت قبلاً ثبت شده است.", 409)
+        word.phrase = phrase
+    if data.category is not None:
+        word.category = data.category.strip() or None
+    if data.is_active is not None:
+        word.is_active = data.is_active
+    if data.note is not None:
+        word.note = data.note.strip() or None
+    db.session.commit()
+    return success_response(_blocklist_payload(word))
+
+
+@bp.delete("/admin/prompt-filter/words/<word_id>")
+@admin_required
+def delete_blocklist_word(word_id: str):
+    word = db.session.get(PromptBlocklist, word_id)
+    if word is None:
+        return error_response("NOT_FOUND", status=404)
+    _audit("prompt_blocklist.deleted", "prompt_blocklist", word.id,
+           {"phrase": word.phrase})
+    db.session.delete(word)
+    db.session.commit()
+    return success_response({"id": word_id})
