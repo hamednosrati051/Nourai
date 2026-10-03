@@ -445,19 +445,26 @@ class OpenAICompatImageProvider(ImageAiProvider):
             return b""
 
     @staticmethod
-    def _size(options: dict) -> str:
-        w = int(options.get("width") or 1024)
-        h = int(options.get("height") or 1024)
-        return f"{w}x{h}"
+    def _size(options: dict) -> str | None:
+        # Some OpenAI-compatible providers reject the request when `size`
+        # is present (e.g. AvalAI qwen-image answers 400); only send it
+        # when the caller explicitly asked for dimensions.
+        w, h = options.get("width"), options.get("height")
+        if w is None and h is None:
+            return None
+        return f"{int(w or 1024)}x{int(h or 1024)}"
 
     def generate(self, model: str, prompt: str, options: dict) -> ImageResult:
-        data = self._post_json("/images/generations", {
+        payload: dict = {
             "model": model,
             "prompt": prompt,
             "n": 1,
-            "size": self._size(options),
             "response_format": "b64_json",
-        })
+        }
+        size = self._size(options)
+        if size:
+            payload["size"] = size
+        data = self._post_json("/images/generations", payload)
         return self._result_from_data(data, "generate")
 
     def edit(self, model: str, prompt: str, input_image_key: str, options: dict) -> ImageResult:
@@ -473,10 +480,13 @@ class OpenAICompatImageProvider(ImageAiProvider):
             return ImageResult(ok=False, error_code="EMPTY_IMAGE",
                                error_message="input image is empty")
         filename = input_image_key.rsplit("/", 1)[-1] or "image.png"
+        fields = {"model": model, "prompt": prompt, "n": "1",
+                  "response_format": "b64_json"}
+        size = self._size(options)
+        if size:
+            fields["size"] = size
         body, content_type = _encode_multipart(
-            {"model": model, "prompt": prompt, "n": "1", "size": self._size(options),
-             "response_format": "b64_json"},
-            "image", filename, "image/png", image_bytes,
+            fields, "image", filename, "image/png", image_bytes,
         )
         req = urllib.request.Request(
             f"{self.base_url}/images/edits", data=body, method="POST",
