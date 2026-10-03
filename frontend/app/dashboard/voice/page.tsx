@@ -194,9 +194,9 @@ export default function VoicePage() {
             disabled={createJob.isPending || !!trackedJobId}
             aria-label="پیوست فایل صوتی"
             title="پیوست فایل صوتی"
-            className="btn-secondary flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-800 shadow-md transition hover:scale-105 hover:bg-neutral-100 active:scale-95 disabled:opacity-50 dark:border-white/15 dark:bg-navy-800 dark:text-slate-100 dark:hover:bg-navy-700"
           >
-            <Paperclip className="h-5 w-5" aria-hidden="true" />
+            <Paperclip className="h-6 w-6" aria-hidden="true" />
           </button>
           <button
             type="button"
