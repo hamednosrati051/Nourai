@@ -40,6 +40,11 @@
 
   --animate-float: float 7s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 3.5s ease-in-out infinite;
+  --animate-mascot-float: mascot-float 4s ease-in-out infinite;
+  --animate-mascot-bounce: mascot-bounce 0.6s ease-in-out infinite;
+  --animate-mascot-blink: mascot-blink 4.5s ease-in-out infinite;
+  --animate-mascot-wave: mascot-wave 1.2s ease-in-out infinite;
+  --animate-mascot-wobble: mascot-wobble 2.5s ease-in-out infinite;
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -48,6 +53,26 @@
   @keyframes pulse-soft {
     0%, 100% { opacity: 0.55; }
     50% { opacity: 1; }
+  }
+  @keyframes mascot-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes mascot-bounce {
+    0%, 100% { transform: translateY(0) scale(1, 1); }
+    50% { transform: translateY(5px) scale(1.06, 0.94); }
+  }
+  @keyframes mascot-blink {
+    0%, 93%, 100% { transform: scaleY(1); }
+    96% { transform: scaleY(0.1); }
+  }
+  @keyframes mascot-wave {
+    0%, 100% { opacity: 0.25; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1.08); }
+  }
+  @keyframes mascot-wobble {
+    0%, 100% { transform: rotate(-4deg); }
+    50% { transform: rotate(4deg); }
   }
 }
 
