@@ -118,7 +118,8 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset | None]:
     transcript_res = stt.transcribe(
         stt_model.provider_model_name if stt_model else "default",
         input_asset.storage_key,
-        {"duration_seconds": duration, "mime_type": input_asset.mime_type},
+        {"duration_seconds": duration, "mime_type": input_asset.mime_type,
+         "language": params.get("language") or "fa"},
     )
     if not transcript_res.ok:
         raise RuntimeError(transcript_res.error_code or "stt failed")

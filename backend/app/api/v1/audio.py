@@ -80,13 +80,22 @@ class AudioJobSchema(BaseModel):
     text_model_id: str | None = None
     tts_model_id: str | None = None
     mode: str = "assistant"
+    language: str = "fa"
 
-    @field_validator("mode")
+    @field_validator("mode", mode="before")
     @classmethod
     def _check_mode(cls, v: str | None) -> str:
         v = (v or "assistant").strip().lower()
         if v not in ("assistant", "transcribe"):
             raise ValueError("mode must be 'assistant' or 'transcribe'")
+        return v
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _check_language(cls, v: str | None) -> str:
+        v = (v or "fa").strip().lower()
+        if not v or len(v) > 10:
+            raise ValueError("language must be a short language code")
         return v
 
 
@@ -126,7 +135,7 @@ def create_audio_job():
 
     try:
         data = AudioJobSchema(**{k: request.form.get(k) or None
-                                 for k in ("stt_model_id", "text_model_id", "tts_model_id", "mode")})
+                                 for k in ("stt_model_id", "text_model_id", "tts_model_id", "mode", "language")})
     except ValidationError:
         return validation_error()
 
@@ -193,6 +202,7 @@ def create_audio_job():
         status=JOB_QUEUED,
         parameters_json={
             "mode": data.mode,
+            "language": data.language,
             "input_asset_id": input_asset.id,
             "stt_model_id": stt_model.id,
             "text_model_id": text_model.id if text_model else None,

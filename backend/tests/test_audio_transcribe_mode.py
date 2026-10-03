@@ -21,6 +21,15 @@ def test_audio_job_schema_mode_defaults_and_validation():
         AudioJobSchema(mode="bogus")
 
 
+def test_audio_job_schema_language_defaults_and_validation():
+    assert AudioJobSchema().language == "fa"
+    assert AudioJobSchema(language=None).language == "fa"
+    assert AudioJobSchema(language="EN").language == "en"
+    assert AudioJobSchema(mode=None).mode == "assistant"
+    with pytest.raises(ValidationError):
+        assert AudioJobSchema(language="x" * 11)
+
+
 def test_job_payload_reports_mode(app, user):
     with app.app_context():
         job = GenerationJob(
