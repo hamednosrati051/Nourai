@@ -2,14 +2,25 @@
 
 /**
  * Small Noura avatar for page headers. Both states are looping videos:
- * the "working on a laptop" clip while the page is busy, the idle mascot
- * animation otherwise.
+ * the idle mascot animation at rest, and a busy variant while the page
+ * works — "working on a laptop" by default, "playing with an orb" for
+ * the image page.
  */
-export function NouraAvatar({ working = false }: { working?: boolean }) {
+export function NouraAvatar({
+  working = false,
+  variant = 'working',
+}: {
+  working?: boolean;
+  variant?: 'working' | 'playing';
+}) {
+  const busySrc =
+    variant === 'playing' ? '/images/nourai-playing.mp4' : '/images/nourai-working.mp4';
+  const busyPoster =
+    variant === 'playing' ? '/images/nourai-playing.jpg' : '/images/nourai-working.jpg';
   return (
     <video
-      src={working ? '/images/nourai-working.mp4' : '/images/nourai-mascot.mp4'}
-      poster={working ? '/images/nourai-working.jpg' : '/images/nourai-mascot.jpg'}
+      src={working ? busySrc : '/images/nourai-mascot.mp4'}
+      poster={working ? busyPoster : '/images/nourai-mascot.jpg'}
       autoPlay
       loop
       muted

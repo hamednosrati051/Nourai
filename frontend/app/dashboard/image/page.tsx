@@ -136,7 +136,7 @@ export default function ImagePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
-        <NouraAvatar working={!!trackedJobId} />
+        <NouraAvatar working={!!trackedJobId} variant="playing" />
         <h1 className="text-2xl font-extrabold">تولید تصویر</h1>
       </div>
 
