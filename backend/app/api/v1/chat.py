@@ -49,6 +49,7 @@ from app.models.catalog import CAP_TEXT
 from app.models.chat import ROLE_ASSISTANT, ROLE_SYSTEM, ROLE_USER
 from app.services.audit import audit
 from app.services.plans import PlanLimitExceeded, PlanLimitService
+from app.services.prompt_filter import find_blocked_phrase
 
 log = logging.getLogger(__name__)
 
@@ -209,6 +210,15 @@ def send_message(conversation_id: str):
     content = (data.content or "").strip()
     if not content or len(content) > MAX_CONTENT_CHARS:
         return validation_error()
+
+    # Prompt blocklist: reject before rate-limit accounting, wallet hold,
+    # or any provider call.
+    if find_blocked_phrase(db.session, content):
+        return error_response(
+            "PROMPT_BLOCKED",
+            "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.",
+            422,
+        )
 
     conversation = _get_owned_conversation(conversation_id)
     if conversation is None:

@@ -73,3 +73,40 @@ def test_image_job_clean_prompt_passes_filter(app, client, user):
         "/api/v1/image/jobs", headers=headers, json={"prompt": "یک گربه"}
     )
     assert r.get_json()["error"]["code"] != "PROMPT_BLOCKED"
+
+
+def test_chat_message_blocked_prompt(app, client, user):
+    from app.models import Conversation
+
+    with app.app_context():
+        db.session.add(PromptBlocklist(phrase="sex", is_active=True))
+        conv = Conversation(user_id=user, title="t")
+        db.session.add(conv)
+        db.session.commit()
+        conv_id = conv.id
+    headers = {**user_headers(client, user), "Idempotency-Key": "chat-blocked-1"}
+    r = client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        headers=headers,
+        json={"content": "tell me about sex"},
+    )
+    assert r.status_code == 422
+    assert r.get_json()["error"]["code"] == "PROMPT_BLOCKED"
+
+
+def test_chat_message_clean_prompt_passes_filter(app, client, user):
+    from app.models import Conversation
+
+    with app.app_context():
+        conv = Conversation(user_id=user, title="t")
+        db.session.add(conv)
+        db.session.commit()
+        conv_id = conv.id
+    headers = {**user_headers(client, user), "Idempotency-Key": "chat-clean-1"}
+    r = client.post(
+        f"/api/v1/conversations/{conv_id}/messages",
+        headers=headers,
+        json={"content": "سلام"},
+    )
+    # No blocklist hit: proceeds to the normal model-availability check.
+    assert r.get_json()["error"]["code"] != "PROMPT_BLOCKED"
