@@ -40,6 +40,9 @@
 
   --animate-float: float 7s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 3.5s ease-in-out infinite;
+  --animate-orb-wave: orb-wave 1.8s ease-out infinite;
+  --animate-eq-bar: eq-bar 0.9s ease-in-out infinite;
+  --animate-spin-slower: spin-slower 2.5s linear infinite;
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -48,6 +51,17 @@
   @keyframes pulse-soft {
     0%, 100% { opacity: 0.55; }
     50% { opacity: 1; }
+  }
+  @keyframes orb-wave {
+    0% { transform: scale(0.7); opacity: 0.8; }
+    100% { transform: scale(1.75); opacity: 0; }
+  }
+  @keyframes eq-bar {
+    0%, 100% { transform: scaleY(0.25); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes spin-slower {
+    to { transform: rotate(360deg); }
   }
 }
 
