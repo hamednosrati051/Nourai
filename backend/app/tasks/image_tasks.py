@@ -182,6 +182,19 @@ def process_image_job(self, job_id: str) -> dict:
         return {"ok": True, "asset_id": result_asset.id}
 
 
+def _provider_options(params: dict) -> dict:
+    """Options forwarded to the image provider.
+
+    NOTE: job width/height are internal processing-profile targets, NOT an
+    output-size request — they must not reach the provider. Some providers
+    (e.g. AvalAI's qwen image models) reject the ``size`` parameter
+    outright, so forwarding dimensions breaks generation.
+    """
+    return {
+        "quality": params.get("quality"),
+    }
+
+
 def _run_provider(session, job: GenerationJob) -> Asset:
     from app.api.deps import utcnow
 
@@ -214,11 +227,7 @@ def _run_provider(session, job: GenerationJob) -> Asset:
         raise RuntimeError("no active image model")
     provider = get_image_provider(model.provider_key, model)
     provider_model_name = model.provider_model_name
-    options = {
-        "width": params.get("width"),
-        "height": params.get("height"),
-        "quality": params.get("quality"),
-    }
+    options = _provider_options(params)
     if job.mode == MODE_IMAGE_TO_IMAGE:
         processed = (
             session.query(Asset)
