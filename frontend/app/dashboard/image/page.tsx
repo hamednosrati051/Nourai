@@ -53,7 +53,8 @@ export default function ImagePage() {
   const imageModels = (modelsQuery.data ?? []).filter(
     (m) => m.capability === 'image' && m.slug !== 'nourai-image',
   );
-  const [modelId, setModelId] = useState<string>('');
+  const [generateModelId, setGenerateModelId] = useState<string>('');
+  const [editModelId, setEditModelId] = useState<string>('');
   const doneImages = (history.data?.items ?? []).filter(
     (job) => job.status === 'succeeded' && job.result_url,
   );
@@ -69,6 +70,11 @@ export default function ImagePage() {
   });
 
   const jobType = watch('type');
+  const isEditMode = jobType === 'image_to_image';
+  // Generation and editing can need different provider models (e.g. AvalAI
+  // qwen-image vs qwen-image-edit), so each mode remembers its own pick.
+  const activeModelId = isEditMode ? editModelId : generateModelId;
+  const setActiveModelId = isEditMode ? setEditModelId : setGenerateModelId;
 
   // Object URL for the selected input image preview.
   useEffect(() => {
@@ -114,7 +120,7 @@ export default function ImagePage() {
         type: values.type,
         prompt: values.prompt,
         inputFile: values.type === 'image_to_image' ? inputFile ?? undefined : undefined,
-        model_id: modelId || undefined,
+        model_id: (values.type === 'image_to_image' ? editModelId : generateModelId) || undefined,
       },
       {
         onSuccess: (job) => {
@@ -167,17 +173,19 @@ export default function ImagePage() {
               ))}
             </div>
 
-            {/* Model picker (only when several image models are active) */}
+            {/* Model picker (only when several image models are active).
+                Generation and editing may need different models, so the
+                pick is remembered separately per mode. */}
             {imageModels.length > 1 && (
               <div>
                 <label htmlFor="img-model" className="label">
-                  مدل تولید تصویر
+                  {isEditMode ? 'مدل ویرایش تصویر' : 'مدل تولید تصویر'}
                 </label>
                 <select
                   id="img-model"
                   className="input"
-                  value={modelId}
-                  onChange={(e) => setModelId(e.target.value)}
+                  value={activeModelId}
+                  onChange={(e) => setActiveModelId(e.target.value)}
                 >
                   <option value="">پیش‌فرض (مدل فعال)</option>
                   {imageModels.map((m) => (
