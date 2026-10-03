@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/components/Toast';
-import { NouraiMascot } from '@/components/NouraiMascot';
+import { NouraAvatar } from '@/components/NouraAvatar';
 import { VoicePlayer } from '@/components/VoicePlayer';
 import { ListeningVisualizer } from '@/components/ListeningVisualizer';
 import { MicIcon } from '@/components/MicIcon';
@@ -138,7 +138,7 @@ export default function VoicePage() {
         /* Compact sticky talk bar once the conversation has started */
         <div className="sticky top-16 z-30 -mx-4 border-b border-neutral-200/70 bg-white/90 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 dark:border-white/10 dark:bg-navy-950/90">
           <div className="flex items-center gap-3">
-            <NouraiMascot mood={phase} className="h-12 w-12 shrink-0" />
+            <NouraAvatar working={phase === 'thinking'} className="h-12 w-12 shrink-0" />
             <p className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
               {phase === 'listening' && (
                 <span className="shrink-0 font-bold tabular-nums text-red-500">{formatDuration(recSeconds)}</span>
@@ -162,7 +162,10 @@ export default function VoicePage() {
       ) : (
         /* Full hero while the thread is empty */
         <div className="flex flex-col items-center gap-4 py-2">
-          <NouraiMascot mood={phase} className="h-52 w-52 drop-shadow-xl" />
+          <div className="relative">
+            <span className="absolute -inset-6 rounded-full bg-amber-300/30 blur-2xl dark:bg-amber-400/15" aria-hidden="true" />
+            <NouraAvatar working={phase === 'thinking'} className="relative h-52 w-52 shadow-xl" />
+          </div>
 
           <p className="flex h-6 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
             {phase === 'listening' && (

@@ -9,9 +9,11 @@
 export function NouraAvatar({
   working = false,
   variant = 'working',
+  className = 'h-11 w-11',
 }: {
   working?: boolean;
   variant?: 'working' | 'playing';
+  className?: string;
 }) {
   const busySrc =
     variant === 'playing' ? '/images/nourai-playing.mp4' : '/images/nourai-working.mp4';
@@ -26,7 +28,7 @@ export function NouraAvatar({
       muted
       playsInline
       aria-label={working ? 'نورا در حال کار' : 'نورا'}
-      className="h-11 w-11 rounded-full object-cover shadow-md"
+      className={`rounded-full object-cover shadow-md ${className}`}
     />
   );
 }
