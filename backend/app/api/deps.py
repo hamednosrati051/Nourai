@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import logging
 import secrets
 from datetime import datetime
 
@@ -16,6 +17,8 @@ from app.auth.sessions import (
 )
 from app.config import config
 from app.extensions import db, redis_client
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Error codes (Persian user-facing messages, per spec section 17)
