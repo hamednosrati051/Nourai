@@ -7,6 +7,7 @@ import { useAssetDownloadUrl } from '@/features/voice/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -26,6 +27,7 @@ export default function TtsPage() {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
   const jobs = useTtsJobs(1, 20);
@@ -79,7 +81,12 @@ export default function TtsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <h1 className="text-center text-2xl font-extrabold">تبدیل متن به صوت</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold">تبدیل متن به صوت</h1>
+        <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm">
+          🕘 تاریخچه
+        </button>
+      </div>
 
       <div className="card !p-5">
         <label htmlFor="tts-text" className="label">
@@ -120,8 +127,8 @@ export default function TtsPage() {
         </div>
       )}
 
-      <section aria-label="تاریخچه تبدیل متن به صوت" className="flex flex-col gap-3">
-        <h2 className="font-extrabold">تاریخچه</h2>
+      <Modal open={historyOpen} title="تاریخچه تبدیل متن به صوت" onClose={() => setHistoryOpen(false)} maxWidth="max-w-2xl">
+        <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">
         {jobs.isLoading && <LoadingSpinner label="در حال بارگذاری تاریخچه…" />}
         {jobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => jobs.refetch()} />}
         {jobs.data && items.length === 0 && (
@@ -148,7 +155,8 @@ export default function TtsPage() {
             )}
           </div>
         ))}
-      </section>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -174,8 +182,44 @@ function TtsResult({ job }: { job: TtsJob }) {
 
 function TtsAudio({ assetId }: { assetId: string | null }) {
   const { data, isLoading } = useAssetDownloadUrl(assetId);
+  const [downloading, setDownloading] = useState(false);
   if (!assetId) return null;
   if (isLoading) return <span className="text-xs text-neutral-500">در حال آماده‌سازی صوت…</span>;
   if (!data?.download_url) return null;
-  return <audio controls src={data.download_url} className="w-full" aria-label="فایل صوتی" />;
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(data.download_url);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `nourai-tts-${assetId.slice(0, 8)}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch {
+      window.open(data.download_url, '_blank', 'noopener');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <audio controls src={data.download_url} className="w-full" aria-label="فایل صوتی" />
+      <button
+        type="button"
+        onClick={download}
+        disabled={downloading}
+        className="btn-secondary btn-sm shrink-0"
+        aria-label="دانلود فایل صوتی"
+      >
+        {downloading ? '…' : '⬇ دانلود'}
+      </button>
+    </div>
+  );
 }
