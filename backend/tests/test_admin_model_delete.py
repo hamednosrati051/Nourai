@@ -1,6 +1,8 @@
 """DELETE /admin/models/<id>: unreferenced models delete, referenced ones 409."""
 from __future__ import annotations
 
+from decimal import Decimal
+
 from app.extensions import db
 from app.models import AiModel, GenerationJob, ModelPricingRule
 from tests.conftest import admin_headers
@@ -33,7 +35,7 @@ def test_delete_model_in_use_blocked(client, app, admin, user):
         db.session.add(GenerationJob(user_id=user, capability="text", model_id=model_id))
         db.session.add(ModelPricingRule(
             model_id=model_id, version=1, billing_unit="input_token",
-            unit_size=1000, unit_price_irr=1000, rounding_mode="up", is_active=True,
+            unit_size=1000, unit_price_usd=Decimal("0.00037594"), rounding_mode="up", is_active=True,
         ))
         db.session.commit()
     headers = admin_headers(client, admin)

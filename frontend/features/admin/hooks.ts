@@ -276,7 +276,7 @@ export interface PricingEstimateLine {
   amount_irr: number;
   quantity: string;
   units_charged: number;
-  unit_price_irr: number;
+  unit_price_usd: string;
   rule_version: number;
 }
 

@@ -1,15 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   useAdminModels,
   useCreatePricingRule,
+  useCurrencySettings,
   useDeletePricingRule,
   usePricingEstimate,
   usePricingRules,
+  useUpdateCurrencySettings,
   useUpdatePricingRule,
 } from '@/features/admin/hooks';
 import { formatToman, tomanToIrr, irrToToman } from '@/lib/currency';
@@ -61,8 +63,8 @@ const ruleSchema = z.object({
   model_id: z.string().min(1, 'مدل را انتخاب کنید.'),
   billing_unit: z.string().min(1, 'واحد محاسبه را انتخاب کنید.'),
   unit_size: z.coerce.number().int().min(1, 'اندازه واحد حداقل ۱ باشد.'),
-  /** Toman in the UI; converted to IRR on submit. */
-  unit_price_toman: z.coerce.number().min(0, 'قیمت نامعتبر است.'),
+  /** USD in the UI; converted to IRR at billing time with the admin rate. */
+  unit_price_usd: z.coerce.number().min(0, 'قیمت نامعتبر است.'),
   dimension_key: z.string().trim().optional(),
   quality_key: z.string().trim().optional(),
   minimum_charge_toman: optionalToman,
@@ -108,6 +110,33 @@ export default function AdminPricingPage() {
   const updateRule = useUpdatePricingRule();
   const deleteRule = useDeletePricingRule();
   const estimate = usePricingEstimate();
+  const currency = useCurrencySettings();
+  const updateCurrency = useUpdateCurrencySettings();
+  const [rateToman, setRateToman] = useState('');
+
+  const rateIrr = currency.data?.usd_to_irr ?? 0;
+  useEffect(() => {
+    if (currency.data) setRateToman(String(irrToToman(currency.data.usd_to_irr)));
+  }, [currency.data]);
+
+  const onSaveRate = () => {
+    const toman = Number(rateToman);
+    if (!Number.isFinite(toman) || toman <= 0) {
+      toast('نرخ دلار نامعتبر است.', 'error');
+      return;
+    }
+    updateCurrency.mutate(
+      {
+        usd_to_irr: tomanToIrr(toman),
+        image_cost_margin_pct: currency.data?.image_cost_margin_pct ?? 30,
+      },
+      {
+        onSuccess: () => toast('نرخ دلار ذخیره شد؛ از این لحظه روی محاسبات جدید اعمال می‌شود.', 'success'),
+        onError: (err: unknown) =>
+          toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'خطایی رخ داد.', 'error'),
+      },
+    );
+  };
 
   const ruleForm = useForm<RuleForm>({ resolver: zodResolver(ruleSchema) });
   const editForm = useForm<EditForm>({ resolver: zodResolver(editSchema) });
@@ -116,13 +145,14 @@ export default function AdminPricingPage() {
     defaultValues: { kind: 'text' },
   });
   const estimateKind = estimateForm.watch('kind');
+  const usdPreview = Number(ruleForm.watch('unit_price_usd')) || 0;
 
   const openCreate = () => {
     ruleForm.reset({
       model_id: '',
       billing_unit: '',
       unit_size: 1,
-      unit_price_toman: 0,
+      unit_price_usd: 0,
       dimension_key: '',
       quality_key: '',
       rounding_mode: 'up',
@@ -149,7 +179,7 @@ export default function AdminPricingPage() {
         model_id: values.model_id,
         billing_unit: values.billing_unit,
         unit_size: values.unit_size,
-        unit_price_irr: tomanToIrr(values.unit_price_toman),
+        unit_price_usd: String(values.unit_price_usd),
         ...(values.dimension_key?.trim() ? { dimension_key: values.dimension_key.trim() } : {}),
         ...(values.quality_key?.trim() ? { quality_key: values.quality_key.trim() } : {}),
         ...(values.minimum_charge_toman != null
@@ -237,6 +267,39 @@ export default function AdminPricingPage() {
         </button>
       </div>
 
+      {/* Exchange rate: USD tariffs convert with this rate at billing time */}
+      <section aria-labelledby="fx-rate-heading" className="card">
+        <h2 id="fx-rate-heading" className="text-lg font-bold">نرخ ارز</h2>
+        <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400">
+          تعرفه‌ها به دلار ثبت می‌شوند و موقع صورتحساب با این نرخ به تومان تبدیل می‌شوند.
+          تغییر نرخ از همین لحظه روی درخواست‌های جدید اعمال می‌شود؛ نیازی به ویرایش تعرفه‌ها نیست.
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="fx-rate" className="label">نرخ هر دلار (تومان)</label>
+            <input
+              id="fx-rate"
+              type="number"
+              min={0}
+              step="any"
+              dir="ltr"
+              className="input text-left"
+              value={rateToman}
+              onChange={(e) => setRateToman(e.target.value)}
+              placeholder="266000"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onSaveRate}
+            disabled={updateCurrency.isPending || currency.isLoading}
+            className="btn-primary"
+          >
+            {updateCurrency.isPending ? 'در حال ذخیره…' : 'ذخیره نرخ'}
+          </button>
+        </div>
+      </section>
+
       {rules.isLoading && <LoadingSpinner />}
       {rules.isError && <ErrorState message="بارگذاری تعرفه‌ها ناموفق بود." onRetry={() => rules.refetch()} />}
       {rules.data && rules.data.length === 0 && (
@@ -258,8 +321,13 @@ export default function AdminPricingPage() {
               header: 'قیمت واحد',
               render: (r) => (
                 <span className="tabular-nums">
-                  {formatToman(r.unit_price_irr)}{' '}
+                  <span dir="ltr">${r.unit_price_usd}</span>{' '}
                   <span className="text-xs text-neutral-500">/ {formatNumber(r.unit_size)}</span>
+                  {rateIrr > 0 && (
+                    <span className="block text-xs text-neutral-500">
+                      ≈ {formatToman(Math.ceil(Number(r.unit_price_usd) * rateIrr))}
+                    </span>
+                  )}
                 </span>
               ),
             },
@@ -390,7 +458,7 @@ export default function AdminPricingPage() {
       <Modal open={createOpen} title="تعرفه جدید" onClose={() => setCreateOpen(false)}>
         <p className="mb-4 text-sm text-neutral-600 dark:text-slate-400">
           ذخیره تعرفه، نسخه جدید می‌سازد؛ نسخه قبلی برای تسویه‌های در جریان حفظ می‌ماند.
-          مبالغ را به <b>تومان</b> وارد کنید.
+          قیمت واحد به <b>دلار</b> وارد می‌شود؛ حداقل/حداکثر دریافتی به تومان.
         </p>
         <form onSubmit={ruleForm.handleSubmit(onCreateRule)} className="flex flex-col gap-4" noValidate>
           <div>
@@ -430,10 +498,13 @@ export default function AdminPricingPage() {
             </div>
           </div>
           <div>
-            <label htmlFor="rule-price" className="label">قیمت هر واحد (تومان)</label>
-            <input id="rule-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...ruleForm.register('unit_price_toman')} />
-            {ruleForm.formState.errors.unit_price_toman && (
-              <p role="alert" className="field-error">{ruleForm.formState.errors.unit_price_toman.message}</p>
+            <label htmlFor="rule-price" className="label">قیمت هر واحد (دلار)</label>
+            <input id="rule-price" type="number" min={0} step="any" dir="ltr" className="input text-left" {...ruleForm.register('unit_price_usd')} />
+            {usdPreview > 0 && rateIrr > 0 && (
+              <p className="field-hint">≈ {formatToman(Math.ceil(usdPreview * rateIrr))} با نرخ فعلی</p>
+            )}
+            {ruleForm.formState.errors.unit_price_usd && (
+              <p role="alert" className="field-error">{ruleForm.formState.errors.unit_price_usd.message}</p>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

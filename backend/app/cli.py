@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 import click
+from decimal import Decimal
 from flask import Flask
 
 from app.config import config
@@ -104,7 +105,7 @@ def register_cli(app: Flask) -> None:
             pricing_type="image",
         )
 
-        def ensure_rule(model_id: str, billing_unit: str, unit_size: int, unit_price_irr: int):
+        def ensure_rule(model_id: str, billing_unit: str, unit_size: int, unit_price_usd: str):
             rule = (
                 db.session.query(ModelPricingRule)
                 .filter_by(model_id=model_id, billing_unit=billing_unit, is_active=True)
@@ -116,18 +117,19 @@ def register_cli(app: Flask) -> None:
                     version=1,
                     billing_unit=billing_unit,
                     unit_size=unit_size,
-                    unit_price_irr=unit_price_irr,
+                    unit_price_usd=Decimal(unit_price_usd),
                     rounding_mode="up",
                     is_active=True,
                 )
                 db.session.add(rule)
 
-        ensure_rule(text_model.id, "input_token", 1000, 500)
-        ensure_rule(text_model.id, "output_token", 1000, 1500)
-        ensure_rule(stt_model.id, "audio_second", 1, 200)
-        ensure_rule(tts_model.id, "audio_second", 1, 300)
-        ensure_rule(image_model.id, "image_count", 1, 20000)
-        ensure_rule(image_model.id, "output_megapixel", 1, 5000)
+        # Dev-seed tariffs in USD (converted from the old IRR seeds at 2,660,000).
+        ensure_rule(text_model.id, "input_token", 1000, "0.00018797")
+        ensure_rule(text_model.id, "output_token", 1000, "0.00056391")
+        ensure_rule(stt_model.id, "audio_second", 1, "0.00007519")
+        ensure_rule(tts_model.id, "audio_second", 1, "0.00011278")
+        ensure_rule(image_model.id, "image_count", 1, "0.00751880")
+        ensure_rule(image_model.id, "output_megapixel", 1, "0.00187970")
 
         profile = (
             db.session.query(ImageProcessingProfile)

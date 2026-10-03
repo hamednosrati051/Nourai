@@ -59,7 +59,7 @@ def test_model_driven_image_flow(app, client, admin, user, monkeypatch):
         "/api/v1/admin/pricing-rules",
         headers=aheaders,
         json={"model_id": model_id, "billing_unit": "image_count",
-              "unit_size": 1, "unit_price_irr": 400000},
+              "unit_size": 1, "unit_price_usd": "0.15037594"},
     )
     assert r.status_code == 201, r.get_data(as_text=True)
 

@@ -122,7 +122,7 @@ def create_tts_job():
     try:
         rule = pricing.get_active_rule(tts_model.id, UNIT_FIXED_REQUEST)
         estimated_irr, _breakdown = pricing.calculate(rule, 1)
-        snapshots = [snapshot_rule(rule)]
+        snapshots = [snapshot_rule(rule, pricing.usd_to_irr)]
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
 

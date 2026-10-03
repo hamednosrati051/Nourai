@@ -70,3 +70,14 @@ def user_headers(client, user_id: str) -> dict:
 
 def admin_headers(client, admin_id: str) -> dict:
     return _set_cookies(client, ADMIN_ACCESS_COOKIE, ADMIN_CSRF_COOKIE, admin_id, "admin")
+
+
+@pytest.fixture(autouse=True)
+def usd_to_irr_rate(app):
+    """Seed the USD->IRR conversion rate: PricingService requires it."""
+    from app.models.settings import CurrencySettings
+
+    with app.app_context():
+        if db.session.query(CurrencySettings).count() == 0:
+            db.session.add(CurrencySettings(usd_to_irr=2660000, image_cost_margin_pct=30.0))
+            db.session.commit()

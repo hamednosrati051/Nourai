@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from decimal import Decimal
+
 from app.extensions import db
 from app.models import AiModel, GenerationJob, ModelPricingRule, WalletAccount
 from app.models.catalog import CAP_TTS
@@ -11,7 +13,7 @@ from app.tasks.tts_tasks import _run_synthesis
 from tests.conftest import user_headers
 
 
-def _make_tts_setup(app, user_id, tariff_irr=5000):
+def _make_tts_setup(app, user_id, tariff_usd="0.0018797"):
     with app.app_context():
         m = AiModel(
             slug="tts-test", display_name="TTS Test", capability=CAP_TTS,
@@ -22,7 +24,7 @@ def _make_tts_setup(app, user_id, tariff_irr=5000):
         db.session.flush()
         rule = ModelPricingRule(
             model_id=m.id, version=1, billing_unit="fixed_request",
-            unit_size=1, unit_price_irr=tariff_irr, rounding_mode="up",
+            unit_size=1, unit_price_usd=Decimal(tariff_usd), rounding_mode="up",
             is_active=True,
         )
         db.session.add(rule)

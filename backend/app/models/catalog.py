@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import CHAR, BigInteger, DateTime, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import CHAR, BigInteger, DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -59,8 +60,9 @@ class ModelPricingRule(Base):
     billing_unit: Mapped[str] = mapped_column(String(32), nullable=False)
     # Quantity that makes up one priced unit, e.g. 1000 tokens or 1 second.
     unit_size: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    # Integer IRR per unit.
-    unit_price_irr: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # USD per unit. Converted to IRR at billing time with the
+    # currency_settings.usd_to_irr rate in effect for that request.
+    unit_price_usd: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
     # For size/quality-dependent tariffs.
     dimension_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     quality_key: Mapped[str | None] = mapped_column(String(64), nullable=True)

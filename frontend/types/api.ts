@@ -121,7 +121,8 @@ export interface AiModel {
 export interface ModelPricingInfo {
   billing_unit: string;
   unit_size: number;
-  unit_price_irr: number;
+  /** Decimal USD, serialized as string. */
+  unit_price_usd: string;
   dimension_key?: string | null;
   quality_key?: string | null;
   minimum_charge_irr?: number | null;
@@ -378,8 +379,8 @@ export interface PricingRule {
   version: number;
   billing_unit: string;
   unit_size: number;
-  /** Integer IRR. */
-  unit_price_irr: number;
+  /** Decimal USD, serialized as string. Converted to IRR at billing time. */
+  unit_price_usd: string;
   dimension_key?: string | null;
   quality_key?: string | null;
   /** Integer IRR. */

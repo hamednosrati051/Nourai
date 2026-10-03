@@ -4,7 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, g
 
 from app.api.deps import login_required, success_response
-from app.billing.pricing import PricingService
+from app.billing.pricing import PricingService, format_usd
 from app.extensions import db
 from app.models import AiModel, ModelPricingRule
 
@@ -33,7 +33,7 @@ def list_models():
             price_info.append({
                 "billing_unit": rule.billing_unit,
                 "unit_size": rule.unit_size,
-                "unit_price_irr": rule.unit_price_irr,
+                "unit_price_usd": format_usd(rule.unit_price_usd),
                 "dimension_key": rule.dimension_key,
                 "quality_key": rule.quality_key,
                 "minimum_charge_irr": rule.minimum_charge_irr,

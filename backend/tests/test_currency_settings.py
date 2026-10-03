@@ -16,6 +16,11 @@ def _put(client, aheaders, payload):
 def test_currency_settings_get_put(app, client, admin):
     aheaders = admin_headers(client, admin)
 
+    # Start from a truly empty table to exercise the get-or-create default.
+    with app.app_context():
+        db.session.query(CurrencySettings).delete()
+        db.session.commit()
+
     r = client.get("/api/v1/admin/settings/currency", headers=aheaders)
     assert r.status_code == 200
     data = r.get_json()["data"]

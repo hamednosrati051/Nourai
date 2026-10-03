@@ -11,6 +11,8 @@ from app.ai.adapters import (
     OpenAICompatImageProvider,
     get_image_provider,
 )
+from decimal import Decimal
+
 from app.extensions import db
 from app.models import AiModel, ModelPricingRule, WalletAccount
 from app.models.catalog import CAP_IMAGE
@@ -55,7 +57,7 @@ def _make_image_model(app, slug="img-metis", provider_type="async_generation"):
         db.session.flush()
         rule = ModelPricingRule(
             model_id=m.id, version=1, billing_unit="image_count",
-            unit_size=1, unit_price_irr=20000, rounding_mode="up", is_active=True,
+            unit_size=1, unit_price_usd=Decimal("0.0075188"), rounding_mode="up", is_active=True,
         )
         db.session.add(rule)
         db.session.commit()

@@ -5,6 +5,8 @@ non-price fields in place. This locks in that contract.
 """
 from __future__ import annotations
 
+from decimal import Decimal
+
 from app.extensions import db
 from app.models import AiModel, ModelPricingRule
 from tests.conftest import admin_headers
@@ -21,7 +23,7 @@ def _make_rule(app):
         db.session.flush()
         rule = ModelPricingRule(
             model_id=m.id, version=1, billing_unit="input_token",
-            unit_size=1000, unit_price_irr=10000, rounding_mode="up",
+            unit_size=1000, unit_price_usd=Decimal("0.01"), rounding_mode="up",
             is_active=True,
         )
         db.session.add(rule)
@@ -60,13 +62,13 @@ def test_patch_does_not_change_price(client, app, admin):
     headers = admin_headers(client, admin)
     resp = client.patch(
         f"/api/v1/admin/pricing-rules/{rule_id}",
-        json={"unit_price_irr": 99999, "is_active": True},
+        json={"unit_price_usd": "99.99", "is_active": True},
         headers=headers,
     )
     assert resp.status_code == 200, resp.get_json()
     with app.app_context():
         rule = db.session.get(ModelPricingRule, rule_id)
-        assert rule.unit_price_irr == 10000  # unchanged
+        assert rule.unit_price_usd == Decimal("0.01")  # unchanged
         assert db.session.query(ModelPricingRule).count() == 1
 
 
@@ -114,7 +116,7 @@ def test_delete_pricing_rule_unlinks_usage_events(client, app, admin):
     with app.app_context():
         ev = UsageEvent(
             user_id="u1", model_id=model_id, pricing_rule_id=rule_id,
-            pricing_snapshot_json={"unit_price_irr": 10000},
+            pricing_snapshot_json={"unit_price_usd": "0.01"},
             charged_amount_irr=10000,
         )
         db.session.add(ev)
@@ -126,7 +128,7 @@ def test_delete_pricing_rule_unlinks_usage_events(client, app, admin):
     with app.app_context():
         ev = db.session.get(UsageEvent, ev_id)
         assert ev.pricing_rule_id is None
-        assert ev.pricing_snapshot_json == {"unit_price_irr": 10000}
+        assert ev.pricing_snapshot_json == {"unit_price_usd": "0.01"}
         assert ev.charged_amount_irr == 10000
 
 

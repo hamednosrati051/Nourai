@@ -6,6 +6,7 @@ import logging
 import re
 import secrets
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError
@@ -30,7 +31,7 @@ from app.services.plans import (
 )
 from app.auth.otp import mask_mobile, normalize_mobile
 from app.billing.ledger import DuplicateIdempotencyKey, admin_adjust, get_wallet_for_update
-from app.billing.pricing import PricingService
+from app.billing.pricing import PricingService, format_usd
 from app.config import config
 from app.extensions import db
 from app.models import (
@@ -1125,7 +1126,7 @@ class PricingRuleCreateSchema(BaseModel):
     model_id: str
     billing_unit: str
     unit_size: int = 1
-    unit_price_irr: int
+    unit_price_usd: Decimal
     dimension_key: str | None = None
     quality_key: str | None = None
     minimum_charge_irr: int | None = None
@@ -1160,7 +1161,7 @@ def _rule_payload(rule: ModelPricingRule, model_name: str | None = None) -> dict
         "id": rule.id, "model_id": rule.model_id, "model_name": model_name,
         "version": rule.version,
         "billing_unit": rule.billing_unit, "unit_size": rule.unit_size,
-        "unit_price_irr": rule.unit_price_irr,
+        "unit_price_usd": format_usd(rule.unit_price_usd),
         "dimension_key": rule.dimension_key, "quality_key": rule.quality_key,
         "minimum_charge_irr": rule.minimum_charge_irr,
         "maximum_charge_irr": rule.maximum_charge_irr,
@@ -1201,7 +1202,7 @@ def create_pricing_rule():
     model = db.session.get(AiModel, data.model_id)
     if model is None:
         return error_response("NOT_FOUND", "مدل یافت نشد.", 404)
-    if data.unit_size <= 0 or data.unit_price_irr < 0:
+    if data.unit_size <= 0 or data.unit_price_usd < 0:
         return validation_error()
     if data.rounding_mode not in ("up", "down", "nearest"):
         return validation_error()
@@ -1214,7 +1215,7 @@ def create_pricing_rule():
     rule = ModelPricingRule(
         model_id=data.model_id, version=int(max_version or 0) + 1,
         billing_unit=data.billing_unit, unit_size=data.unit_size,
-        unit_price_irr=data.unit_price_irr,
+        unit_price_usd=data.unit_price_usd,
         dimension_key=data.dimension_key, quality_key=data.quality_key,
         minimum_charge_irr=data.minimum_charge_irr,
         maximum_charge_irr=data.maximum_charge_irr,
@@ -1226,7 +1227,7 @@ def create_pricing_rule():
     db.session.add(rule)
     _audit("pricing_rule.created", "model_pricing_rule", rule.id,
            {"model_id": data.model_id, "billing_unit": data.billing_unit,
-            "version": rule.version, "unit_price_irr": data.unit_price_irr})
+            "version": rule.version, "unit_price_usd": format_usd(data.unit_price_usd)})
     db.session.commit()
     names = _model_display_names({rule.model_id})
     return success_response(_rule_payload(rule, names.get(rule.model_id)), status=201)
@@ -1279,7 +1280,7 @@ def delete_pricing_rule(rule_id: str):
     )
     _audit("pricing_rule.deleted", "model_pricing_rule", rule.id,
            {"model_id": rule.model_id, "billing_unit": rule.billing_unit,
-            "version": rule.version, "unit_price_irr": rule.unit_price_irr})
+            "version": rule.version, "unit_price_usd": str(rule.unit_price_usd)})
     db.session.delete(rule)
     db.session.commit()
     return success_response({"deleted": True})
