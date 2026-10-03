@@ -41,11 +41,15 @@ export function NouraiMascot({
       <div
         className={`relative h-full w-full overflow-hidden rounded-full shadow-2xl shadow-amber-500/25 ring-4 ring-amber-200/80 dark:ring-amber-300/25 ${anim}`}
       >
-        <img
-          src="/images/nourai-mascot.jpg"
-          alt="نورا"
+        <video
           className="h-full w-full object-cover"
-          draggable={false}
+          src="/images/nourai-mascot.mp4"
+          poster="/images/nourai-mascot.jpg"
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-label="نورا"
         />
       </div>
     </div>
