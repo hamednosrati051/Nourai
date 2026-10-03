@@ -34,10 +34,12 @@ export default function VoicePage() {
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [lastDoneId, setLastDoneId] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [recSeconds, setRecSeconds] = useState(0);
   const [voiceReply, setVoiceReply] = useState(true);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startingRef = useRef(false);
@@ -136,6 +138,20 @@ export default function VoicePage() {
       };
       rec.start();
       mediaRecorderRef.current = rec;
+      // Live visualizer: analyse the mic stream.
+      try {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const ctx = new AC();
+        const src = ctx.createMediaStreamSource(stream);
+        const an = ctx.createAnalyser();
+        an.fftSize = 64;
+        an.smoothingTimeConstant = 0.72;
+        src.connect(an);
+        audioCtxRef.current = ctx;
+        setAnalyser(an);
+      } catch {
+        // Visualizer is decorative; recording works without it.
+      }
       setRecording(true);
     } catch {
       toast('دسترسی به میکروفن ممکن نشد. لطفاً اجازه میکروفن را بدهید.', 'error');
@@ -147,6 +163,9 @@ export default function VoicePage() {
   const finishCapture = () => {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setAnalyser(null);
   };
 
   const toggleRecording = () => {
@@ -209,6 +228,12 @@ export default function VoicePage() {
         <p className="-mt-3 text-xs text-neutral-500">
           {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن'}
         </p>
+        {recording && analyser && (
+          <div className="-mt-1 flex flex-col items-center gap-1" aria-hidden="true">
+            <ListeningVisualizer analyser={analyser} />
+            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">دارم گوش می‌دهم…</p>
+          </div>
+        )}
 
         <div className="flex items-center justify-center gap-5">
           <button
@@ -298,6 +323,50 @@ function ReplyAutoPlayer({
   }, [data?.download_url, enabled, jobId, onPlaying]);
 
   return null;
+}
+
+/** Live listening visualizer: gradient bars driven by the real mic level. */
+function ListeningVisualizer({ analyser }: { analyser: AnalyserNode }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const N = 28;
+    let raf = 0;
+
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      analyser.getByteFrequencyData(data);
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const gap = 6;
+      const bw = (w - gap * (N - 1)) / N;
+      const grad = ctx.createLinearGradient(0, h, 0, 0);
+      grad.addColorStop(0, '#f59e0b');
+      grad.addColorStop(1, '#ec4899');
+      ctx.fillStyle = grad;
+      for (let i = 0; i < N; i++) {
+        // favour lower (voice) frequencies
+        const v = (data[Math.floor((i / N) * data.length * 0.7)] ?? 0) / 255;
+        const bh = Math.max(6, v * h);
+        const x = i * (bw + gap);
+        const y = (h - bh) / 2;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, bw, bh, bw / 2);
+        else ctx.rect(x, y, bw, bh);
+        ctx.fill();
+      }
+    };
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [analyser]);
+
+  return <canvas ref={canvasRef} width={520} height={96} className="h-12 w-64" />;
 }
 
 function MicIcon({ className = 'h-14 w-14 text-white' }: { className?: string }) {
