@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TTS_MAX_CHARS, useCreateTtsJob, useTtsJob, useTtsJobs } from '@/features/tts/hooks';
-import { useAssetDownloadUrl } from '@/features/voice/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { Modal } from '@/components/Modal';
+import { VoicePlayer } from '@/components/VoicePlayer';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -147,7 +147,7 @@ export default function TtsPage() {
               </span>
             </div>
             <p className="line-clamp-2 text-sm">{job.text}</p>
-            <TtsAudio assetId={job.output_asset_id} />
+            <VoicePlayer assetId={job.output_asset_id} label="فایل صوتی" tone="light" />
             {job.status === 'failed' && (
               <p className="text-sm text-red-600 dark:text-red-400">
                 {job.error_message || 'تبدیل ناموفق بود.'}
@@ -166,7 +166,7 @@ function TtsResult({ job }: { job: TtsJob }) {
     <div className="flex flex-col gap-2">
       <p className="line-clamp-3 text-sm">{job.text}</p>
       {job.status === 'succeeded' ? (
-        <TtsAudio assetId={job.output_asset_id} />
+        <VoicePlayer assetId={job.output_asset_id} label="فایل صوتی" tone="light" />
       ) : job.status === 'failed' ? (
         <p className="text-sm text-red-600 dark:text-red-400">
           {job.error_message || 'تبدیل ناموفق بود.'}
@@ -176,50 +176,6 @@ function TtsResult({ job }: { job: TtsJob }) {
           <p className="text-sm text-neutral-500">{TTS_STATUS_LABEL[job.status] ?? job.status}</p>
         </div>
       )}
-    </div>
-  );
-}
-
-function TtsAudio({ assetId }: { assetId: string | null }) {
-  const { data, isLoading } = useAssetDownloadUrl(assetId);
-  const [downloading, setDownloading] = useState(false);
-  if (!assetId) return null;
-  if (isLoading) return <span className="text-xs text-neutral-500">در حال آماده‌سازی صوت…</span>;
-  if (!data?.download_url) return null;
-
-  const download = async () => {
-    setDownloading(true);
-    try {
-      const res = await fetch(data.download_url);
-      if (!res.ok) throw new Error('fetch failed');
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `nourai-tts-${assetId.slice(0, 8)}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-    } catch {
-      window.open(data.download_url, '_blank', 'noopener');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-2">
-      <audio controls src={data.download_url} className="w-full" aria-label="فایل صوتی" />
-      <button
-        type="button"
-        onClick={download}
-        disabled={downloading}
-        className="btn-secondary btn-sm shrink-0"
-        aria-label="دانلود فایل صوتی"
-      >
-        {downloading ? '…' : '⬇ دانلود'}
-      </button>
     </div>
   );
 }
