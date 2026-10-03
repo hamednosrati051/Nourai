@@ -357,6 +357,8 @@ export interface AssetItem {
 }
 
 export interface GalleryQueueItem extends GalleryItem {
+  /** The asset this entry moderates (what the approve/reject/remove endpoints expect). */
+  asset_id: string;
   user_id: string;
   user_mobile_masked: string;
   status: 'pending' | 'approved' | 'rejected';

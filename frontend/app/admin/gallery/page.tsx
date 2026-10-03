@@ -32,7 +32,7 @@ export default function AdminGalleryPage() {
   const remove = useRemoveGalleryItem();
 
   const onApprove = (item: GalleryQueueItem) => {
-    approve.mutate(item.id, {
+    approve.mutate(item.asset_id, {
       onSuccess: () => toast('تصویر تأیید و در گالری منتشر شد.', 'success'),
       onError: (err) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'تأیید ناموفق بود.', 'error'),
@@ -42,7 +42,7 @@ export default function AdminGalleryPage() {
   const onReject = () => {
     if (!rejectTarget) return;
     reject.mutate(
-      { assetId: rejectTarget.id, reason: rejectReason || undefined },
+      { assetId: rejectTarget.asset_id, reason: rejectReason || undefined },
       {
         onSuccess: () => {
           setRejectTarget(null);
@@ -57,7 +57,7 @@ export default function AdminGalleryPage() {
 
   const onRemove = (item: GalleryQueueItem) => {
     if (!window.confirm('این تصویر از گالری عمومی خارج می‌شود (بدون حذف فایل اصلی). ادامه می‌دهید؟')) return;
-    remove.mutate(item.id, {
+    remove.mutate(item.asset_id, {
       onSuccess: () => toast('تصویر از گالری خارج شد.', 'success'),
       onError: (err) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'عملیات ناموفق بود.', 'error'),
