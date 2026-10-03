@@ -4,8 +4,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* Persian-first system font stack: no external fetch at build time. */
-  --font-sans: "Vazirmatn", "IRANSans", "IRANSansX", "Segoe UI", Tahoma,
+  /* Vazirmatn variable webfont bundled locally via next/font; system fallbacks. */
+  --font-sans: var(--font-vazirmatn), "IRANSans", "IRANSansX", "Segoe UI", Tahoma,
     ui-sans-serif, system-ui, -apple-system, sans-serif;
 
   /* Brand palette ("Nourai" = light): warm amber/gold. */

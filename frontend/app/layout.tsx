@@ -1,9 +1,18 @@
 import type { Metadata } from 'next';
+import localFont from 'next/font/local';
 import { BRAND, THEME_STORAGE_KEY } from '@/lib/config';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { QueryProvider } from '@/features/providers';
 import { ToastProvider } from '@/components/Toast';
 import './globals.css';
+
+// Vazirmatn variable webfont, bundled locally (no external fetch).
+const vazirmatn = localFont({
+  src: './fonts/Vazirmatn-Variable.woff2',
+  variable: '--font-vazirmatn',
+  display: 'swap',
+  weight: '100 900',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -19,7 +28,7 @@ const themeInitScript = `(function(){try{var s=localStorage.getItem('${THEME_STO
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fa" dir="rtl" suppressHydrationWarning>
+    <html lang="fa" dir="rtl" suppressHydrationWarning className={vazirmatn.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
