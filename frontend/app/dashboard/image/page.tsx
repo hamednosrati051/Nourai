@@ -11,6 +11,7 @@ import {
   useImageJobs,
 } from '@/features/image/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { NouraAvatar } from '@/components/NouraAvatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { Modal } from '@/components/Modal';
@@ -134,7 +135,10 @@ export default function ImagePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-extrabold">تولید تصویر</h1>
+      <div className="flex items-center gap-3">
+        <NouraAvatar working={!!trackedJobId} />
+        <h1 className="text-2xl font-extrabold">تولید تصویر</h1>
+      </div>
 
       {config.isLoading && <LoadingSpinner label="در حال بارگذاری تنظیمات…" />}
       {config.isError && (

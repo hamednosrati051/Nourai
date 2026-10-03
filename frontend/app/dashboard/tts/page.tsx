@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { Modal } from '@/components/Modal';
+import { NouraAvatar } from '@/components/NouraAvatar';
 import { VoicePlayer } from '@/components/VoicePlayer';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
@@ -82,7 +83,10 @@ export default function TtsPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">تبدیل متن به صوت</h1>
+        <div className="flex items-center gap-3">
+          <NouraAvatar working={createJob.isPending || !!tracked} />
+          <h1 className="text-2xl font-extrabold">تبدیل متن به صوت</h1>
+        </div>
         <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm">
           🕘 تاریخچه
         </button>

@@ -16,6 +16,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { useToast } from '@/components/Toast';
+import { NouraAvatar } from '@/components/NouraAvatar';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
 
@@ -87,7 +88,10 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-extrabold">گفت‌وگوی متنی</h1>
+      <div className="flex items-center gap-3">
+        <NouraAvatar working={sendMessage.isPending} />
+        <h1 className="text-2xl font-extrabold">گفت‌وگوی متنی</h1>
+      </div>
 
       {conversations.isLoading ? (
         <LoadingSpinner />

@@ -11,6 +11,7 @@ import { ListeningVisualizer } from '@/components/ListeningVisualizer';
 import { MicIcon } from '@/components/MicIcon';
 import { VoicePlayer } from '@/components/VoicePlayer';
 import { Modal } from '@/components/Modal';
+import { NouraAvatar } from '@/components/NouraAvatar';
 import { useToast } from '@/components/Toast';
 import { formatDateTime, formatDuration } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -95,7 +96,10 @@ export default function SttPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">تبدیل صوت به متن</h1>
+        <div className="flex items-center gap-3">
+          <NouraAvatar working={busy} />
+          <h1 className="text-2xl font-extrabold">تبدیل صوت به متن</h1>
+        </div>
         <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm">
           🕘 تاریخچه
         </button>
