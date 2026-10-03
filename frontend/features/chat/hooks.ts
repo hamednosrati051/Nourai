@@ -31,7 +31,7 @@ export function useConversationMessages(conversationId: string | null) {
 export function useCreateConversation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { model_id: string; title?: string }) =>
+    mutationFn: (input: { model_id?: string; title?: string }) =>
       apiPost<Conversation>('/conversations', input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });

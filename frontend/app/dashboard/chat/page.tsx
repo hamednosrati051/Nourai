@@ -57,9 +57,9 @@ export default function ChatPage() {
 
   const textModels = (models.data ?? []).filter((m) => m.capability === 'text');
 
-  const startConversation = (modelId: string) => {
+  const startConversation = () => {
     createConversation.mutate(
-      { model_id: modelId },
+      {},
       {
         onSuccess: (conv) => setActiveId(conv.id),
         onError: (err) =>
@@ -106,26 +106,14 @@ export default function ChatPage() {
               ) : textModels.length === 0 ? (
                 <p className="px-1 text-xs text-neutral-500">مدل فعالی در دسترس نیست.</p>
               ) : (
-                <label className="mb-2 block px-1">
-                  <span className="label">گفت‌وگوی جدید با</span>
-                  <select
-                    className="input"
-                    defaultValue=""
-                    disabled={createConversation.isPending}
-                    onChange={(e) => {
-                      if (e.target.value) startConversation(e.target.value);
-                      e.target.value = '';
-                    }}
-                    aria-label="انتخاب مدل برای گفت‌وگوی جدید"
-                  >
-                    <option value="">انتخاب مدل…</option>
-                    {textModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <button
+                  type="button"
+                  className="btn-primary mb-2 w-full"
+                  disabled={createConversation.isPending}
+                  onClick={() => startConversation()}
+                >
+                  ＋ گفت‌وگوی جدید
+                </button>
               )}
               <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto lg:max-h-[60vh]">
                 {(conversations.data ?? []).map((c) => (
