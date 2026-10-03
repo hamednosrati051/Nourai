@@ -81,6 +81,26 @@ export default function HomePage() {
             </Link>
           </div>
 
+          {/* Noura: animated avatar linking to the voice assistant */}
+          <div className="mt-10">
+            <Link
+              href={authed ? '/dashboard/voice' : '/auth/login'}
+              aria-label="نورا — دستیار صوتی"
+              className="group inline-flex flex-col items-center gap-2"
+            >
+              <video
+                src="/images/nourai-mascot.mp4"
+                poster="/images/nourai-mascot.jpg"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="h-28 w-28 rounded-full object-cover shadow-xl shadow-brand-500/20 transition-transform duration-200 group-hover:scale-105"
+              />
+              <span className="text-2xl font-black">نورا</span>
+            </Link>
+          </div>
+
         </section>
 
         {/* Services grid */}

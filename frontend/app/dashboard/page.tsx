@@ -57,7 +57,7 @@ export default function DashboardPage() {
           <Link
             href="/dashboard/voice"
             aria-label="نورا — دستیار صوتی"
-            className="card group mb-8 flex flex-col items-center gap-2 !p-6 text-center transition hover:scale-[1.01]"
+            className="group mb-8 flex flex-col items-center gap-2 p-2 text-center"
           >
             <video
               src="/images/nourai-mascot.mp4"
