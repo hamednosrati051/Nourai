@@ -7,13 +7,17 @@ import { useLogout, useMe } from '@/features/auth/hooks';
 import { UserGuard } from '@/components/ProtectedRoute';
 import { SideNav, type NavItem } from '@/components/SideNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { useModels } from '@/features/models/hooks';
+import type { ModelCapability } from '@/types/api';
 
-const NAV_ITEMS: NavItem[] = [
+type NavEntry = NavItem & { capability?: ModelCapability };
+
+const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard', label: 'داشبورد', icon: '🏠' },
-  { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬' },
-  { href: '/dashboard/voice', label: 'تعامل صوتی', icon: '🎙️' },
-  { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊' },
-  { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨' },
+  { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬', capability: 'text' },
+  { href: '/dashboard/voice', label: 'تعامل صوتی', icon: '🎙️', capability: 'speech_to_text' },
+  { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊', capability: 'text_to_speech' },
+  { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨', capability: 'image' },
   { href: '/dashboard/history', label: 'تاریخچه', icon: '🕘' },
   { href: '/dashboard/wallet', label: 'کیف پول', icon: '💰' },
   { href: '/dashboard/usage', label: 'مصرف', icon: '📊' },
@@ -42,6 +46,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 function PanelShell({ children }: { children: React.ReactNode }) {
   const { data: user } = useMe();
   const logout = useLogout();
+  // Hide nav entries whose capability has no active model. While loading
+  // (or on error) keep everything visible; only a confirmed-empty
+  // capability hides its entry.
+  const models = useModels();
+  const readyCaps = new Set((models.data ?? []).map((m) => m.capability));
+  const settled = models.isSuccess;
+  const items = NAV_ITEMS.filter(
+    (item) => !item.capability || !settled || readyCaps.has(item.capability),
+  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -74,7 +87,7 @@ function PanelShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
-        <SideNav items={NAV_ITEMS} ariaLabel="ناوبری پنل کاربر" />
+        <SideNav items={items} ariaLabel="ناوبری پنل کاربر" />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>

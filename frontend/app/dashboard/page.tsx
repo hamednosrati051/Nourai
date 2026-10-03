@@ -28,8 +28,8 @@ export default function DashboardPage() {
   const models = useModels();
 
   // Capabilities that have at least one active model. While loading (or on
-  // error) keep every card enabled so a slow/failed request never breaks
-  // navigation; only a confirmed-empty capability disables its card.
+  // error) keep every card visible so a slow/failed request never breaks
+  // navigation; only a confirmed-empty capability hides its card.
   const readyCaps = new Set(
     (models.data ?? []).map((m) => m.capability),
   );
@@ -119,38 +119,42 @@ export default function DashboardPage() {
         <section aria-labelledby="services-heading">
           <h2 id="services-heading" className="mb-3 text-lg font-bold">سرویس‌ها</h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <ServiceCard
-              href="/dashboard/chat"
-              icon="💬"
-              title="گفت‌وگوی متنی"
-              description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
-              color="#38bdf8"
-              disabled={!hasCap('text')}
-            />
-            <ServiceCard
-              href="/dashboard/image"
-              icon="🎨"
-              title="تولید تصویر"
-              description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
-              color="#a78bfa"
-              disabled={!hasCap('image')}
-            />
-            <ServiceCard
-              href="/dashboard/voice"
-              icon="🎙️"
-              title="تبدیل صوت به متن"
-              description="ارسال صوت و دریافت متن پیاده‌شده"
-              color="#f472b6"
-              disabled={!hasCap('speech_to_text')}
-            />
-            <ServiceCard
-              href="/dashboard/tts"
-              icon="🔊"
-              title="تبدیل متن به صوت"
-              description="تبدیل متن به گفتار و دانلود فایل صوتی"
-              color="#34d399"
-              disabled={!hasCap('text_to_speech')}
-            />
+            {hasCap('text') && (
+              <ServiceCard
+                href="/dashboard/chat"
+                icon="💬"
+                title="گفت‌وگوی متنی"
+                description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
+                color="#38bdf8"
+              />
+            )}
+            {hasCap('image') && (
+              <ServiceCard
+                href="/dashboard/image"
+                icon="🎨"
+                title="تولید تصویر"
+                description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
+                color="#a78bfa"
+              />
+            )}
+            {hasCap('speech_to_text') && (
+              <ServiceCard
+                href="/dashboard/voice"
+                icon="🎙️"
+                title="تبدیل صوت به متن"
+                description="ارسال صوت و دریافت متن پیاده‌شده"
+                color="#f472b6"
+              />
+            )}
+            {hasCap('text_to_speech') && (
+              <ServiceCard
+                href="/dashboard/tts"
+                icon="🔊"
+                title="تبدیل متن به صوت"
+                description="تبدیل متن به گفتار و دانلود فایل صوتی"
+                color="#34d399"
+              />
+            )}
           </div>
         </section>
       </main>
