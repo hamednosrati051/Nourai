@@ -205,9 +205,10 @@ export default function VoicePage() {
           {PHASE_LABEL[phase]}
         </p>
 
-        <button
-          type="button"
-          onClick={toggleRecording}
+        <div className="flex items-center justify-center gap-5">
+          <button
+            type="button"
+            onClick={toggleRecording}
           disabled={createJob.isPending || !!trackedJobId}
           aria-label={recording ? 'توقف و ارسال' : 'شروع ضبط'}
           className={`relative flex h-24 w-24 select-none items-center justify-center rounded-full text-white shadow-xl transition-transform duration-150 ${
@@ -225,6 +226,30 @@ export default function VoicePage() {
             <MicIcon className="h-10 w-10" />
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+            disabled={createJob.isPending || !!trackedJobId}
+            aria-label="ارسال فایل صوتی"
+            title="ارسال فایل صوتی"
+            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
+        >
+          📎
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="audio/*"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadFile(f);
+            e.target.value = '';
+          }}
+        />
+        </div>
         <p className="-mt-3 text-xs text-neutral-500">
           {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن'}
         </p>
@@ -235,29 +260,6 @@ export default function VoicePage() {
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-5">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={createJob.isPending || !!trackedJobId}
-            className="btn-secondary rounded-full px-5 py-2.5 text-sm font-bold disabled:opacity-50"
-          >
-            📎 ارسال فایل صوتی
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            aria-hidden="true"
-            tabIndex={-1}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadFile(f);
-              e.target.value = '';
-            }}
-          />
-        </div>
       </div>
 
       {/* Auto-play this session's reply */}
