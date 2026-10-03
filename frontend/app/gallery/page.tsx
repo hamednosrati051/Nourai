@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { BRAND } from '@/lib/config';
 import { useGallery } from '@/features/gallery/hooks';
 import { PillHeader } from '@/components/PillHeader';
@@ -7,6 +8,7 @@ import { FloatingNav } from '@/components/FloatingNav';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ErrorState } from '@/components/ErrorState';
+import { GalleryLightbox } from '@/components/GalleryLightbox';
 import { ApiError, getErrorMessage } from '@/lib/api';
 
 /**
@@ -16,6 +18,7 @@ import { ApiError, getErrorMessage } from '@/lib/api';
  */
 export default function GalleryPage() {
   const { data: items, isLoading, isError, error, refetch } = useGallery();
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   return (
     <div className="min-h-screen">
@@ -54,27 +57,34 @@ export default function GalleryPage() {
 
         {!isLoading && !isError && items && items.length > 0 && (
           <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-label="تصاویر گالری">
-            {items.map((item) => (
+            {items.map((item, i) => (
               <li
                 key={item.id}
                 className="group relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100 shadow-sm transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-navy-800 dark:shadow-black/30"
               >
-                {/* Reserved aspect ratio from API dimensions prevents layout shift. */}
-                <div
-                  className="relative w-full"
-                  style={{
-                    aspectRatio:
-                      item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1',
-                  }}
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(i)}
+                  aria-label={`نمایش بزرگ تصویر ${i + 1}`}
+                  className="block w-full cursor-zoom-in"
                 >
-                  <img
-                    src={item.thumbnail_url ?? item.image_url}
-                    alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </div>
+                  {/* Reserved aspect ratio from API dimensions prevents layout shift. */}
+                  <div
+                    className="relative w-full"
+                    style={{
+                      aspectRatio:
+                        item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1',
+                    }}
+                  >
+                    <img
+                      src={item.thumbnail_url ?? item.image_url}
+                      alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </button>
                 <span
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-gradient-to-l from-brand-500 to-violet-500 opacity-0 transition group-hover:opacity-100"
@@ -82,6 +92,14 @@ export default function GalleryPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {lightboxIndex !== null && items && (
+          <GalleryLightbox
+            items={items}
+            initialIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+          />
         )}
       </main>
     </div>
