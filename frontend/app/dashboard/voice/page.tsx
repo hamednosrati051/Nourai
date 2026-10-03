@@ -84,7 +84,8 @@ export default function VoicePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackedJob.data?.status, queryClient]);
 
-  const items = [...(jobs.data?.items ?? [])].reverse(); // oldest first, chat order
+  // Assistant-mode jobs only: transcribe jobs live on the /dashboard/stt page.
+  const items = [...(jobs.data?.items ?? [])].filter((j) => j.mode === 'assistant').reverse(); // oldest first, chat order
   const trackedVisible =
     trackedJobId && trackedJob.data && !items.some((j) => j.id === trackedJobId)
       ? trackedJob.data
