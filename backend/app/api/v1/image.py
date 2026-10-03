@@ -163,6 +163,9 @@ def ensure_system_image_model() -> AiModel:
 
     One-time adoption: active pricing rules from legacy image model rows are
     re-pointed onto the system row, and the legacy rows are deactivated.
+
+    Only the row's existence is ensured here; an admin deactivation is
+    respected and never reverted.
     """
     model = (
         db.session.query(AiModel).filter_by(slug=SYSTEM_IMAGE_MODEL_SLUG).one_or_none()
@@ -197,9 +200,6 @@ def ensure_system_image_model() -> AiModel:
                 moved += 1
             old.is_active = False
             log.info("adopted legacy image model %s: moved %d pricing rules", old.id, moved)
-        db.session.commit()
-    elif not model.is_active:
-        model.is_active = True
         db.session.commit()
     return model
 
