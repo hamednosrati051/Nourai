@@ -528,6 +528,8 @@ def _asset_payload(asset: Asset, include_url: bool = False) -> dict:
             payload["download_url"] = storage.presigned_get_url(asset.storage_key)
         except Exception:  # noqa: BLE001
             payload["download_url"] = None
+        # The admin UI's AssetItem contract expects `url`.
+        payload["url"] = payload["download_url"]
     return payload
 
 

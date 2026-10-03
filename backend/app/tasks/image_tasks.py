@@ -15,6 +15,7 @@ from app.billing.pricing import PricingService
 from app.extensions import db
 from app.models import AiModel, Asset, CurrencySettings, GenerationJob, UsageEvent
 from app.models.catalog import CAP_EDIT_IMAGE, CAP_GENERATE_IMAGE, CAP_IMAGE, IMAGE_CAPABILITIES
+from app.models.gallery import GALLERY_PENDING, GalleryEntry
 from app.models.jobs import (
     ASSET_GENERATED_IMAGE,
     ASSET_INPUT_IMAGE_PROCESSED,
@@ -177,9 +178,23 @@ def process_image_job(self, job_id: str) -> dict:
         job.finished_at = utcnow()
         job.result_text = None
         PlanLimitService(session).increment(job.user_id, "image")
+        _enqueue_gallery(session, result_asset, job.user_id)
         session.commit()
         log.info("image job %s succeeded asset=%s", job_id, result_asset.id)
         return {"ok": True, "asset_id": result_asset.id}
+
+
+def _enqueue_gallery(session, asset, user_id: str) -> None:
+    """Queue a generated image for gallery moderation (idempotent).
+
+    Without this, the admin gallery's pending queue would stay empty
+    forever: entries were only created when an admin approved/rejected.
+    """
+    existing = session.query(GalleryEntry).filter_by(asset_id=asset.id).one_or_none()
+    if existing is None:
+        session.add(
+            GalleryEntry(asset_id=asset.id, user_id=user_id, status=GALLERY_PENDING)
+        )
 
 
 def _provider_options(params: dict) -> dict:
