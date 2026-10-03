@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Image as ImageIcon, MessageSquare, Mic, ScanSearch } from 'lucide-react';
+import { Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -27,11 +27,18 @@ const SERVICES = [
     color: '#8b5cf6',
   },
   {
+    icon: Volume2,
+    title: 'تبدیل متن به صوت',
+    description: 'متن‌تان را به گفتار طبیعی تبدیل کنید و فایل صوتی دانلود بگیرید.',
+    href: '/dashboard/tts',
+    color: '#34d399',
+  },
+  {
     icon: Mic,
-    title: 'نورا',
-    description: 'صدا بفرستید، متن و پاسخ صوتی بگیرید؛ یک رفت‌وبرگشت کامل و روان.',
-    href: '/dashboard/voice',
-    color: '#10b981',
+    title: 'تبدیل صوت به متن',
+    description: 'ویس یا فایل صوتی بفرستید و متن دقیق و تمیز تحویل بگیرید.',
+    href: '/dashboard/stt',
+    color: '#f472b6',
   },
   {
     icon: ScanSearch,

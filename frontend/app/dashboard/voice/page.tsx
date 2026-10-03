@@ -33,7 +33,6 @@ const PHASE_LABEL: Record<Phase, string> = {
 export default function VoicePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [lastDoneId, setLastDoneId] = useState<string | null>(null);
@@ -94,6 +93,20 @@ export default function VoicePage() {
   const trackedProcessing =
     !!trackedVisible && (trackedVisible.status === 'queued' || trackedVisible.status === 'processing');
 
+  // Once the conversation starts the big hero collapses into a slim sticky bar.
+  const hasThread = items.length > 0 || !!trackedVisible;
+
+  // Keep the latest exchange in view as the thread grows.
+  const threadEndRef = useRef<HTMLDivElement>(null);
+  const prevThreadCount = useRef(0);
+  useEffect(() => {
+    const count = items.length + (trackedVisible ? 1 : 0);
+    if (count > prevThreadCount.current) {
+      threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+    prevThreadCount.current = count;
+  }, [items.length, trackedVisible]);
+
   const phase: Phase = recording
     ? 'listening'
     : trackedProcessing
@@ -121,73 +134,60 @@ export default function VoicePage() {
         </label>
       </div>
 
-      {/* Hero: Nourai mascot + tap-to-talk */}
-      <div className="flex flex-col items-center gap-4 py-2">
-        <NouraiMascot mood={phase} className="h-52 w-52 drop-shadow-xl" />
-
-        <p className="flex h-6 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
-          {phase === 'listening' && (
-            <span className="font-bold tabular-nums text-red-500">{formatDuration(recSeconds)}</span>
-          )}
-          {PHASE_LABEL[phase]}
-        </p>
-
-        <div className="flex items-center justify-center gap-5">
-          <button
-            type="button"
-            onClick={toggleRecording}
-          disabled={createJob.isPending || !!trackedJobId}
-          aria-label={recording ? 'توقف و ارسال' : 'شروع ضبط'}
-          className={`relative flex h-24 w-24 select-none items-center justify-center rounded-full text-white shadow-xl transition-transform duration-150 ${
-            recording
-              ? 'scale-105 bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/40'
-              : 'bg-gradient-to-br from-brand-500 to-amber-500 shadow-brand-500/40 hover:scale-105 active:scale-105'
-          } disabled:opacity-50 disabled:hover:scale-100`}
-        >
-          {recording && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />}
-          {recording ? (
-            <svg viewBox="0 0 24 24" fill="currentColor" className="h-9 w-9" aria-hidden="true">
-              <rect x="6" y="6" width="12" height="12" rx="3" />
-            </svg>
-          ) : (
-            <MicIcon className="h-10 w-10" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-            disabled={createJob.isPending || !!trackedJobId}
-            aria-label="ارسال فایل صوتی"
-            title="ارسال فایل صوتی"
-            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
-        >
-          <Paperclip className="h-6 w-6" aria-hidden="true" />
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="audio/*"
-          className="hidden"
-          aria-hidden="true"
-          tabIndex={-1}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) uploadFile(f);
-            e.target.value = '';
-          }}
-        />
-        </div>
-        <p className="-mt-3 text-xs text-neutral-500">
-          {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن'}
-        </p>
-        {recording && analyser && (
-          <div className="-mt-1 flex flex-col items-center gap-1" aria-hidden="true">
-            <ListeningVisualizer analyser={analyser} />
-            <p className="text-xs font-medium text-amber-600 dark:text-amber-400">دارم گوش می‌دهم…</p>
+      {hasThread ? (
+        /* Compact sticky talk bar once the conversation has started */
+        <div className="sticky top-16 z-30 -mx-4 border-b border-neutral-200/70 bg-white/90 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 dark:border-white/10 dark:bg-navy-950/90">
+          <div className="flex items-center gap-3">
+            <NouraiMascot mood={phase} className="h-12 w-12 shrink-0" />
+            <p className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
+              {phase === 'listening' && (
+                <span className="shrink-0 font-bold tabular-nums text-red-500">{formatDuration(recSeconds)}</span>
+              )}
+              <span className="truncate">{PHASE_LABEL[phase]}</span>
+            </p>
+            <TalkControls
+              compact
+              recording={recording}
+              disabled={createJob.isPending || !!trackedJobId}
+              onToggle={toggleRecording}
+              onFile={uploadFile}
+            />
           </div>
-        )}
+          {recording && analyser && (
+            <div className="flex justify-center pt-1" aria-hidden="true">
+              <ListeningVisualizer analyser={analyser} />
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Full hero while the thread is empty */
+        <div className="flex flex-col items-center gap-4 py-2">
+          <NouraiMascot mood={phase} className="h-52 w-52 drop-shadow-xl" />
 
-      </div>
+          <p className="flex h-6 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
+            {phase === 'listening' && (
+              <span className="font-bold tabular-nums text-red-500">{formatDuration(recSeconds)}</span>
+            )}
+            {PHASE_LABEL[phase]}
+          </p>
+
+          <TalkControls
+            recording={recording}
+            disabled={createJob.isPending || !!trackedJobId}
+            onToggle={toggleRecording}
+            onFile={uploadFile}
+          />
+          <p className="-mt-3 text-xs text-neutral-500">
+            {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن'}
+          </p>
+          {recording && analyser && (
+            <div className="-mt-1 flex flex-col items-center gap-1" aria-hidden="true">
+              <ListeningVisualizer analyser={analyser} />
+              <p className="text-xs font-medium text-amber-600 dark:text-amber-400">دارم گوش می‌دهم…</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Auto-play this session's reply */}
       <ReplyAutoPlayer
@@ -215,8 +215,77 @@ export default function VoicePage() {
             <VoiceExchange key={job.id} job={job} />
           ))}
           {trackedVisible && <VoiceExchange job={trackedVisible} />}
+          <div ref={threadEndRef} aria-hidden="true" />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Mic + upload controls, shared by the full hero and the compact sticky bar. */
+function TalkControls({
+  compact = false,
+  recording,
+  disabled,
+  onToggle,
+  onFile,
+}: {
+  compact?: boolean;
+  recording: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onFile: (file: File) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className={`flex items-center ${compact ? 'gap-2' : 'justify-center gap-5'}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={disabled}
+        aria-label={recording ? 'توقف و ارسال' : 'شروع ضبط'}
+        className={`relative flex select-none items-center justify-center rounded-full text-white shadow-xl transition-transform duration-150 ${
+          compact ? 'h-12 w-12' : 'h-24 w-24'
+        } ${
+          recording
+            ? 'scale-105 bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/40'
+            : 'bg-gradient-to-br from-brand-500 to-amber-500 shadow-brand-500/40 hover:scale-105 active:scale-105'
+        } disabled:opacity-50 disabled:hover:scale-100`}
+      >
+        {recording && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />}
+        {recording ? (
+          <svg viewBox="0 0 24 24" fill="currentColor" className={compact ? 'h-4 w-4' : 'h-9 w-9'} aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="3" />
+          </svg>
+        ) : (
+          <MicIcon className={compact ? 'h-5 w-5' : 'h-10 w-10'} />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={disabled}
+        aria-label="ارسال فایل صوتی"
+        title="ارسال فایل صوتی"
+        className={`btn-secondary flex shrink-0 items-center justify-center rounded-full shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50 ${
+          compact ? 'h-10 w-10' : 'h-14 w-14'
+        }`}
+      >
+        <Paperclip className={compact ? 'h-5 w-5' : 'h-6 w-6'} aria-hidden="true" />
+      </button>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = '';
+        }}
+      />
     </div>
   );
 }
