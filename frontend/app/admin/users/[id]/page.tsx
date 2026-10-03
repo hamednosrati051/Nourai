@@ -37,11 +37,13 @@ const ACTIVITY_LABELS: Record<ActivityKind, string> = {
 const ASSET_LABELS: Record<AssetItem['kind'], string> = {
   generated_image: 'تصویر تولیدشده',
   chat_input_image: 'تصویر ورودی چت',
+  input_image_original: 'ورودی اصلی ویرایش',
+  input_image_processed: 'ورودی پردازش‌شده',
   input_audio: 'صوت ورودی',
   output_audio: 'صوت خروجی',
 };
 
-type Tab = 'activity' | 'generated' | 'chat_input' | 'wallet';
+type Tab = 'activity' | 'generated' | 'chat_input' | 'edit_input' | 'wallet';
 
 const statusSchema = z.object({
   reason: z.string().trim().min(3, 'دلیل تغییر وضعیت را بنویسید (حداقل ۳ حرف).'),
@@ -69,6 +71,7 @@ export default function AdminUserDetailPage() {
   const walletTx = useUserWalletTransactions(id, walletPage);
   const generatedAssets = useUserAssets(id, 'generated', tab === 'generated');
   const chatInputAssets = useUserAssets(id, 'chat_input', tab === 'chat_input');
+  const editInputAssets = useUserAssets(id, 'edit_input', tab === 'edit_input');
 
   const updateStatus = useUpdateUserStatus();
   const adjustWallet = useWalletAdjustment();
@@ -122,6 +125,7 @@ export default function AdminUserDetailPage() {
     { value: 'activity', label: 'timeline فعالیت' },
     { value: 'generated', label: 'تصاویر تولیدشده' },
     { value: 'chat_input', label: 'تصاویر ورودی چت' },
+    { value: 'edit_input', label: 'تصاویر ورودی ویرایش' },
     { value: 'wallet', label: 'تراکنش‌های کیف پول' },
   ];
 
@@ -218,6 +222,9 @@ export default function AdminUserDetailPage() {
 
       {/* Chat input images */}
       {tab === 'chat_input' && <AssetGrid query={chatInputAssets} emptyTitle="تصویر ورودی چتی نیست" />}
+
+      {/* Edit input images (original upload + processed derivative) */}
+      {tab === 'edit_input' && <AssetGrid query={editInputAssets} emptyTitle="تصویر ورودی ویرایشی نیست" />}
 
       {/* Wallet transactions */}
       {tab === 'wallet' && (

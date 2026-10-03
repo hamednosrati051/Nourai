@@ -248,9 +248,11 @@ def user_assets(user_id: str):
     kind = request.args.get("kind")
     query = db.session.query(Asset).filter_by(user_id=user_id)
     if kind:
-        if kind not in ASSET_KINDS:
+        # Comma-separated kinds, e.g. input_image_original,input_image_processed.
+        kinds = [k.strip() for k in kind.split(",") if k.strip()]
+        if not kinds or any(k not in ASSET_KINDS for k in kinds):
             return validation_error()
-        query = query.filter_by(kind=kind)
+        query = query.filter(Asset.kind.in_(kinds))
     query = query.order_by(Asset.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)

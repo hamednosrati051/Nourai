@@ -341,7 +341,13 @@ export interface ActivityItem {
   created_at: string;
 }
 
-export type AssetKind = 'generated_image' | 'chat_input_image' | 'input_audio' | 'output_audio';
+export type AssetKind =
+  | 'generated_image'
+  | 'chat_input_image'
+  | 'input_image_original'
+  | 'input_image_processed'
+  | 'input_audio'
+  | 'output_audio';
 
 export interface AssetItem {
   id: string;
