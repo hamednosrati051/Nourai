@@ -1,13 +1,15 @@
+import type { LucideIcon } from 'lucide-react';
+
 interface StatCardProps {
   label: string;
   value: string;
   hint?: string;
-  icon?: string;
+  icon?: LucideIcon;
   accent?: 'brand' | 'success' | 'info' | 'danger';
 }
 
 /** Small KPI card used on dashboards. */
-export function StatCard({ label, value, hint, icon, accent = 'brand' }: StatCardProps) {
+export function StatCard({ label, value, hint, icon: Icon, accent = 'brand' }: StatCardProps) {
   const accents: Record<NonNullable<StatCardProps['accent']>, string> = {
     brand: 'text-brand-700 dark:text-brand-400',
     success: 'text-emerald-700 dark:text-emerald-400',
@@ -18,10 +20,8 @@ export function StatCard({ label, value, hint, icon, accent = 'brand' }: StatCar
     <div className="card">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-neutral-500 dark:text-slate-400">{label}</p>
-        {icon && (
-          <span aria-hidden="true" className="text-xl">
-            {icon}
-          </span>
+        {Icon && (
+          <Icon aria-hidden="true" className="h-5 w-5" />
         )}
       </div>
       <p className={`mt-2 text-2xl font-extrabold tabular-nums ${accents[accent]}`}>{value}</p>

@@ -1,5 +1,7 @@
 'use client';
 
+import { NotebookText } from 'lucide-react';
+import { Receipt, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -95,7 +97,7 @@ export default function WalletPage() {
         />
       )}
       {wallet.data && (
-        <StatCard label="موجودی فعلی" value={formatToman(wallet.data.balance_irr)} icon="💰" accent="brand" />
+        <StatCard label="موجودی فعلی" value={formatToman(wallet.data.balance_irr)} icon={Wallet} accent="brand" />
       )}
 
       {/* Top-up */}
@@ -160,7 +162,7 @@ export default function WalletPage() {
         {payments.isLoading && <LoadingSpinner />}
         {payments.isError && <ErrorState message="بارگذاری پرداخت‌ها ناموفق بود." onRetry={() => payments.refetch()} />}
         {payments.data && payments.data.items.length === 0 && (
-          <EmptyState icon="🧾" title="پرداختی ثبت نشده" description="هنوز کیف پول خود را شارژ نکرده‌اید." />
+          <EmptyState icon={Receipt} title="پرداختی ثبت نشده" description="هنوز کیف پول خود را شارژ نکرده‌اید." />
         )}
         {payments.data && payments.data.items.length > 0 && (
           <>
@@ -203,7 +205,7 @@ export default function WalletPage() {
         {transactions.isLoading && <LoadingSpinner />}
         {transactions.isError && <ErrorState message="بارگذاری تراکنش‌ها ناموفق بود." onRetry={() => transactions.refetch()} />}
         {transactions.data && transactions.data.items.length === 0 && (
-          <EmptyState icon="📒" title="تراکنشی نیست" description="هنوز تراکنشی در کیف پول شما ثبت نشده است." />
+          <EmptyState icon={NotebookText} title="تراکنشی نیست" description="هنوز تراکنشی در کیف پول شما ثبت نشده است." />
         )}
         {transactions.data && transactions.data.items.length > 0 && (
           <>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, Copy, FileText, History, Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioJob, useAudioJobs, useCreateAudioJob } from '@/features/voice/hooks';
@@ -100,8 +101,9 @@ export default function SttPage() {
           <NouraAvatar working={busy} />
           <h1 className="text-2xl font-extrabold">تبدیل صوت به متن</h1>
         </div>
-        <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm">
-          🕘 تاریخچه
+        <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm inline-flex items-center gap-1.5">
+          <History className="h-4 w-4" aria-hidden="true" />
+          تاریخچه
         </button>
       </div>
 
@@ -134,9 +136,9 @@ export default function SttPage() {
             disabled={busy}
             aria-label="ارسال فایل صوتی"
             title="ارسال فایل صوتی"
-            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
           >
-            📎
+            <Paperclip className="h-6 w-6" aria-hidden="true" />
           </button>
           <input
             ref={fileRef}
@@ -192,7 +194,7 @@ export default function SttPage() {
           {jobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => jobs.refetch()} />}
           {jobs.data && items.length === 0 && (
             <EmptyState
-              icon="📝"
+              icon={FileText}
               title="هنوز رونویسی ندارید"
               description="با دکمه میکروفن ضبط کنید یا یک فایل صوتی بفرستید."
             />
@@ -207,7 +209,11 @@ export default function SttPage() {
                     onClick={() => copyTranscript(job)}
                     className="btn-secondary btn-sm"
                   >
-                    {copiedId === job.id ? '✓ کپی شد' : '📋 کپی متن'}
+                    {copiedId === job.id ? (
+                      <span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4" aria-hidden="true" /> کپی شد</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5"><Copy className="h-4 w-4" aria-hidden="true" /> کپی متن</span>
+                    )}
                   </button>
                 )}
               </div>
@@ -246,7 +252,11 @@ function SttResult({
         <p className="text-sm leading-7">{job.transcript || '—'}</p>
         {job.transcript && (
           <button type="button" onClick={() => onCopy(job)} className="btn-secondary btn-sm shrink-0">
-            {copiedId === job.id ? '✓ کپی شد' : '📋 کپی متن'}
+            {copiedId === job.id ? (
+                      <span className="inline-flex items-center gap-1.5"><Check className="h-4 w-4" aria-hidden="true" /> کپی شد</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5"><Copy className="h-4 w-4" aria-hidden="true" /> کپی متن</span>
+                    )}
           </button>
         )}
       </div>

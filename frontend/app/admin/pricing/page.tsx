@@ -1,5 +1,6 @@
 'use client';
 
+import { CircleDollarSign } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -303,7 +304,7 @@ export default function AdminPricingPage() {
       {rules.isLoading && <LoadingSpinner />}
       {rules.isError && <ErrorState message="بارگذاری تعرفه‌ها ناموفق بود." onRetry={() => rules.refetch()} />}
       {rules.data && rules.data.length === 0 && (
-        <EmptyState icon="💲" title="تعرفه‌ای ثبت نشده" description="هنوز قانون قیمتی ثبت نشده است." />
+        <EmptyState icon={CircleDollarSign} title="تعرفه‌ای ثبت نشده" description="هنوز قانون قیمتی ثبت نشده است." />
       )}
       {rules.data && rules.data.length > 0 && (
         <ResponsiveTable

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FileText, Image as ImageIcon, MessageSquare, Mic, Volume2 } from 'lucide-react';
+import { CircleCheck, FileText, Image as ImageIcon, MessageSquare, Mic, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMyPlan } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -82,7 +82,7 @@ export default function DashboardPage() {
             role="status"
             className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 dark:bg-emerald-500/10"
           >
-            <span aria-hidden="true" className="text-2xl">✅</span>
+            <CircleCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-emerald-500" />
             <div>
               <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
                 پلن فعال شما: {myPlan.data.name}

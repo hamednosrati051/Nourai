@@ -1,5 +1,6 @@
 'use client';
 
+import { ClipboardList } from 'lucide-react';
 import { useState } from 'react';
 import { useAuditLog } from '@/features/admin/hooks';
 import { formatDateTime } from '@/lib/format';
@@ -57,7 +58,7 @@ export default function AdminAuditPage() {
       {audit.isLoading && <LoadingSpinner />}
       {audit.isError && <ErrorState message="بارگذاری گزارش ناموفق بود." onRetry={() => audit.refetch()} />}
       {audit.data && audit.data.items.length === 0 && (
-        <EmptyState icon="📋" title="رکوردی نیست" description="هنوز اقدامی در گزارش حسابرسی ثبت نشده است." />
+        <EmptyState icon={ClipboardList} title="رکوردی نیست" description="هنوز اقدامی در گزارش حسابرسی ثبت نشده است." />
       )}
       {audit.data && audit.data.items.length > 0 && (
         <>

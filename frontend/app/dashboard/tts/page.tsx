@@ -1,5 +1,6 @@
 'use client';
 
+import { History, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { TTS_MAX_CHARS, useCreateTtsJob, useTtsJob, useTtsJobs } from '@/features/tts/hooks';
@@ -87,8 +88,9 @@ export default function TtsPage() {
           <NouraAvatar working={createJob.isPending || !!tracked} />
           <h1 className="text-2xl font-extrabold">تبدیل متن به صوت</h1>
         </div>
-        <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm">
-          🕘 تاریخچه
+        <button type="button" onClick={() => setHistoryOpen(true)} className="btn-secondary btn-sm inline-flex items-center gap-1.5">
+          <History className="h-4 w-4" aria-hidden="true" />
+          تاریخچه
         </button>
       </div>
 
@@ -114,7 +116,12 @@ export default function TtsPage() {
           disabled={createJob.isPending || !!tracked}
           className="btn-primary mt-3 w-full rounded-full py-4 text-lg"
         >
-          {createJob.isPending ? 'در حال ارسال…' : tracked ? 'در حال تبدیل…' : '🔊 تبدیل به صوت'}
+          {createJob.isPending ? 'در حال ارسال…' : tracked ? 'در حال تبدیل…' : (
+            <span className="inline-flex items-center justify-center gap-2">
+              <Volume2 className="h-5 w-5" aria-hidden="true" />
+              تبدیل به صوت
+            </span>
+          )}
         </button>
       </div>
 
@@ -137,7 +144,7 @@ export default function TtsPage() {
         {jobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => jobs.refetch()} />}
         {jobs.data && items.length === 0 && (
           <EmptyState
-            icon="🔊"
+            icon={Volume2}
             title="هنوز متنی تبدیل نکرده‌اید"
             description="متن را بنویسید و دکمه تبدیل را بزنید."
           />

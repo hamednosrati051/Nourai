@@ -1,5 +1,6 @@
 'use client';
 
+import { Mic, Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob } from '@/features/voice/hooks';
@@ -158,9 +159,9 @@ export default function VoicePage() {
             disabled={createJob.isPending || !!trackedJobId}
             aria-label="ارسال فایل صوتی"
             title="ارسال فایل صوتی"
-            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-xl shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="btn-secondary flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-md transition hover:scale-105 active:scale-95 disabled:opacity-50"
         >
-          📎
+          <Paperclip className="h-6 w-6" aria-hidden="true" />
         </button>
         <input
           ref={fileRef}
@@ -202,7 +203,7 @@ export default function VoicePage() {
 
       {jobs.data && items.length === 0 && !trackedVisible && phase === 'idle' && (
         <EmptyState
-          icon="🎙️"
+          icon={Mic}
           title="هنوز گفتگویی ندارید"
           description="دکمه رو نگه دارید و با نورا حرف بزنید."
         />

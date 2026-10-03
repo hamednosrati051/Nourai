@@ -1,5 +1,6 @@
 'use client';
 
+import { ChartColumn } from 'lucide-react';
 import { useState } from 'react';
 import { useUsage } from '@/features/usage/hooks';
 import { useModels } from '@/features/models/hooks';
@@ -130,7 +131,7 @@ export default function UsagePage() {
       {usage.isLoading && <LoadingSpinner />}
       {usage.isError && <ErrorState message="بارگذاری سابقه مصرف ناموفق بود." onRetry={() => usage.refetch()} />}
       {usage.data && usage.data.items.length === 0 && (
-        <EmptyState icon="📊" title="مصرفی ثبت نشده" description="با این فیلترها سابقه‌ای پیدا نشد." />
+        <EmptyState icon={ChartColumn} title="مصرفی ثبت نشده" description="با این فیلترها سابقه‌ای پیدا نشد." />
       )}
       {usage.data && usage.data.items.length > 0 && (
         <>

@@ -1,5 +1,6 @@
 'use client';
 
+import { ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import {
   useBlocklistWords,
@@ -161,7 +162,7 @@ export default function PromptFilterPage() {
         {words.isLoading && <LoadingSpinner />}
         {words.isError && <ErrorState message="بارگذاری فهرست ناموفق بود." onRetry={() => words.refetch()} />}
         {words.data && words.data.length === 0 && (
-          <EmptyState icon="🛡️" title="لیستی خالی است" description="هنوز عبارتی ثبت نشده است." />
+          <EmptyState icon={ShieldCheck} title="لیستی خالی است" description="هنوز عبارتی ثبت نشده است." />
         )}
         {words.data && words.data.length > 0 && (
           <ul className="flex flex-col gap-2">

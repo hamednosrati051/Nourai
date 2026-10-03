@@ -1,5 +1,6 @@
 'use client';
 
+import { Image as ImageIcon, Mic } from 'lucide-react';
 import { useState } from 'react';
 import { useImageJobs } from '@/features/image/hooks';
 import { useAudioJobs, useAssetDownloadUrl } from '@/features/voice/hooks';
@@ -46,10 +47,12 @@ export default function HistoryPage() {
       <div role="tablist" aria-label="نوع خروجی" className="flex gap-2">
         {(
           [
-            { value: 'image', label: 'تصاویر تولیدشده', icon: '🎨' },
-            { value: 'audio', label: 'پردازش‌های صوتی', icon: '🎙️' },
+            { value: 'image', label: 'تصاویر تولیدشده', icon: ImageIcon },
+            { value: 'audio', label: 'پردازش‌های صوتی', icon: Mic },
           ] as const
-        ).map((t) => (
+        ).map((t) => {
+          const Icon = t.icon;
+          return (
           <button
             key={t.value}
             type="button"
@@ -62,10 +65,11 @@ export default function HistoryPage() {
                 : 'btn-secondary'
             }`}
           >
-            <span aria-hidden="true">{t.icon}</span>
+            <Icon aria-hidden="true" className="h-4 w-4" />
             {t.label}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {tab === 'image' && (
@@ -73,7 +77,7 @@ export default function HistoryPage() {
           {imageJobs.isLoading && <LoadingSpinner />}
           {imageJobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => imageJobs.refetch()} />}
           {imageJobs.data && imageJobs.data.items.length === 0 && (
-            <EmptyState icon="🎨" title="تصویری تولید نشده" description="هنوز درخواستی برای تولید تصویر ثبت نکرده‌اید." actionLabel="تولید تصویر" actionHref="/dashboard/image" />
+            <EmptyState icon={ImageIcon} title="تصویری تولید نشده" description="هنوز درخواستی برای تولید تصویر ثبت نکرده‌اید." actionLabel="تولید تصویر" actionHref="/dashboard/image" />
           )}
           {imageJobs.data && imageJobs.data.items.length > 0 && (
             <>
@@ -117,7 +121,7 @@ export default function HistoryPage() {
           {audioJobs.isLoading && <LoadingSpinner />}
           {audioJobs.isError && <ErrorState message="بارگذاری تاریخچه ناموفق بود." onRetry={() => audioJobs.refetch()} />}
           {audioJobs.data && audioJobs.data.items.length === 0 && (
-            <EmptyState icon="🎙️" title="پردازش صوتی نیست" description="هنوز فایل صوتی ارسال نکرده‌اید." actionLabel="تبدیل صوت به متن" actionHref="/dashboard/voice" />
+            <EmptyState icon={Mic} title="پردازش صوتی نیست" description="هنوز فایل صوتی ارسال نکرده‌اید." actionLabel="تبدیل صوت به متن" actionHref="/dashboard/voice" />
           )}
           {audioJobs.data && audioJobs.data.items.length > 0 && (
             <>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Users } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminUsers } from '@/features/admin/hooks';
@@ -78,7 +79,7 @@ export default function AdminUsersPage() {
       {users.isLoading && <LoadingSpinner />}
       {users.isError && <ErrorState message="بارگذاری کاربران ناموفق بود." onRetry={() => users.refetch()} />}
       {users.data && users.data.items.length === 0 && (
-        <EmptyState icon="👥" title="کاربری پیدا نشد" description="با این فیلترها کاربری یافت نشد." />
+        <EmptyState icon={Users} title="کاربری پیدا نشد" description="با این فیلترها کاربری یافت نشد." />
       )}
       {users.data && users.data.items.length > 0 && (
         <>

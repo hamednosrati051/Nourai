@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Download, X } from 'lucide-react';
 import type { GalleryItem } from '@/types/api';
 import { BRAND } from '@/lib/config';
 
@@ -107,17 +108,22 @@ export function GalleryLightbox({
             type="button"
             onClick={download}
             disabled={downloading}
-            className="btn-primary btn-sm disabled:opacity-60"
+            className="btn-primary btn-sm inline-flex items-center gap-1.5 disabled:opacity-60"
           >
-            {downloading ? 'در حال دانلود…' : '⬇ دانلود'}
+            {downloading ? 'در حال دانلود…' : (
+              <span className="inline-flex items-center gap-1.5">
+                <Download aria-hidden="true" className="h-4 w-4" />
+                دانلود
+              </span>
+            )}
           </button>
           <button
             type="button"
             onClick={onClose}
             aria-label="بستن"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-xl text-white transition hover:bg-white/20"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
           >
-            ✕
+            <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Images } from 'lucide-react';
 import { useState } from 'react';
 import { BRAND } from '@/lib/config';
 import { useGallery } from '@/features/gallery/hooks';
@@ -47,7 +48,7 @@ export default function GalleryPage() {
 
         {!isLoading && !isError && (!items || items.length === 0) && (
           <EmptyState
-            icon="🖼️"
+            icon={Images}
             title="هنوز تصویری تأیید نشده است"
             description="به‌زودی تصاویر تأییدشده کاربران در این گالری نمایش داده می‌شود."
             actionLabel="بازگشت به صفحه اصلی"

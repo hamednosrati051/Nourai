@@ -1,5 +1,7 @@
 'use client';
 
+import { TrendingUp } from 'lucide-react';
+import { Bot, Images, Receipt, UserCheck, Users, Wallet, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useAdminDashboard } from '@/features/admin/hooks';
 import { formatToman } from '@/lib/currency';
@@ -28,17 +30,17 @@ export default function AdminDashboardPage() {
       {stats.data && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="کل کاربران" value={formatNumber(stats.data.total_users)} icon="👥" />
-            <StatCard label="کاربران فعال" value={formatNumber(stats.data.active_users)} icon="✅" accent="success" />
-            <StatCard label="درآمد امروز" value={formatToman(stats.data.revenue_today_irr)} icon="💰" accent="success" />
-            <StatCard label="درآمد کل" value={formatToman(stats.data.total_revenue_irr)} icon="📈" />
-            <StatCard label="پرداخت‌های امروز" value={formatNumber(stats.data.payments_today)} icon="🧾" accent="info" />
-            <StatCard label="درخواست‌های امروز" value={formatNumber(stats.data.jobs_today)} icon="⚡" accent="info" />
-            <StatCard label="مدل‌های فعال" value={formatNumber(stats.data.active_models)} icon="🤖" />
+            <StatCard label="کل کاربران" value={formatNumber(stats.data.total_users)} icon={Users} />
+            <StatCard label="کاربران فعال" value={formatNumber(stats.data.active_users)} icon={UserCheck} accent="success" />
+            <StatCard label="درآمد امروز" value={formatToman(stats.data.revenue_today_irr)} icon={Wallet} accent="success" />
+            <StatCard label="درآمد کل" value={formatToman(stats.data.total_revenue_irr)} icon={TrendingUp} />
+            <StatCard label="پرداخت‌های امروز" value={formatNumber(stats.data.payments_today)} icon={Receipt} accent="info" />
+            <StatCard label="درخواست‌های امروز" value={formatNumber(stats.data.jobs_today)} icon={Zap} accent="info" />
+            <StatCard label="مدل‌های فعال" value={formatNumber(stats.data.active_models)} icon={Bot} />
             <StatCard
               label="تصاویر در انتظار بررسی"
               value={formatNumber(stats.data.pending_gallery_items)}
-              icon="🖼️"
+              icon={Images}
               accent={stats.data.pending_gallery_items > 0 ? 'danger' : 'brand'}
             />
           </div>

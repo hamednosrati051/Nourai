@@ -1,5 +1,6 @@
 'use client';
 
+import { Images } from 'lucide-react';
 import { useState } from 'react';
 import {
   useAdminGallery,
@@ -100,7 +101,7 @@ export default function AdminGalleryPage() {
       {queue.isError && <ErrorState message="بارگذاری صف گالری ناموفق بود." onRetry={() => queue.refetch()} />}
       {queue.data && queue.data.length === 0 && (
         <EmptyState
-          icon="🖼️"
+          icon={Images}
           title={tab === 'pending' ? 'صف بررسی خالی است' : 'موردی نیست'}
           description={tab === 'pending' ? 'تصویر جدیدی برای بررسی وجود ندارد.' : 'در این وضعیت تصویری ثبت نشده است.'}
         />

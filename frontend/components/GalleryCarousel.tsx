@@ -1,5 +1,6 @@
 'use client';
 
+import { Images } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { GalleryItem } from '@/types/api';
@@ -73,7 +74,7 @@ export function GalleryCarousel({ items, isLoading, isError, onRetry }: GalleryC
   if (count === 0) {
     return (
       <EmptyState
-        icon="🖼️"
+        icon={Images}
         title="هنوز تصویری در گالری نیست"
         description="به‌زودی ساخته‌های کاربران تأییدشده در اینجا نمایش داده می‌شود."
         actionLabel="مشاهده گالری"

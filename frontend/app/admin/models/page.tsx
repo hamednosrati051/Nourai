@@ -1,5 +1,6 @@
 'use client';
 
+import { Bot } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -232,7 +233,7 @@ export default function AdminModelsPage() {
       {models.isLoading && <LoadingSpinner />}
       {models.isError && <ErrorState message="بارگذاری مدل‌ها ناموفق بود." onRetry={() => models.refetch()} />}
       {models.data && models.data.length === 0 && (
-        <EmptyState icon="🤖" title="مدلی ثبت نشده" description="هنوز مدلی در کاتالوگ ثبت نشده است." />
+        <EmptyState icon={Bot} title="مدلی ثبت نشده" description="هنوز مدلی در کاتالوگ ثبت نشده است." />
       )}
       {models.data && models.data.length > 0 && (
         <ResponsiveTable

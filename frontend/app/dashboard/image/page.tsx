@@ -1,5 +1,6 @@
 'use client';
 
+import { Image as ImageIcon, Images, Paintbrush, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -152,8 +153,8 @@ export default function ImagePage() {
             <div role="radiogroup" aria-label="نوع تولید" className="grid grid-cols-2 gap-2">
               {(
                 [
-                  { value: 'text_to_image', label: 'تولید از متن', icon: '✨' },
-                  { value: 'image_to_image', label: 'ویرایش تصویر', icon: '🖌️' },
+                  { value: 'text_to_image', label: 'تولید از متن', icon: Sparkles },
+                  { value: 'image_to_image', label: 'ویرایش تصویر', icon: Paintbrush },
                 ] as const
               ).map((opt) => (
                 <label
@@ -165,7 +166,7 @@ export default function ImagePage() {
                   }`}
                 >
                   <input type="radio" value={opt.value} className="sr-only" {...register('type')} />
-                  <span aria-hidden="true">{opt.icon}</span>
+                  <opt.icon aria-hidden="true" className="h-5 w-5" />
                   {opt.label}
                 </label>
               ))}
@@ -256,7 +257,7 @@ export default function ImagePage() {
             )}
             {history.data && doneImages.length === 0 && (
               <EmptyState
-                icon="🎨"
+                icon={ImageIcon}
                 title="هنوز تصویری تولید نکرده‌اید"
                 description="از فرم بالا اولین تصویرتان را بسازید."
               />
@@ -386,7 +387,7 @@ function ImageJobResult({ job }: { job: ImageJob }) {
         </>
       )}
       {job.status === 'succeeded' && !job.result_url && (
-        <EmptyState icon="🖼️" title="نتیجه‌ای ثبت نشده" description="تصویری برای این درخواست یافت نشد." />
+        <EmptyState icon={Images} title="نتیجه‌ای ثبت نشده" description="تصویری برای این درخواست یافت نشد." />
       )}
     </div>
   );

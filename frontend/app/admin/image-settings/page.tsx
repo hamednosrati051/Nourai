@@ -1,5 +1,6 @@
 'use client';
 
+import { Settings } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -125,7 +126,7 @@ export default function AdminImageSettingsPage() {
       {profiles.isLoading && <LoadingSpinner />}
       {profiles.isError && <ErrorState message="بارگذاری پروفایل‌ها ناموفق بود." onRetry={() => profiles.refetch()} />}
       {profiles.data && profiles.data.length === 0 && (
-        <EmptyState icon="⚙️" title="پروفایلی نیست" description="هنوز پروفایل پردازش تصویر ثبت نشده است." />
+        <EmptyState icon={Settings} title="پروفایلی نیست" description="هنوز پروفایل پردازش تصویر ثبت نشده است." />
       )}
 
       {profiles.data && profiles.data.length > 0 && (

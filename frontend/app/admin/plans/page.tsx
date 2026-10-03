@@ -1,5 +1,6 @@
 'use client';
 
+import { CreditCard, Star } from 'lucide-react';
 import { useState } from 'react';
 import {
   PlanInput,
@@ -151,7 +152,7 @@ export default function AdminPlansPage() {
         <ErrorState message="بارگذاری پلن‌ها ناموفق بود." onRetry={() => plans.refetch()} />
       )}
       {plans.data && plans.data.length === 0 && (
-        <EmptyState icon="💳" title="پلنی ثبت نشده است" description="اولین پلن را با «افزودن پلن» بسازید." />
+        <EmptyState icon={CreditCard} title="پلنی ثبت نشده است" description="اولین پلن را با «افزودن پلن» بسازید." />
       )}
 
       {plans.data && plans.data.length > 0 && (
@@ -172,7 +173,7 @@ export default function AdminPlansPage() {
             {
               header: 'پیشنهادی',
               render: (p: Plan) =>
-                p.is_featured ? <span className="badge badge-warning">پیشنهاد ما ⭐</span> : '—',
+                p.is_featured ? <span className="badge badge-warning inline-flex items-center gap-1">پیشنهاد ما <Star aria-hidden="true" className="h-3.5 w-3.5" /></span> : '—',
             },
             {
               header: 'وضعیت',

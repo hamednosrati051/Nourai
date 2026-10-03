@@ -1,5 +1,7 @@
 'use client';
 
+import { NotebookText } from 'lucide-react';
+import { History, Images } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -190,7 +192,7 @@ export default function AdminUserDetailPage() {
           {activity.isLoading && <LoadingSpinner />}
           {activity.isError && <ErrorState message="بارگذاری فعالیت‌ها ناموفق بود." onRetry={() => activity.refetch()} />}
           {activity.data && activity.data.items.length === 0 && (
-            <EmptyState icon="🕘" title="فعالیتی ثبت نشده" description="هنوز فعالیتی برای این کاربر ثبت نشده است." />
+            <EmptyState icon={History} title="فعالیتی ثبت نشده" description="هنوز فعالیتی برای این کاربر ثبت نشده است." />
           )}
           {activity.data && activity.data.items.length > 0 && (
             <>
@@ -232,7 +234,7 @@ export default function AdminUserDetailPage() {
           {walletTx.isLoading && <LoadingSpinner />}
           {walletTx.isError && <ErrorState message="بارگذاری تراکنش‌ها ناموفق بود." onRetry={() => walletTx.refetch()} />}
           {walletTx.data && walletTx.data.items.length === 0 && (
-            <EmptyState icon="📒" title="تراکنشی نیست" description="هنوز تراکنشی برای این کاربر ثبت نشده است." />
+            <EmptyState icon={NotebookText} title="تراکنشی نیست" description="هنوز تراکنشی برای این کاربر ثبت نشده است." />
           )}
           {walletTx.data && walletTx.data.items.length > 0 && (
             <>
@@ -366,7 +368,7 @@ function AssetGrid({
   if (query.isError) return <ErrorState message="بارگذاری تصاویر ناموفق بود." onRetry={() => query.refetch()} />;
   const items = query.data ?? [];
   if (items.length === 0) {
-    return <EmptyState icon="🖼️" title={emptyTitle} description="موردی برای نمایش وجود ندارد." />;
+    return <EmptyState icon={Images} title={emptyTitle} description="موردی برای نمایش وجود ندارد." />;
   }
   return (
     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

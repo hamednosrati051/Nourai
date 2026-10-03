@@ -1,5 +1,6 @@
 'use client';
 
+import { Receipt } from 'lucide-react';
 import { useState } from 'react';
 import { useAdminPayments } from '@/features/admin/hooks';
 import { formatToman } from '@/lib/currency';
@@ -59,7 +60,7 @@ export default function AdminPaymentsPage() {
       {payments.isLoading && <LoadingSpinner />}
       {payments.isError && <ErrorState message="بارگذاری پرداخت‌ها ناموفق بود." onRetry={() => payments.refetch()} />}
       {payments.data && payments.data.items.length === 0 && (
-        <EmptyState icon="🧾" title="پرداختی نیست" description="با این فیلتر پرداختی یافت نشد." />
+        <EmptyState icon={Receipt} title="پرداختی نیست" description="با این فیلتر پرداختی یافت نشد." />
       )}
       {payments.data && payments.data.items.length > 0 && (
         <>

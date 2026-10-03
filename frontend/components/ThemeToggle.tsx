@@ -1,11 +1,13 @@
 'use client';
 
 import { useTheme, type ThemeMode } from './ThemeProvider';
+import { Monitor, Moon, Sun } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-const OPTIONS: { value: ThemeMode; label: string; icon: string }[] = [
-  { value: 'light', label: 'روشن', icon: '☀️' },
-  { value: 'dark', label: 'تیره', icon: '🌙' },
-  { value: 'system', label: 'سیستم', icon: '🖥️' },
+const OPTIONS: { value: ThemeMode; label: string; icon: LucideIcon }[] = [
+  { value: 'light', label: 'روشن', icon: Sun },
+  { value: 'dark', label: 'تیره', icon: Moon },
+  { value: 'system', label: 'سیستم', icon: Monitor },
 ];
 
 /** Segmented light/dark/system theme switcher. */
@@ -32,7 +34,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
               : 'text-neutral-500 hover:text-neutral-800 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
-          <span aria-hidden="true">{opt.icon}</span>
+          <opt.icon aria-hidden="true" className="h-4 w-4" />
           {!compact && <span>{opt.label}</span>}
           <span className="sr-only">{opt.label}</span>
         </button>

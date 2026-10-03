@@ -1,5 +1,6 @@
 'use client';
 
+import { Inbox } from 'lucide-react';
 import { useState } from 'react';
 import { useAdminJobs, useAdminCancelJob, type AdminJob } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -68,7 +69,7 @@ export default function AdminJobsPage() {
       {isLoading && <LoadingSpinner label="در حال بارگذاری…" />}
       {isError && <ErrorState message="بارگذاری ناموفق بود." onRetry={refetch} />}
       {!isLoading && !isError && items.length === 0 && (
-        <EmptyState icon="📭" title="درخواست جاری نیست" description="همه درخواست‌ها تعیین تکلیف شده‌اند." />
+        <EmptyState icon={Inbox} title="درخواست جاری نیست" description="همه درخواست‌ها تعیین تکلیف شده‌اند." />
       )}
 
       {items.length > 0 && (

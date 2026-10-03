@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { CircleCheck, Info, TriangleAlert } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
@@ -26,10 +28,10 @@ const KIND_STYLES: Record<ToastKind, string> = {
   info: 'border-sky-500/40 bg-sky-50 text-sky-900 dark:bg-sky-950 dark:text-sky-200',
 };
 
-const KIND_ICONS: Record<ToastKind, string> = {
-  success: '✅',
-  error: '⚠️',
-  info: 'ℹ️',
+const KIND_ICONS: Record<ToastKind, LucideIcon> = {
+  success: CircleCheck,
+  error: TriangleAlert,
+  info: Info,
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -59,7 +61,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             role="status"
             className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${KIND_STYLES[t.kind]}`}
           >
-            <span aria-hidden="true">{KIND_ICONS[t.kind]}</span>
+            {(() => {
+              const Icon = KIND_ICONS[t.kind];
+              return <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />;
+            })()}
             <span>{t.message}</span>
           </div>
         ))}

@@ -1,5 +1,6 @@
 'use client';
 
+import { CreditCard, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useActivatePlan, useMyPlan, usePlans } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -40,7 +41,7 @@ export function PlansSection() {
       )}
       {plans.data && plans.data.length === 0 && (
         <EmptyState
-          icon="💳"
+          icon={CreditCard}
           title="پلنی ثبت نشده است"
           description="به‌زودی پلن‌های خرید در اینجا نمایش داده می‌شود."
         />
@@ -112,7 +113,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       aria-label={`پلن ${plan.name}`}
     >
       {plan.is_featured && (
-        <span className="badge badge-warning absolute left-4 top-4">پیشنهاد ما ⭐</span>
+        <span className="badge badge-warning absolute left-4 top-4 inline-flex items-center gap-1">پیشنهاد ما <Star aria-hidden="true" className="h-3.5 w-3.5" /></span>
       )}
       {isCurrent && (
         <span className="badge badge-success absolute left-4 top-4">پلن فعال شما ✓</span>
