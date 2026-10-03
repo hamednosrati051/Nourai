@@ -19,7 +19,7 @@ const PAGE_SIZE = 50;
 type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 const PHASE_LABEL: Record<Phase, string> = {
-  idle: 'دکمه رو نگه دار و باهام حرف بزن',
+  idle: 'بزن و باهام حرف بزن',
   listening: 'گوش می‌دهم…',
   thinking: 'دارم فکر می‌کنم…',
   speaking: 'نورا داره جواب می‌ده…',
@@ -33,14 +33,14 @@ export default function VoicePage() {
 
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [lastDoneId, setLastDoneId] = useState<string | null>(null);
-  const [holding, setHolding] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const [voiceReply, setVoiceReply] = useState(true);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdingRef = useRef(false);
+  const startingRef = useRef(false);
 
   const jobs = useAudioJobs(1, PAGE_SIZE);
   const createJob = useCreateAudioJob();
@@ -66,7 +66,7 @@ export default function VoicePage() {
   const trackedProcessing =
     !!trackedVisible && (trackedVisible.status === 'queued' || trackedVisible.status === 'processing');
 
-  const phase: Phase = holding
+  const phase: Phase = recording
     ? 'listening'
     : trackedProcessing
       ? 'thinking'
@@ -78,7 +78,7 @@ export default function VoicePage() {
 
   // Recording timer.
   useEffect(() => {
-    if (holding) {
+    if (recording) {
       setRecSeconds(0);
       timerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } else if (timerRef.current) {
@@ -88,7 +88,7 @@ export default function VoicePage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [holding]);
+  }, [recording]);
 
   const uploadFile = (file: File) => {
     if (!file.type.startsWith('audio/')) {
@@ -118,6 +118,8 @@ export default function VoicePage() {
   };
 
   const beginCapture = async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
@@ -134,10 +136,11 @@ export default function VoicePage() {
       };
       rec.start();
       mediaRecorderRef.current = rec;
+      setRecording(true);
     } catch {
-      holdingRef.current = false;
-      setHolding(false);
       toast('دسترسی به میکروفن ممکن نشد. لطفاً اجازه میکروفن را بدهید.', 'error');
+    } finally {
+      startingRef.current = false;
     }
   };
 
@@ -146,27 +149,33 @@ export default function VoicePage() {
     mediaRecorderRef.current = null;
   };
 
-  const onHoldStart = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (createJob.isPending || trackedJobId || holdingRef.current) return;
-    holdingRef.current = true;
-    setHolding(true);
-    beginCapture();
-  };
-
-  const onHoldEnd = () => {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    setHolding(false);
-    finishCapture();
+  const toggleRecording = () => {
+    if (createJob.isPending || trackedJobId) return;
+    if (recording) {
+      setRecording(false);
+      finishCapture();
+    } else {
+      beginCapture();
+    }
   };
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <h1 className="text-center text-2xl font-extrabold">تعامل صوتی</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold">تعامل صوتی</h1>
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+          پاسخ صوتی
+          <input
+            type="checkbox"
+            checked={voiceReply}
+            onChange={(e) => setVoiceReply(e.target.checked)}
+            className="peer sr-only"
+          />
+          <span className="relative h-6 w-11 shrink-0 rounded-full bg-neutral-300 transition peer-checked:bg-brand-500 dark:bg-neutral-700 after:absolute after:right-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:-translate-x-5" />
+        </label>
+      </div>
 
-      {/* Hero: Nourai mascot + hold-to-talk */}
+      {/* Hero: Nourai mascot + tap-to-talk */}
       <div className="flex flex-col items-center gap-4 py-2">
         <NouraiMascot mood={phase} className="h-52 w-52 drop-shadow-xl" />
 
@@ -179,31 +188,29 @@ export default function VoicePage() {
 
         <button
           type="button"
-          onPointerDown={onHoldStart}
-          onPointerUp={onHoldEnd}
-          onPointerLeave={onHoldEnd}
-          onPointerCancel={onHoldEnd}
-          onContextMenu={(e) => e.preventDefault()}
+          onClick={toggleRecording}
           disabled={createJob.isPending || !!trackedJobId}
-          aria-label="نگه دار و صحبت کن"
-          className={`relative flex h-24 w-24 touch-none select-none items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-amber-500 text-white shadow-xl shadow-brand-500/40 transition-transform duration-150 ${holding ? 'scale-110' : 'hover:scale-105 active:scale-105'} disabled:opacity-50 disabled:hover:scale-100`}
+          aria-label={recording ? 'توقف و ارسال' : 'شروع ضبط'}
+          className={`relative flex h-24 w-24 select-none items-center justify-center rounded-full text-white shadow-xl transition-transform duration-150 ${
+            recording
+              ? 'scale-105 bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/40'
+              : 'bg-gradient-to-br from-brand-500 to-amber-500 shadow-brand-500/40 hover:scale-105 active:scale-105'
+          } disabled:opacity-50 disabled:hover:scale-100`}
         >
-          {holding && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />}
-          <MicIcon className="h-10 w-10" />
+          {recording && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />}
+          {recording ? (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-9 w-9" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="3" />
+            </svg>
+          ) : (
+            <MicIcon className="h-10 w-10" />
+          )}
         </button>
-        <p className="-mt-3 text-xs text-neutral-500">نگه دار، حرف بزن، ول کن</p>
+        <p className="-mt-3 text-xs text-neutral-500">
+          {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن'}
+        </p>
 
-        <div className="flex items-center gap-5">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={voiceReply}
-              onChange={(e) => setVoiceReply(e.target.checked)}
-              className="peer sr-only"
-            />
-            <span className="relative h-6 w-11 shrink-0 rounded-full bg-neutral-300 transition peer-checked:bg-brand-500 dark:bg-neutral-700 after:absolute after:right-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:-translate-x-5" />
-            پاسخ صوتی نورا
-          </label>
+        <div className="flex items-center justify-center gap-5">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
