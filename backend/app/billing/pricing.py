@@ -81,9 +81,13 @@ def snapshot_rule(rule: ModelPricingRule, usd_to_irr: int) -> dict:
 
 
 def format_usd(value) -> str:
-    """Compact USD string for API payloads (strips Numeric padding)."""
+    """Compact USD string for API payloads.
+
+    Strips Numeric padding and never uses scientific notation, so tiny
+    tariffs like 0.0000005 render as-is instead of "5E-7".
+    """
     d = value if isinstance(value, Decimal) else Decimal(str(value))
-    return str(d.normalize())
+    return format(d.normalize(), "f")
 
 
 def get_usd_to_irr(session) -> int:

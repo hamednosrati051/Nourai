@@ -82,3 +82,23 @@ def test_zero_rate_raises_loudly(app):
         db.session.commit()
         with pytest.raises(PricingError):
             PricingService(db.session)
+
+
+def test_format_usd_avoids_scientific_notation():
+    from app.billing.pricing import format_usd
+
+    assert format_usd("0.0000005") == "0.0000005"
+    assert format_usd("0.00000010") == "0.0000001"
+    assert format_usd("0.10000000") == "0.1"
+    assert format_usd("35") == "35"
+
+
+def test_calculate_tiny_per_token_tariff(app):
+    rule_id = _make_rule(app, usd="0.0000005", unit_size=1)
+    with app.app_context():
+        pricing = PricingService(db.session)
+        rule = db.session.get(ModelPricingRule, rule_id)
+        amount, breakdown = pricing.calculate(rule, 1000)
+        # 1000 x $0.0000005 = $0.0005 x 2,660,000 = 1330 IRR
+        assert amount == 1330
+        assert breakdown["unit_price_usd"] == "0.0000005"
