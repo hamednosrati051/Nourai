@@ -207,6 +207,12 @@ export default function ChatPage() {
                       placeholder="پیام خود را بنویسید…"
                       className="input flex-1 resize-none"
                       aria-invalid={!!errors.content}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit(onSend)();
+                        }
+                      }}
                       {...register('content')}
                     />
                     <button
