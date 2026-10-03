@@ -81,22 +81,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Capability chips */}
-          <ul aria-label="قابلیت‌ها" className="mt-10 flex flex-wrap items-center justify-center gap-2.5">
-            {[
-              { icon: '💬', label: 'متن' },
-              { icon: '🎙️', label: 'صوت' },
-              { icon: '🎨', label: 'تصویر' },
-            ].map((c) => (
-              <li
-                key={c.label}
-                className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white/70 px-4 py-2 text-sm font-medium backdrop-blur dark:border-white/10 dark:bg-navy-800/70 dark:text-slate-300"
-              >
-                <span aria-hidden="true">{c.icon}</span>
-                {c.label}
-              </li>
-            ))}
-          </ul>
         </section>
 
         {/* Services grid */}
