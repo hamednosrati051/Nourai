@@ -14,7 +14,7 @@ from app.ai.adapters import get_image_provider
 from app.billing.pricing import PricingService
 from app.extensions import db
 from app.models import AiModel, Asset, CurrencySettings, GenerationJob, UsageEvent
-from app.models.catalog import CAP_IMAGE
+from app.models.catalog import CAP_EDIT_IMAGE, CAP_GENERATE_IMAGE, CAP_IMAGE, IMAGE_CAPABILITIES
 from app.models.jobs import (
     ASSET_GENERATED_IMAGE,
     ASSET_INPUT_IMAGE_PROCESSED,
@@ -191,17 +191,25 @@ def _run_provider(session, job: GenerationJob) -> Asset:
     model = session.get(AiModel, params.get("model_id") or job.model_id)
     if (
         model is None
-        or model.capability != CAP_IMAGE
+        or model.capability not in IMAGE_CAPABILITIES
         or not model.is_active
         or (model.provider_type or "").lower() == "hardcoded"
     ):
-        model = (
-            session.query(AiModel)
-            .filter_by(capability=CAP_IMAGE, is_active=True)
-            .filter(AiModel.provider_type != "hardcoded")
-            .order_by(AiModel.created_at)
-            .first()
-        )
+        # Mode-aware fallback: edit jobs prefer the edit_image model,
+        # generation jobs the generate_image model, then a legacy
+        # "does both" image model.
+        want = CAP_EDIT_IMAGE if job.mode == MODE_IMAGE_TO_IMAGE else CAP_GENERATE_IMAGE
+        model = None
+        for capability in (want, CAP_IMAGE):
+            model = (
+                session.query(AiModel)
+                .filter_by(capability=capability, is_active=True)
+                .filter(AiModel.provider_type != "hardcoded")
+                .order_by(AiModel.created_at)
+                .first()
+            )
+            if model is not None:
+                break
     if model is None:
         raise RuntimeError("no active image model")
     provider = get_image_provider(model.provider_key, model)

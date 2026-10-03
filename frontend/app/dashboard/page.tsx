@@ -6,6 +6,7 @@ import { useMyPlan } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
 import { useModels } from '@/features/models/hooks';
 import type { ModelCapability } from '@/types/api';
+import { IMAGE_CAPABILITIES } from '@/types/api';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { BRAND } from '@/lib/config';
@@ -35,6 +36,8 @@ export default function DashboardPage() {
   );
   const settled = models.isSuccess;
   const hasCap = (cap: ModelCapability) => !settled || readyCaps.has(cap);
+  // The image tile covers both generation and editing (plus legacy "image").
+  const hasImageCap = !settled || IMAGE_CAPABILITIES.some((c) => readyCaps.has(c));
 
   return (
     <div className="min-h-screen">
@@ -128,7 +131,7 @@ export default function DashboardPage() {
                 color="#38bdf8"
               />
             )}
-            {hasCap('image') && (
+            {hasImageCap && (
               <ServiceCard
                 href="/dashboard/image"
                 icon="🎨"

@@ -28,6 +28,8 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   speech_to_text: 'stt',
   text_to_speech: 'tts',
   image: 'تصویر',
+  generate_image: 'تولید تصویر',
+  edit_image: 'ویرایش تصویر',
 };
 
 const BILLING_UNIT_LABELS: Record<string, string> = {

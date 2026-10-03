@@ -82,7 +82,16 @@ export interface Payment {
 export type ModelService = 'text' | 'audio' | 'image';
 
 /** Model capability, matches backend CAP_* constants. */
-export type ModelCapability = 'text' | 'speech_to_text' | 'text_to_speech' | 'image';
+export type ModelCapability =
+  | 'text'
+  | 'speech_to_text'
+  | 'text_to_speech'
+  | 'image'
+  | 'generate_image'
+  | 'edit_image';
+
+/** Capabilities that back the image page (generation + editing). */
+export const IMAGE_CAPABILITIES: ModelCapability[] = ['generate_image', 'edit_image', 'image'];
 
 /** Admin model payload: GET/PATCH /admin/models. */
 export interface AiModel {

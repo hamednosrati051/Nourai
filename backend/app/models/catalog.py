@@ -12,8 +12,16 @@ CAP_TEXT = "text"
 CAP_STT = "speech_to_text"
 CAP_TTS = "text_to_speech"
 CAP_IMAGE = "image"
+# Split image roles: text-to-image generation vs image-to-image editing.
+# CAP_IMAGE stays as the legacy "does both" capability (e.g. providers
+# whose single model handles generation and editing).
+CAP_GENERATE_IMAGE = "generate_image"
+CAP_EDIT_IMAGE = "edit_image"
 
-CAPABILITIES = (CAP_TEXT, CAP_STT, CAP_TTS, CAP_IMAGE)
+CAPABILITIES = (CAP_TEXT, CAP_STT, CAP_TTS, CAP_IMAGE, CAP_GENERATE_IMAGE, CAP_EDIT_IMAGE)
+
+# Capabilities that back the image page (generation tab + editing tab).
+IMAGE_CAPABILITIES = (CAP_GENERATE_IMAGE, CAP_EDIT_IMAGE, CAP_IMAGE)
 
 
 class AiModel(Base):

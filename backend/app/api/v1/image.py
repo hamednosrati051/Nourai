@@ -41,7 +41,7 @@ from app.billing.pricing import PricingRuleUnavailable, PricingService
 from app.config import config
 from app.extensions import db
 from app.models import AiModel, Asset, GenerationJob, ImageProcessingProfile, ModelPricingRule, UsageEvent
-from app.models.catalog import CAP_IMAGE
+from app.models.catalog import CAP_EDIT_IMAGE, CAP_GENERATE_IMAGE, CAP_IMAGE, IMAGE_CAPABILITIES
 from app.models.jobs import (
     ASSET_GENERATED_IMAGE,
     ASSET_INPUT_IMAGE_ORIGINAL,
@@ -134,25 +134,33 @@ def _profile_payload(profile: ImageProcessingProfile | None) -> dict | None:
 SYSTEM_IMAGE_MODEL_SLUG = "nourai-image"
 
 
-def _resolve_image_model(model_id: str | None) -> AiModel | None:
-    """Explicit model_id wins; else the first active non-hardcoded image model."""
+def _resolve_image_model(model_id: str | None, mode: str | None = None) -> AiModel | None:
+    """Explicit model_id wins; else the first active non-hardcoded image
+    model matching the job mode (edit_image for image_to_image,
+    generate_image otherwise), falling back to a legacy "does both"
+    image model."""
     if model_id:
         model = db.session.get(AiModel, model_id)
         if (
             model
-            and model.capability == CAP_IMAGE
+            and model.capability in IMAGE_CAPABILITIES
             and model.is_active
             and (model.provider_type or "").lower() != "hardcoded"
         ):
             return model
         return None
-    return (
-        db.session.query(AiModel)
-        .filter_by(capability=CAP_IMAGE, is_active=True)
-        .filter(AiModel.provider_type != "hardcoded")
-        .order_by(AiModel.created_at)
-        .first()
-    )
+    want = CAP_EDIT_IMAGE if mode == MODE_IMAGE_TO_IMAGE else CAP_GENERATE_IMAGE
+    for capability in (want, CAP_IMAGE):
+        model = (
+            db.session.query(AiModel)
+            .filter_by(capability=capability, is_active=True)
+            .filter(AiModel.provider_type != "hardcoded")
+            .order_by(AiModel.created_at)
+            .first()
+        )
+        if model is not None:
+            return model
+    return None
 
 
 def ensure_system_image_model() -> AiModel:
@@ -298,10 +306,11 @@ def create_image_job():
     if not prompt or mode not in (MODE_TEXT_TO_IMAGE, MODE_IMAGE_TO_IMAGE):
         return validation_error()
 
-    # Model-driven image backend: explicit model_id wins, else the first
-    # active non-hardcoded image model. The legacy system row ("hardcoded")
+    # Model-driven image backend: explicit model_id wins, else the active
+    # image model matching the mode (edit model for image_to_image,
+    # generation model otherwise). The legacy system row ("hardcoded")
     # is never selected for new jobs.
-    model = _resolve_image_model(_val("model_id"))
+    model = _resolve_image_model(_val("model_id"), mode)
     if model is None:
         return error_response("MODEL_UNAVAILABLE", "مدل فعال تولید تصویر یافت نشد.", 404)
     profile = get_active_profile(model.id)

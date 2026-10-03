@@ -9,15 +9,16 @@ import { SideNav, type NavItem } from '@/components/SideNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useModels } from '@/features/models/hooks';
 import type { ModelCapability } from '@/types/api';
+import { IMAGE_CAPABILITIES } from '@/types/api';
 
-type NavEntry = NavItem & { capability?: ModelCapability };
+type NavEntry = NavItem & { capability?: ModelCapability; capabilities?: ModelCapability[] };
 
 const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard', label: 'داشبورد', icon: '🏠' },
   { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬', capability: 'text' },
   { href: '/dashboard/voice', label: 'تعامل صوتی', icon: '🎙️', capability: 'speech_to_text' },
   { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊', capability: 'text_to_speech' },
-  { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨', capability: 'image' },
+  { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨', capabilities: IMAGE_CAPABILITIES },
   { href: '/dashboard/history', label: 'تاریخچه', icon: '🕘' },
   { href: '/dashboard/wallet', label: 'کیف پول', icon: '💰' },
   { href: '/dashboard/usage', label: 'مصرف', icon: '📊' },
@@ -52,9 +53,10 @@ function PanelShell({ children }: { children: React.ReactNode }) {
   const models = useModels();
   const readyCaps = new Set((models.data ?? []).map((m) => m.capability));
   const settled = models.isSuccess;
-  const items = NAV_ITEMS.filter(
-    (item) => !item.capability || !settled || readyCaps.has(item.capability),
-  );
+  const items = NAV_ITEMS.filter((item) => {
+    const caps = item.capabilities ?? (item.capability ? [item.capability] : []);
+    return caps.length === 0 || !settled || caps.some((c) => readyCaps.has(c));
+  });
 
   return (
     <div className="flex min-h-screen flex-col">
