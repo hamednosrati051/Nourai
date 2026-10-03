@@ -14,46 +14,31 @@ import type { AudioJob } from '@/types/api';
 const MAX_AUDIO_MB = 25;
 const PAGE_SIZE = 50;
 
-type Phase = 'idle' | 'listening' | 'thinking' | 'speaking';
-
-const PHASE_LABEL: Record<Phase, string> = {
-  idle: 'دکمه رو نگه دار و باهام حرف بزن',
-  listening: 'گوش می‌دهم…',
-  thinking: 'دارم فکر می‌کنم…',
-  speaking: 'نورا داره جواب می‌ده…',
-};
-
-/** Interactive voice assistant: hold to talk -> STT -> reply -> TTS. */
+/** Chat-like voice interaction: mic recording / audio upload -> STT -> reply -> TTS. */
 export default function VoicePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
-  const [lastDoneId, setLastDoneId] = useState<string | null>(null);
-  const [holding, setHolding] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
-  const [voiceReply, setVoiceReply] = useState(true);
-  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const holdingRef = useRef(false);
 
   const jobs = useAudioJobs(1, PAGE_SIZE);
   const createJob = useCreateAudioJob();
   const trackedJob = useAudioJob(trackedJobId);
 
-  // Refresh the thread when the tracked job finishes; remember it for auto-play.
+  // Refresh the thread when the tracked job finishes.
   useEffect(() => {
-    const job = trackedJob.data;
-    const status = job?.status;
+    const status = trackedJob.data?.status;
     if (status === 'succeeded' || status === 'failed' || status === 'cancelled') {
       queryClient.invalidateQueries({ queryKey: ['audio', 'jobs'] });
-      if (status === 'succeeded' && job) setLastDoneId(job.id);
       setTrackedJobId(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackedJob.data?.status, queryClient]);
 
   const items = [...(jobs.data?.items ?? [])].reverse(); // oldest first, chat order
@@ -61,22 +46,14 @@ export default function VoicePage() {
     trackedJobId && trackedJob.data && !items.some((j) => j.id === trackedJobId)
       ? trackedJob.data
       : null;
-  const trackedProcessing =
-    !!trackedVisible && (trackedVisible.status === 'queued' || trackedVisible.status === 'processing');
 
-  const phase: Phase = holding
-    ? 'listening'
-    : trackedProcessing
-      ? 'thinking'
-      : speakingId
-        ? 'speaking'
-        : 'idle';
-
-  const lastDone = lastDoneId ? items.find((j) => j.id === lastDoneId) : undefined;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [items.length, trackedVisible?.id, trackedVisible?.status]);
 
   // Recording timer.
   useEffect(() => {
-    if (holding) {
+    if (recording) {
       setRecSeconds(0);
       timerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } else if (timerRef.current) {
@@ -86,7 +63,7 @@ export default function VoicePage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [holding]);
+  }, [recording]);
 
   const uploadFile = (file: File) => {
     if (!file.type.startsWith('audio/')) {
@@ -101,8 +78,8 @@ export default function VoicePage() {
       { file },
       {
         onSuccess: (job) => {
-          setLastDoneId(null);
           setTrackedJobId(job.id);
+          toast('صوت ارسال شد؛ پردازش آغاز شد.', 'success');
         },
         onError: (err) => {
           if (err instanceof ApiError && err.code === 'INSUFFICIENT_BALANCE') {
@@ -115,7 +92,7 @@ export default function VoicePage() {
     );
   };
 
-  const beginCapture = async () => {
+  const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
@@ -132,117 +109,30 @@ export default function VoicePage() {
       };
       rec.start();
       mediaRecorderRef.current = rec;
+      setRecording(true);
     } catch {
-      holdingRef.current = false;
-      setHolding(false);
       toast('دسترسی به میکروفن ممکن نشد. لطفاً اجازه میکروفن را بدهید.', 'error');
     }
   };
 
-  const finishCapture = () => {
+  const stopRecording = () => {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
-  };
-
-  const onHoldStart = (e: React.PointerEvent) => {
-    e.preventDefault();
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (createJob.isPending || trackedJobId || holdingRef.current) return;
-    holdingRef.current = true;
-    setHolding(true);
-    beginCapture();
-  };
-
-  const onHoldEnd = () => {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    setHolding(false);
-    finishCapture();
+    setRecording(false);
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <h1 className="text-center text-2xl font-extrabold">تعامل صوتی</h1>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-extrabold">تبدیل صوت به متن</h1>
 
-      {/* Hero: Nourai orb + hold-to-talk */}
-      <div className="flex flex-col items-center gap-5 py-4">
-        <NouraiOrb phase={phase} />
-
-        <p className="flex h-6 items-center gap-2 text-sm font-medium text-neutral-600 dark:text-slate-300" aria-live="polite">
-          {phase === 'listening' && (
-            <span className="font-bold tabular-nums text-red-500">{formatDuration(recSeconds)}</span>
-          )}
-          {PHASE_LABEL[phase]}
-        </p>
-
-        <button
-          type="button"
-          onPointerDown={onHoldStart}
-          onPointerUp={onHoldEnd}
-          onPointerLeave={onHoldEnd}
-          onPointerCancel={onHoldEnd}
-          onContextMenu={(e) => e.preventDefault()}
-          disabled={createJob.isPending || !!trackedJobId}
-          aria-label="نگه دار و صحبت کن"
-          className={`relative flex h-24 w-24 touch-none select-none items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-amber-500 text-white shadow-xl shadow-brand-500/40 transition-transform duration-150 ${holding ? 'scale-110' : 'hover:scale-105 active:scale-105'} disabled:opacity-50 disabled:hover:scale-100`}
-        >
-          {holding && <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />}
-          <MicIcon className="h-10 w-10" />
-        </button>
-        <p className="-mt-3 text-xs text-neutral-500">نگه دار، حرف بزن، ول کن</p>
-
-        <div className="flex items-center gap-5">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={voiceReply}
-              onChange={(e) => setVoiceReply(e.target.checked)}
-              className="peer sr-only"
-            />
-            <span className="relative h-6 w-11 shrink-0 rounded-full bg-neutral-300 transition peer-checked:bg-brand-500 dark:bg-neutral-700 after:absolute after:right-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:-translate-x-5" />
-            پاسخ صوتی نورا
-          </label>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={createJob.isPending || !!trackedJobId}
-            className="text-sm text-neutral-500 underline-offset-4 hover:underline disabled:opacity-50"
-          >
-            📎 ارسال فایل صوتی
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            aria-hidden="true"
-            tabIndex={-1}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadFile(f);
-              e.target.value = '';
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Auto-play this session's reply */}
-      <ReplyAutoPlayer
-        assetId={lastDone?.output_asset_id ?? null}
-        jobId={lastDone?.id ?? null}
-        enabled={voiceReply}
-        onPlaying={setSpeakingId}
-      />
-
-      {/* Thread */}
       {jobs.isLoading && <LoadingSpinner label="در حال بارگذاری گفتگو…" />}
       {jobs.isError && <ErrorState message="بارگذاری گفتگو ناموفق بود." onRetry={() => jobs.refetch()} />}
 
-      {jobs.data && items.length === 0 && !trackedVisible && phase === 'idle' && (
+      {jobs.data && items.length === 0 && !trackedVisible && (
         <EmptyState
           icon="🎙️"
           title="هنوز گفتگویی ندارید"
-          description="دکمه رو نگه دارید و با نورا حرف بزنید."
+          description="با دکمه میکروفن صحبت کنید یا یک فایل صوتی بفرستید؛ نورا گوش می‌دهد، جواب می‌دهد و جواب را می‌خواند."
         />
       )}
 
@@ -252,99 +142,63 @@ export default function VoicePage() {
             <VoiceExchange key={job.id} job={job} />
           ))}
           {trackedVisible && <VoiceExchange job={trackedVisible} />}
+          <div ref={bottomRef} />
         </div>
       )}
-    </div>
-  );
-}
 
-/** Auto-plays the reply audio of a freshly completed job (this session only). */
-function ReplyAutoPlayer({
-  assetId,
-  jobId,
-  enabled,
-  onPlaying,
-}: {
-  assetId: string | null;
-  jobId: string | null;
-  enabled: boolean;
-  onPlaying: (id: string | null) => void;
-}) {
-  const { data } = useAssetDownloadUrl(enabled ? assetId : null);
-  const playedFor = useRef<string | null>(null);
-
-  useEffect(() => {
-    const url = data?.download_url;
-    if (!enabled || !jobId || !url || playedFor.current === jobId) return;
-    playedFor.current = jobId;
-    const audio = new Audio(url);
-    audio.onplay = () => onPlaying(jobId);
-    const done = () => onPlaying(null);
-    audio.onended = done;
-    audio.onerror = done;
-    audio.play().catch(() => onPlaying(null));
-    return () => {
-      audio.pause();
-    };
-  }, [data?.download_url, enabled, jobId, onPlaying]);
-
-  return null;
-}
-
-/** Animated Nourai orb: idle / listening / thinking / speaking. */
-function NouraiOrb({ phase }: { phase: Phase }) {
-  return (
-    <div className="relative flex h-56 w-56 items-center justify-center" role="img" aria-label="نورا">
-      {phase === 'listening' && (
-        <>
-          <span className="absolute inset-0 animate-orb-wave rounded-full bg-brand-500/40" />
-          <span className="absolute inset-0 animate-orb-wave rounded-full bg-brand-500/30" style={{ animationDelay: '0.6s' }} />
-          <span className="absolute inset-0 animate-orb-wave rounded-full bg-brand-500/20" style={{ animationDelay: '1.2s' }} />
-        </>
-      )}
-      {phase === 'thinking' && (
-        <span className="absolute inset-3 animate-spin-slower rounded-full bg-[conic-gradient(from_0deg,transparent_0_65%,rgba(245,158,11,0.95)_100%)] [mask:radial-gradient(farthest-side,transparent_calc(100%-12px),black_calc(100%-11px))]" />
-      )}
-      <div
-        className={`relative flex h-36 w-36 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-amber-400 shadow-2xl shadow-fuchsia-500/30 transition-transform duration-300 ${phase === 'listening' ? 'scale-110' : phase === 'idle' ? 'animate-pulse-soft' : ''}`}
-      >
-        {phase === 'speaking' ? <Equalizer /> : <MicIcon className="h-14 w-14 text-white drop-shadow" />}
+      {/* Composer */}
+      <div className="sticky bottom-0 -mx-2 border-t border-neutral-200 bg-white/90 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/90">
+        {recording ? (
+          <div className="flex items-center justify-center gap-4" role="status" aria-label="در حال ضبط">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-600" />
+            </span>
+            <span className="font-bold tabular-nums">{formatDuration(recSeconds)}</span>
+            <button type="button" onClick={stopRecording} className="btn-danger rounded-full px-8 py-3">
+              ⏹ توقف و ارسال
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={createJob.isPending}
+              className="btn-primary rounded-full px-8 py-4 text-lg"
+              aria-label="شروع ضبط صدا"
+            >
+              🎙️ شروع ضبط
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={createJob.isPending}
+              className="btn-secondary rounded-full px-6 py-4"
+              aria-label="ارسال فایل صوتی"
+            >
+              📎 فایل صوتی
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              aria-hidden="true"
+              tabIndex={-1}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadFile(f);
+                e.target.value = '';
+              }}
+            />
+          </div>
+        )}
+        {createJob.isPending && (
+          <p className="mt-2 text-center text-sm text-neutral-500">در حال ارسال صوت…</p>
+        )}
       </div>
     </div>
-  );
-}
-
-function Equalizer() {
-  return (
-    <div className="flex h-10 items-center gap-1.5" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <span
-          key={i}
-          className="h-full w-1.5 origin-center animate-eq-bar rounded-full bg-white"
-          style={{ animationDelay: `${i * 0.14}s` }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function MicIcon({ className = 'h-14 w-14 text-white' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <path d="M12 17v4" />
-      <path d="M8 21h8" />
-    </svg>
   );
 }
 
