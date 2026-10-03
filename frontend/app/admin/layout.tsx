@@ -2,6 +2,20 @@
 
 import Link from 'next/link';
 import { BRAND } from '@/lib/config';
+import {
+  ArrowLeftRight,
+  Bot,
+  CircleDollarSign,
+  ClipboardList,
+  CreditCard,
+  Home,
+  Hourglass,
+  Image as ImageIcon,
+  Receipt,
+  Settings,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import { useAdminLogout, useAdminMe } from '@/features/auth/hooks';
 import { usePathname } from 'next/navigation';
 import { AdminGuard } from '@/components/ProtectedRoute';
@@ -9,18 +23,18 @@ import { SideNav, type NavItem } from '@/components/SideNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/admin', label: 'داشبورد', icon: '🏠' },
-  { href: '/admin/users', label: 'کاربران', icon: '👥' },
-  { href: '/admin/payments', label: 'پرداخت‌ها', icon: '🧾' },
-  { href: '/admin/gallery', label: 'گالری', icon: '🖼️' },
-  { href: '/admin/models', label: 'مدل‌ها', icon: '🤖' },
-  { href: '/admin/plans', label: 'پلن‌ها', icon: '💳' },
-  { href: '/admin/pricing', label: 'تعرفه‌ها', icon: '💲' },
-  { href: '/admin/currency', label: 'تنظیمات نرخ ارز', icon: '💱' },
-  { href: '/admin/image-settings', label: 'تنظیمات تصویر', icon: '⚙️' },
-  { href: '/admin/prompt-filter', label: 'فیلتر پرامت', icon: '🛡️' },
-  { href: '/admin/jobs', label: 'درخواست‌های جاری', icon: '⏳' },
-  { href: '/admin/audit', label: 'گزارش حسابرسی', icon: '📋' },
+  { href: '/admin', label: 'داشبورد', icon: Home },
+  { href: '/admin/users', label: 'کاربران', icon: Users },
+  { href: '/admin/payments', label: 'پرداخت‌ها', icon: Receipt },
+  { href: '/admin/gallery', label: 'گالری', icon: ImageIcon },
+  { href: '/admin/models', label: 'مدل‌ها', icon: Bot },
+  { href: '/admin/plans', label: 'پلن‌ها', icon: CreditCard },
+  { href: '/admin/pricing', label: 'تعرفه‌ها', icon: CircleDollarSign },
+  { href: '/admin/currency', label: 'تنظیمات نرخ ارز', icon: ArrowLeftRight },
+  { href: '/admin/image-settings', label: 'تنظیمات تصویر', icon: Settings },
+  { href: '/admin/prompt-filter', label: 'فیلتر پرامت', icon: ShieldCheck },
+  { href: '/admin/jobs', label: 'درخواست‌های جاری', icon: Hourglass },
+  { href: '/admin/audit', label: 'گزارش حسابرسی', icon: ClipboardList },
 ];
 
 /** Admin panel shell: admin guard + header + responsive navigation. */

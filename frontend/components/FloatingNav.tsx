@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Home, Images, User } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useMe } from '@/features/auth/hooks';
 
 interface NavEntry {
   href: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 /**
@@ -19,9 +21,9 @@ export function FloatingNav() {
   const { data: user } = useMe();
 
   const items: NavEntry[] = [
-    { href: '/', label: 'خانه', icon: '🏠' },
-    { href: '/gallery', label: 'گالری', icon: '🖼️' },
-    { href: user ? '/dashboard' : '/auth/login', label: 'حساب کاربری', icon: '👤' },
+    { href: '/', label: 'خانه', icon: Home },
+    { href: '/gallery', label: 'گالری', icon: Images },
+    { href: user ? '/dashboard' : '/auth/login', label: 'حساب کاربری', icon: User },
   ];
 
   const isActive = (href: string) =>
@@ -35,6 +37,7 @@ export function FloatingNav() {
       <ul className="floating-nav flex-row gap-1 p-2 md:flex-col">
         {items.map((item) => {
           const active = isActive(item.href);
+          const Icon = item.icon;
           return (
             <li key={item.href}>
               <Link
@@ -47,9 +50,7 @@ export function FloatingNav() {
                     : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100'
                 }`}
               >
-                <span aria-hidden="true" className="text-xl leading-none md:text-2xl">
-                  {item.icon}
-                </span>
+                <Icon aria-hidden="true" className="h-6 w-6 leading-none md:h-7 md:w-7" />
                 <span className="text-[10px] font-medium leading-none">{item.label}</span>
               </Link>
             </li>

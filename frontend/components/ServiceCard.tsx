@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
 
 interface ServiceCardProps {
-  icon: string;
+  icon: LucideIcon;
   title: string;
   description: string;
   href: string;
@@ -29,6 +30,7 @@ export function ServiceCard({
   disabled = false,
 }: ServiceCardProps) {
   if (disabled) {
+    const Icon = icon;
     return (
       <div
         className="service-card cursor-not-allowed opacity-50 grayscale"
@@ -36,7 +38,7 @@ export function ServiceCard({
         aria-label={`${title} — به‌زودی`}
       >
         <span aria-hidden="true" className="service-icon">
-          {icon}
+          <Icon className="h-7 w-7" />
         </span>
         <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">{title}</h3>
         <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">{description}</p>
@@ -48,6 +50,8 @@ export function ServiceCard({
     );
   }
 
+  const Icon = icon;
+
   return (
     <Link
       href={href}
@@ -56,7 +60,7 @@ export function ServiceCard({
       aria-label={`${title} — ${ctaLabel}`}
     >
       <span aria-hidden="true" className="service-icon">
-        {icon}
+        <Icon className="h-7 w-7" style={{ color }} />
       </span>
       <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">{title}</h3>
       <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">{description}</p>

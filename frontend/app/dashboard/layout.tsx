@@ -2,6 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  FileText,
+  Gauge,
+  History,
+  Home,
+  Image as ImageIcon,
+  MessageSquare,
+  Mic,
+  Volume2,
+  Wallet,
+} from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useLogout, useMe } from '@/features/auth/hooks';
 import { UserGuard } from '@/components/ProtectedRoute';
@@ -14,15 +25,15 @@ import { IMAGE_CAPABILITIES } from '@/types/api';
 type NavEntry = NavItem & { capability?: ModelCapability; capabilities?: ModelCapability[] };
 
 const NAV_ITEMS: NavEntry[] = [
-  { href: '/dashboard', label: 'داشبورد', icon: '🏠' },
-  { href: '/dashboard/voice', label: 'نورا', icon: '🎙️', capability: 'speech_to_text' },
-  { href: '/dashboard/stt', label: 'تبدیل صوت به متن', icon: '📝', capability: 'speech_to_text' },
-  { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: '💬', capability: 'text' },
-  { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: '🔊', capability: 'text_to_speech' },
-  { href: '/dashboard/image', label: 'تولید تصویر', icon: '🎨', capabilities: IMAGE_CAPABILITIES },
-  { href: '/dashboard/history', label: 'تاریخچه', icon: '🕘' },
-  { href: '/dashboard/wallet', label: 'کیف پول', icon: '💰' },
-  { href: '/dashboard/usage', label: 'مصرف', icon: '📊' },
+  { href: '/dashboard', label: 'داشبورد', icon: Home },
+  { href: '/dashboard/voice', label: 'نورا', icon: Mic, capability: 'speech_to_text' },
+  { href: '/dashboard/stt', label: 'تبدیل صوت به متن', icon: FileText, capability: 'speech_to_text' },
+  { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: MessageSquare, capability: 'text' },
+  { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: Volume2, capability: 'text_to_speech' },
+  { href: '/dashboard/image', label: 'تولید تصویر', icon: ImageIcon, capabilities: IMAGE_CAPABILITIES },
+  { href: '/dashboard/history', label: 'تاریخچه', icon: History },
+  { href: '/dashboard/wallet', label: 'کیف پول', icon: Wallet },
+  { href: '/dashboard/usage', label: 'مصرف', icon: Gauge },
 ];
 
 /** User panel shell: auth guard + header + responsive navigation. */

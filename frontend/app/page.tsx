@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Image as ImageIcon, MessageSquare, Mic, ScanSearch } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -12,28 +13,28 @@ import { GalleryCarousel } from '@/components/GalleryCarousel';
 
 const SERVICES = [
   {
-    icon: '💬',
+    icon: MessageSquare,
     title: 'گفتگو',
     description: 'گفت‌وگوی متنی هوشمند با مدل‌های زبانی؛ پاسخ دقیق، سریع و کاملاً فارسی.',
     href: '/dashboard/chat',
     color: '#3b82f6',
   },
   {
-    icon: '🎨',
+    icon: ImageIcon,
     title: 'تولید تصویر',
     description: 'از روی متن تصویر بسازید؛ با برآورد شفاف هزینه، قبل از ثبت نهایی.',
     href: '/dashboard/image',
     color: '#8b5cf6',
   },
   {
-    icon: '🎙️',
+    icon: Mic,
     title: 'نورا',
     description: 'صدا بفرستید، متن و پاسخ صوتی بگیرید؛ یک رفت‌وبرگشت کامل و روان.',
     href: '/dashboard/voice',
     color: '#10b981',
   },
   {
-    icon: '🔍',
+    icon: ScanSearch,
     title: 'تحلیل تصویر',
     description: 'تصویر خود را بدهید؛ ویرایش کنید یا تحلیل هوشمند تحویل بگیرید.',
     href: '/dashboard/image',

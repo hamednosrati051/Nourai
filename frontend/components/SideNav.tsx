@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
 }
 
 /**
@@ -23,6 +24,7 @@ export function SideNav({ items, ariaLabel }: { items: NavItem[]; ariaLabel: str
       <ul className="flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-20 lg:flex-col lg:overflow-visible lg:pb-0">
         {items.map((item) => {
           const active = isActive(item.href);
+          const Icon = item.icon;
           return (
             <li key={item.href} className="shrink-0 lg:shrink">
               <Link
@@ -34,9 +36,7 @@ export function SideNav({ items, ariaLabel }: { items: NavItem[]; ariaLabel: str
                     : 'text-neutral-600 hover:bg-neutral-100 dark:text-slate-400 dark:hover:bg-neutral-800'
                 }`}
               >
-                <span aria-hidden="true" className="text-lg">
-                  {item.icon}
-                </span>
+                <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
                 {item.label}
               </Link>
             </li>

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { FileText, Image as ImageIcon, MessageSquare, Mic, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMyPlan } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -148,7 +149,7 @@ export default function DashboardPage() {
             {hasCap('text') && (
               <ServiceCard
                 href="/dashboard/chat"
-                icon="💬"
+                icon={MessageSquare}
                 title="گفت‌وگوی متنی"
                 description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
                 color="#38bdf8"
@@ -157,7 +158,7 @@ export default function DashboardPage() {
             {hasImageCap && (
               <ServiceCard
                 href="/dashboard/image"
-                icon="🎨"
+                icon={ImageIcon}
                 title="تولید تصویر"
                 description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
                 color="#a78bfa"
@@ -166,7 +167,7 @@ export default function DashboardPage() {
             {hasCap('speech_to_text') && (
               <ServiceCard
                 href="/dashboard/voice"
-                icon="🎙️"
+                icon={Mic}
                 title="نورا"
                 description="دستیار صوتی نورا؛ حرف بزن، جواب متنی و صوتی بگیر"
                 color="#f472b6"
@@ -175,7 +176,7 @@ export default function DashboardPage() {
             {hasCap('speech_to_text') && (
               <ServiceCard
                 href="/dashboard/stt"
-                icon="📝"
+                icon={FileText}
                 title="تبدیل صوت به متن"
                 description="ارسال صوت و دریافت متن پیاده‌شده"
                 color="#38bdf8"
@@ -184,7 +185,7 @@ export default function DashboardPage() {
             {hasCap('text_to_speech') && (
               <ServiceCard
                 href="/dashboard/tts"
-                icon="🔊"
+                icon={Volume2}
                 title="تبدیل متن به صوت"
                 description="تبدیل متن به گفتار و دانلود فایل صوتی"
                 color="#34d399"
