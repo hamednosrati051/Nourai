@@ -1,30 +1,21 @@
 'use client';
 
 /**
- * Small Noura avatar for page headers. While the page is busy it plays the
- * looping "working on a laptop" video; otherwise the idle mascot image.
+ * Small Noura avatar for page headers. Both states are looping videos:
+ * the "working on a laptop" clip while the page is busy, the idle mascot
+ * animation otherwise.
  */
 export function NouraAvatar({ working = false }: { working?: boolean }) {
-  if (working) {
-    return (
-      <video
-        src="/images/nourai-working.mp4"
-        poster="/images/nourai-working.jpg"
-        autoPlay
-        loop
-        muted
-        playsInline
-        aria-label="نورا در حال کار"
-        className="h-11 w-11 rounded-full object-cover shadow-md"
-      />
-    );
-  }
   return (
-    <img
-      src="/images/nourai-mascot.jpg"
-      alt="نورا"
+    <video
+      src={working ? '/images/nourai-working.mp4' : '/images/nourai-mascot.mp4'}
+      poster={working ? '/images/nourai-working.jpg' : '/images/nourai-mascot.jpg'}
+      autoPlay
+      loop
+      muted
+      playsInline
+      aria-label={working ? 'نورا در حال کار' : 'نورا'}
       className="h-11 w-11 rounded-full object-cover shadow-md"
-      loading="lazy"
     />
   );
 }
