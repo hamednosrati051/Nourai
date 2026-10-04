@@ -21,7 +21,7 @@ import { ApiError, getErrorMessage } from '@/lib/api';
 /**
  * User dashboard (Binavira-inspired): floating pill header + vertical
  * right-side nav, color-coded service cards, wallet overview with top-up /
- * history shortcuts, and the «پلن فعال شما» banner from GET /api/v1/me/plan.
+ * history shortcuts, and the «اشتراک فعال شما» banner from GET /api/v1/me/plan.
  */
 export default function DashboardPage() {
   const { data: user } = useMe();
@@ -85,7 +85,7 @@ export default function DashboardPage() {
             <CircleCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-emerald-500" />
             <div>
               <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
-                پلن فعال شما: {myPlan.data.name}
+                اشتراک فعال شما: {myPlan.data.name}
               </p>
               {(myPlan.data.limits?.length ?? 0) > 0 && (
                 <p className="text-xs text-neutral-600 dark:text-slate-400">
@@ -94,7 +94,7 @@ export default function DashboardPage() {
               )}
             </div>
             <Link href="/#plans" className="btn-secondary mr-auto !px-4 !py-2 text-xs">
-              تغییر پلن
+              تغییر اشتراک
             </Link>
           </div>
         )}

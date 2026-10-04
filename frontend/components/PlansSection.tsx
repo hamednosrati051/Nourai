@@ -26,24 +26,24 @@ export function PlansSection() {
   return (
     <section id="plans" aria-labelledby="plans-heading" className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 scroll-mt-24">
       <div className="mb-10 text-center">
-        <p className="badge badge-warning mb-3">پلن‌های خرید</p>
+        <p className="badge badge-warning mb-3">اشتراک‌ها</p>
         <h2 id="plans-heading" className="text-3xl font-black">
           اعتبار <span className="text-gradient">متناسب با نیاز شما</span>
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-neutral-600 dark:text-slate-400">
-          با خرید هر پلن، کیف پول شما شارژ می‌شود و می‌توانید از همه سرویس‌ها استفاده کنید.
+          با خرید هر اشتراک، کیف پول شما شارژ می‌شود و می‌توانید از همه سرویس‌ها استفاده کنید.
         </p>
       </div>
 
-      {plans.isLoading && <LoadingSpinner label="در حال بارگذاری پلن‌ها…" />}
+      {plans.isLoading && <LoadingSpinner label="در حال بارگذاری اشتراک‌ها…" />}
       {plans.isError && (
-        <ErrorState message="بارگذاری پلن‌ها ناموفق بود." onRetry={() => plans.refetch()} />
+        <ErrorState message="بارگذاری اشتراک‌ها ناموفق بود." onRetry={() => plans.refetch()} />
       )}
       {plans.data && plans.data.length === 0 && (
         <EmptyState
           icon={CreditCard}
-          title="پلنی ثبت نشده است"
-          description="به‌زودی پلن‌های خرید در اینجا نمایش داده می‌شود."
+          title="اشتراکی ثبت نشده است"
+          description="به‌زودی اشتراک‌ها در اینجا نمایش داده می‌شود."
         />
       )}
 
@@ -80,7 +80,7 @@ function PlanCard({ plan }: { plan: Plan }) {
   const activateFree = () => {
     if (!requireLogin()) return;
     activatePlan.mutate(plan.id, {
-      onSuccess: () => toast(`پلن «${plan.name}» برای شما فعال شد.`, 'success'),
+      onSuccess: () => toast(`اشتراک «${plan.name}» برای شما فعال شد.`, 'success'),
       onError: (err) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'فعال‌سازی ناموفق بود.', 'error'),
     });
@@ -110,13 +110,13 @@ function PlanCard({ plan }: { plan: Plan }) {
   return (
     <article
       className={`service-card ${plan.is_featured ? 'border-2 !border-brand-500 dark:!border-brand-400 xl:-translate-y-2' : ''}`}
-      aria-label={`پلن ${plan.name}`}
+      aria-label={`اشتراک ${plan.name}`}
     >
       {plan.is_featured && (
         <span className="badge badge-warning absolute left-4 top-4 inline-flex items-center gap-1">پیشنهاد ما <Star aria-hidden="true" className="h-3.5 w-3.5" /></span>
       )}
       {isCurrent && (
-        <span className="badge badge-success absolute left-4 top-4">پلن فعال شما ✓</span>
+        <span className="badge badge-success absolute left-4 top-4">اشتراک فعال شما ✓</span>
       )}
 
       <h3 className="text-xl font-extrabold text-neutral-900 dark:text-white">{plan.name}</h3>
@@ -163,7 +163,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       <div className="flex-1" />
 
       {isCurrent ? (
-        <p className="badge badge-success w-full justify-center py-2">پلن فعال شما</p>
+        <p className="badge badge-success w-full justify-center py-2">اشتراک فعال شما</p>
       ) : plan.is_free ? (
         <button
           type="button"
