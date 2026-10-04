@@ -142,8 +142,8 @@ def create_tts_job():
     db.session.flush()
 
     # Soft quota: TTS consumes audio minutes proportional to text length
-    # (~800 chars ≈ 1 minute of speech). Fractional; "سلام" ≈ 0.005 min.
-    quota_minutes = round(len(text) / 800, 3)
+    # (~400 chars ≈ 1 minute of speech). Fractional; "سلام" ≈ 0.01 min.
+    quota_minutes = round(len(text) / 400, 3)
     quota_covered = PlanLimitService(db.session).quota_available(
         g.current_user_id, "audio", amount=quota_minutes
     )
