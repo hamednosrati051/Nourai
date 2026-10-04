@@ -123,23 +123,23 @@ function PlanCard({ plan }: { plan: Plan }) {
       )}
 
       <h3 className="text-xl font-extrabold text-neutral-900 dark:text-white">{plan.name}</h3>
-      {plan.tagline && (
-        <p className="text-sm text-neutral-500 dark:text-slate-400">{plan.tagline}</p>
+      {plan.description && (
+        <p className="text-sm text-neutral-500 dark:text-slate-400">{plan.description}</p>
       )}
 
-      <p className="mt-1" aria-label={plan.is_free ? 'رایگان' : `قیمت: ${formatToman(plan.amount_irr)}`}>
+      <p className="mt-1" aria-label={plan.is_free ? 'رایگان' : `قیمت: ${formatToman(plan.price_irr)}`}>
         {plan.is_free ? (
           <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">رایگان</span>
         ) : (
           <>
             <span className="text-3xl font-black tabular-nums text-neutral-900 dark:text-white">
-              {formatToman(plan.amount_irr).replace(' تومان', '')}
+              {formatToman(plan.price_irr).replace(' تومان', '')}
             </span>{' '}
             <span className="text-sm text-neutral-500 dark:text-slate-400">تومان</span>
           </>
         )}
-        {plan.period && (
-          <span className="block text-xs text-neutral-500 dark:text-slate-400">{plan.period}</span>
+        {!!plan.period_days && (
+          <span className="block text-xs text-neutral-500 dark:text-slate-400">اعتبار {plan.period_days} روزه</span>
         )}
       </p>
 

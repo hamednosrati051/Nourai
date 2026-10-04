@@ -376,12 +376,11 @@ export function useAdminPlans() {
 
 export interface PlanInput {
   name: string;
-  tagline?: string;
+  description?: string;
   /** Canonical unit: integer IRR (UI enters toman and converts). */
-  amount_irr: number;
-  period?: string;
+  price_irr: number;
+  period_days?: number;
   features: string[];
-  limits: string[];
   /** Real quotas: { monthly_text, monthly_image, monthly_audio_minutes }. */
   usage_limits?: Record<string, number>;
   is_free: boolean;

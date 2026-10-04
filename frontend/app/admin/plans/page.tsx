@@ -21,9 +21,9 @@ import type { Plan } from '@/types/api';
 
 const emptyForm = {
   name: '',
-  tagline: '',
+  description: '',
   priceToman: '',
-  period: '',
+  period_days: '30',
   features: '',
   limits: '',
   quota_text: '',
@@ -58,9 +58,9 @@ export default function AdminPlansPage() {
     const ul = plan.usage_limits ?? {};
     setForm({
       name: plan.name,
-      tagline: plan.tagline ?? '',
-      priceToman: String(irrToToman(plan.amount_irr)),
-      period: plan.period ?? '',
+      description: plan.description ?? '',
+      priceToman: String(irrToToman(plan.price_irr)),
+      period_days: String(plan.period_days ?? 30),
       features: plan.features.join('\n'),
       limits: plan.limits.join('\n'),
       quota_text: ul.monthly_text != null ? String(ul.monthly_text) : '',
@@ -97,11 +97,10 @@ export default function AdminPlansPage() {
     if (qa !== undefined) usage_limits.monthly_audio_minutes = qa;
     return {
       name: form.name.trim(),
-      tagline: form.tagline.trim() || undefined,
-      amount_irr: isFree ? 0 : tomanToIrr(Number(form.priceToman) || 0),
-      period: form.period.trim() || undefined,
+      description: form.description.trim() || undefined,
+      price_irr: isFree ? 0 : tomanToIrr(Number(form.priceToman) || 0),
+      period_days: Number(form.period_days) || 30,
       features: lines(form.features),
-      limits: lines(form.limits),
       usage_limits,
       is_free: isFree,
       is_featured: form.is_featured,
@@ -116,7 +115,7 @@ export default function AdminPlansPage() {
       toast('نام اشتراک الزامی است.', 'error');
       return;
     }
-    if (!input.is_free && input.amount_irr <= 0) {
+    if (!input.is_free && input.price_irr <= 0) {
       toast('قیمت اشتراک پولی باید بیشتر از صفر باشد.', 'error');
       return;
     }
@@ -185,10 +184,10 @@ export default function AdminPlansPage() {
                 p.is_free ? (
                   <span className="badge badge-success">رایگان</span>
                 ) : (
-                  <span className="tabular-nums">{formatToman(p.amount_irr)}</span>
+                  <span className="tabular-nums">{formatToman(p.price_irr)}</span>
                 ),
             },
-            { header: 'دوره', render: (p: Plan) => p.period ?? '—' },
+            { header: 'دوره', render: (p: Plan) => `${p.period_days ?? 30} روز` },
             {
               header: 'پیشنهادی',
               render: (p: Plan) =>
@@ -239,7 +238,7 @@ export default function AdminPlansPage() {
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label="نام اشتراک" value={form.name} onChange={(v) => set('name', v)} required placeholder="پایه" />
-          <TextField label="توضیح کوتاه" value={form.tagline} onChange={(v) => set('tagline', v)} placeholder="مناسب استفاده روزمره" />
+          <TextField label="توضیح کوتاه" value={form.description} onChange={(v) => set('description', v)} placeholder="مناسب استفاده روزمره" />
           <NumberField
             label="قیمت (تومان)"
             value={form.priceToman}
@@ -247,7 +246,7 @@ export default function AdminPlansPage() {
             min={0}
             disabled={form.is_free}
           />
-          <TextField label="دوره" value={form.period} onChange={(v) => set('period', v)} placeholder="ماهانه" />
+          <NumberField label="مدت دوره (روز)" value={form.period_days} onChange={(v) => set('period_days', v)} min={1} />
           <NumberField label="ترتیب نمایش" value={form.sort_order} onChange={(v) => set('sort_order', v)} min={0} />
         </div>
         <div className="mt-4 grid gap-4">
@@ -257,13 +256,6 @@ export default function AdminPlansPage() {
             onChange={(v) => set('features', v)}
             rows={4}
             placeholder={'مکالمه متنی نامحدود\nتولید تصویر پیشرفته'}
-          />
-          <TextAreaField
-            label="محدودیت‌ها (هر خط یک مورد)"
-            value={form.limits}
-            onChange={(v) => set('limits', v)}
-            rows={3}
-            placeholder={'۲۰ درخواست متنی در ماه\nبدون دسترسی به مدل‌های پیشرفته'}
           />
         </div>
         <div className="mt-4">

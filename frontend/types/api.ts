@@ -433,11 +433,12 @@ export interface ImagePreviewResult {
 export interface Plan {
   id: string;
   name: string;
-  tagline?: string | null;
+  description?: string | null;
   /** Price in integer IRR (0 for free plans); displayed in toman via formatToman. */
-  amount_irr: number;
-  /** Billing period label, e.g. «ماهانه». */
-  period?: string | null;
+  price_irr: number;
+  price_toman: number;
+  /** Billing period length in days. */
+  period_days: number;
   features: string[];
   /** Usage limits shown under the features, e.g. «۲۰ درخواست متنی در ماه». */
   limits: string[];
