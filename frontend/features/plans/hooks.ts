@@ -75,14 +75,17 @@ export interface MyPlanResponse {
 }
 
 /**
- * The current user's active plan. Tolerant of the backend returning either
- * `{ plan: Plan | null }` or the plan directly.
+ * The current user's active plan. The backend returns
+ * `{ subscription: { plan } }`; tolerated shapes: `{ plan }` or the plan directly.
  */
 export function useMyPlan(enabled = true) {
   return useQuery({
     queryKey: ['me', 'plan'],
     queryFn: async (): Promise<Plan | null> => {
-      const data = await apiGet<MyPlanResponse | Plan | null>('/me/plan');
+      const data = await apiGet<MySubscriptionResponse | MyPlanResponse | Plan | null>('/me/plan');
+      if (data && typeof data === 'object' && 'subscription' in data) {
+        return (data as MySubscriptionResponse).subscription?.plan ?? null;
+      }
       if (data && typeof data === 'object' && 'plan' in data) {
         return (data as MyPlanResponse).plan ?? null;
       }
