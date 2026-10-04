@@ -106,9 +106,21 @@ def activate_subscription(
     return sub
 
 
+def _fa_digits(n: int) -> str:
+    return str(n).translate(str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹"))
+
+
+_LIMIT_LABELS = {
+    "monthly_text": "پیام متنی در ماه",
+    "monthly_image": "تصویر در ماه",
+    "monthly_audio_minutes": "دقیقه خدمات صوتی در ماه",
+}
+
+
 def plan_to_public_dict(plan: Plan) -> dict:
     from app.billing.currency import irr_to_toman
 
+    limits = plan.usage_limits_json or {}
     return {
         "id": plan.id,
         "name": plan.name,
@@ -120,6 +132,10 @@ def plan_to_public_dict(plan: Plan) -> dict:
         "period_days": plan.period_days,
         "features": list(plan.features_json or []),
         "usage_limits": plan.usage_limits_json,
+        "limits": [
+            f"{_fa_digits(v)} {_LIMIT_LABELS[k]}"
+            for k, v in limits.items() if k in _LIMIT_LABELS
+        ],
         "is_free": plan.is_free,
         "is_featured": plan.is_featured,
         "sort_order": plan.sort_order,

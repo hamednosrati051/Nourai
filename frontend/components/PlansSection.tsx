@@ -152,7 +152,7 @@ function PlanCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
-      {plan.limits.length > 0 && (
+      {(plan.limits?.length ?? 0) > 0 && (
         <div className="rounded-xl bg-neutral-50 p-3 text-xs leading-6 text-neutral-500 dark:bg-white/5 dark:text-slate-400">
           <p className="mb-1 font-bold">محدودیت‌ها:</p>
           <ul className="list-disc pr-4">
