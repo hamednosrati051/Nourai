@@ -24,7 +24,7 @@ from app.api.deps import (
     utcnow,
     validation_error,
 )
-from app.billing.ledger import DuplicateIdempotencyKey, bonus, deposit, get_wallet_for_update
+from app.billing.ledger import DuplicateIdempotencyKey, deposit, get_wallet_for_update
 from app.config import config
 from app.extensions import db
 from app.models import Payment, Plan
@@ -42,7 +42,6 @@ bp = Blueprint("payments", __name__)
 
 class PaymentCreateSchema(BaseModel):
     amount_irr: int | None = None
-    plan_id: str | None = None
 
 
 def _payment_payload(payment: Payment) -> dict:
@@ -66,24 +65,12 @@ def create_payment():
     except ValidationError:
         return validation_error()
 
-    # Plan purchase: the plan must be active and the amount is forced to the
-    # plan's price_irr — the client's amount is never trusted.
-    plan = None
-    if data.plan_id:
-        plan = db.session.get(Plan, data.plan_id)
-        if plan is None or not plan.is_active:
-            return error_response("VALIDATION_ERROR", "پلن انتخابی معتبر نیست.", 422)
-        if plan.is_free:
-            return error_response(
-                "VALIDATION_ERROR",
-                "پلن رایگان نیازی به پرداخت ندارد؛ از فعال‌سازی مستقیم استفاده کنید.",
-                422,
-            )
-        amount = plan.price_irr
-    else:
-        amount = data.amount_irr
-        if not isinstance(amount, int) or not (config.payment_min_irr <= amount <= config.payment_max_irr):
-            return validation_error()
+    # Pure wallet top-up. Plan purchases are NOT done here: the wallet is
+    # topped up first, then POST /api/v1/plans/{id}/purchase deducts the
+    # plan price from the balance.
+    amount = data.amount_irr
+    if not isinstance(amount, int) or not (config.payment_min_irr <= amount <= config.payment_max_irr):
+        return validation_error()
 
     idempotency_key = request.headers.get("Idempotency-Key") or f"payreq-{g.current_user_id}-{amount}"
     existing = db.session.query(Payment).filter_by(idempotency_key=idempotency_key).one_or_none()
@@ -96,7 +83,7 @@ def create_payment():
         user_id=g.current_user_id,
         gateway="zibal",
         amount_irr=amount,
-        plan_id=plan.id if plan else None,
+        plan_id=None,
         status=PAY_CREATED,
         idempotency_key=idempotency_key,
     )
@@ -231,35 +218,24 @@ def zibal_callback():
             db.session.commit()
             return _redirect("success", payment.id)
         wallet = get_wallet_for_update(db.session, locked.user_id)
-        try:
-            deposit(
-                db.session,
-                wallet=wallet,
-                amount_irr=locked.amount_irr,
-                idempotency_key=f"payment:{locked.id}:deposit",
-                reference_type="payment",
-                reference_id=locked.id,
-                description="wallet top-up via zibal",
-            )
-        except DuplicateIdempotencyKey:
-            log.info("payment %s already credited; skipping duplicate", locked.id)
-        # Plan purchase: bonus credit (separate, auditable ledger entry) and
-        # subscription activation for the purchased plan.
         plan = db.session.get(Plan, locked.plan_id) if locked.plan_id else None
-        if plan is not None and plan.bonus_irr > 0:
+        if plan is None:
+            # Pure wallet top-up: credit the paid amount.
             try:
-                bonus(
+                deposit(
                     db.session,
                     wallet=wallet,
-                    amount_irr=plan.bonus_irr,
-                    idempotency_key=f"payment:{locked.id}:bonus",
+                    amount_irr=locked.amount_irr,
+                    idempotency_key=f"payment:{locked.id}:deposit",
                     reference_type="payment",
                     reference_id=locked.id,
-                    description=f"plan bonus: {plan.name}",
+                    description="wallet top-up via zibal",
                 )
             except DuplicateIdempotencyKey:
-                log.info("payment %s bonus already credited; skipping duplicate", locked.id)
-        if plan is not None:
+                log.info("payment %s already credited; skipping duplicate", locked.id)
+        else:
+            # Plan purchase: the price buys the quota bundle — the wallet is
+            # NOT credited. Only the subscription is activated.
             activate_subscription(db.session, locked.user_id, plan)
         locked.status = PAY_PAID
         locked.paid_at = utcnow()

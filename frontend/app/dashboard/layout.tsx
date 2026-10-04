@@ -16,6 +16,7 @@ import {
 import { BRAND } from '@/lib/config';
 import { useLogout, useMe } from '@/features/auth/hooks';
 import { UserGuard } from '@/components/ProtectedRoute';
+import { QuotaNotice } from '@/components/QuotaNotice';
 import { SideNav, type NavItem } from '@/components/SideNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useModels } from '@/features/models/hooks';
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavEntry[] = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <UserGuard>
+      <QuotaNotice />
       <DashboardShell>{children}</DashboardShell>
     </UserGuard>
   );

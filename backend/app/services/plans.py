@@ -1,8 +1,14 @@
-"""Plan subscriptions and per-period usage-limit enforcement.
+"""Plan subscriptions and per-period usage quotas (soft).
 
 One active subscription per user at a time. Usage counters reset naturally
 because each (re)activation creates a fresh subscription with its own
 ``usage_counters_json`` and ``expires_at`` computed from ``period_days``.
+
+Quotas are SOFT: they never block. When a kind's counter reaches the plan
+limit, the request is billed from the wallet instead (or fails with
+INSUFFICIENT_BALANCE like any wallet request). Buying a plan does NOT
+credit the wallet — the price buys the quota bundle; the wallet is only
+topped up by explicit top-ups.
 """
 from __future__ import annotations
 
@@ -20,14 +26,6 @@ from app.models.plans import (
 )
 
 
-class PlanLimitExceeded(Exception):
-    """Raised when the active plan's period quota for a usage kind is spent."""
-
-    def __init__(self, kind: str) -> None:
-        super().__init__(kind)
-        self.kind = kind
-
-
 # Maps a usage kind to the plan.usage_limits_json key and the counter key
 # stored in subscription.usage_counters_json.
 LIMIT_KEYS = {
@@ -40,6 +38,25 @@ COUNTER_KEYS = {
     "image": "image",
     "audio": "audio_minutes",
 }
+
+
+def over_quota_kinds(session, sub: UserPlanSubscription) -> list[str]:
+    """Usage kinds whose period counter reached the plan limit (soft signal).
+
+    Never blocks — callers use it for notices; billing falls back to the
+    wallet for these kinds.
+    """
+    plan = session.get(Plan, sub.plan_id)
+    if plan is None:
+        return []
+    limits = plan.usage_limits_json or {}
+    counters = sub.usage_counters_json or {}
+    over = []
+    for kind, limit_key in LIMIT_KEYS.items():
+        limit = limits.get(limit_key)
+        if limit is not None and counters.get(COUNTER_KEYS[kind], 0) >= limit:
+            over.append(kind)
+    return over
 
 
 def get_active_subscription(session, user_id: str) -> UserPlanSubscription | None:
@@ -119,34 +136,37 @@ def subscription_to_dict(session, sub: UserPlanSubscription) -> dict:
         "started_at": sub.started_at.isoformat() + "Z",
         "expires_at": sub.expires_at.isoformat() + "Z",
         "usage_counters": sub.usage_counters_json or {},
+        "over_quota": over_quota_kinds(session, sub),
     }
 
 
 class PlanLimitService:
-    """Enforce per-period AI usage limits of the user's active plan.
+    """Track per-period AI usage against the user's active plan (soft).
 
     Users without an active subscription (or a plan without limits) are
-    unlimited. ``check`` raises before a request is accepted; ``increment``
-    records successful consumption afterwards.
+    unlimited. ``quota_available`` decides whether a request is covered by
+    the plan quota (no wallet charge); ``increment`` records successful
+    consumption afterwards. Quotas never block — over-quota usage is
+    billed from the wallet like any pay-as-you-go request.
     """
 
     def __init__(self, session) -> None:
         self.session = session
 
-    def check(self, user_id: str, kind: str) -> None:
+    def quota_available(self, user_id: str, kind: str, amount: int = 1) -> bool:
+        """True if the active plan covers *amount* more units of *kind*."""
         sub = get_active_subscription(self.session, user_id)
         if sub is None:
-            return
+            return False
         plan = self.session.get(Plan, sub.plan_id)
         if plan is None:
-            return
+            return False
         limits = plan.usage_limits_json or {}
         limit = limits.get(LIMIT_KEYS[kind])
         if limit is None:
-            return
+            return False
         counters = sub.usage_counters_json or {}
-        if counters.get(COUNTER_KEYS[kind], 0) >= limit:
-            raise PlanLimitExceeded(kind)
+        return counters.get(COUNTER_KEYS[kind], 0) + amount <= limit
 
     def increment(self, user_id: str, kind: str, amount: int = 1) -> None:
         sub = get_active_subscription(self.session, user_id)

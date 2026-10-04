@@ -19,6 +19,45 @@ export function usePlans() {
   });
 }
 
+/** Buy a paid plan with wallet credit: POST /api/v1/plans/{id}/purchase. */
+export function usePurchasePlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: string) => apiPost<{ subscription: unknown }>(`/plans/${planId}/purchase`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['me', 'plan'] });
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
+}
+
+export interface MySubscription {
+  id: string;
+  plan_id: string;
+  plan: Plan | null;
+  status: string;
+  usage_counters: Record<string, number>;
+  over_quota: string[];
+}
+
+export interface MySubscriptionResponse {
+  subscription: MySubscription | null;
+}
+
+/** Full subscription (counters + soft over-quota signal). */
+export function useMySubscription(enabled = true) {
+  return useQuery({
+    queryKey: ['me', 'subscription'],
+    queryFn: async (): Promise<MySubscription | null> => {
+      const data = await apiGet<MySubscriptionResponse>('/me/plan');
+      return data?.subscription ?? null;
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 /** Activate the free plan directly (no payment): POST /api/v1/plans/{id}/activate. */
 export function useActivatePlan() {
   const queryClient = useQueryClient();

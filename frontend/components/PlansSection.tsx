@@ -2,9 +2,8 @@
 
 import { CreditCard, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useActivatePlan, useMyPlan, usePlans } from '@/features/plans/hooks';
+import { useActivatePlan, useMyPlan, usePlans, usePurchasePlan } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
-import { useCreatePayment } from '@/features/wallet/hooks';
 import { formatToman } from '@/lib/currency';
 import { LoadingSpinner } from './LoadingSpinner';
 import { EmptyState } from './EmptyState';
@@ -17,7 +16,8 @@ import type { Plan } from '@/types/api';
  * Pricing plans section.
  * - Data comes ONLY from GET /api/v1/plans, ordered by sort_order.
  * - Free plan: «فعال‌سازی رایگان» -> POST /api/v1/plans/{id}/activate (no payment).
- * - Paid plans: «خرید» -> POST /api/v1/payments { plan_id } -> Zibal redirect.
+ * - Paid plans: «خرید» -> POST /api/v1/plans/{id}/purchase (wallet credit;
+ *   top up the wallet first). 402 -> prompt to top up.
  * - Guests are sent to the login page first.
  */
 export function PlansSection() {
@@ -31,8 +31,12 @@ export function PlansSection() {
           اعتبار <span className="text-gradient">متناسب با نیاز شما</span>
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-neutral-600 dark:text-slate-400">
-          با خرید هر اشتراک، کیف پول شما شارژ می‌شود و می‌توانید از همه سرویس‌ها استفاده کنید.
+          خرید بسته اشتراک الزامی نیست؛ با اعتبار حساب خود، بدون محدودیت زمانی از خدمات هوش مصنوعی نورا استفاده کنید.
         </p>
+      </div>
+
+      <div className="mx-auto mb-10 max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-8 text-neutral-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-slate-300" role="note">
+        اشتراک نورا کاملاً اختیاری است؛ می‌توانید فقط با شارژ کیف پول و بدون هیچ محدودیت زمانی از تمام خدمات استفاده کنید. بسته‌های اشتراک برای کسانی طراحی شده که مصرف بیشتری دارند و می‌خواهند با هزینه کمتری از خدمات بهره ببرند. دقت کنید در هر دوره فقط یک اشتراک فعال خواهید داشت؛ با خرید بسته جدید، اشتراک قبلی — حتی اگر هنوز مهلت یا سهمیه داشته باشد — به پایان می‌رسد و قابل بازگشت نیست. برای خرید هر بسته، اول کیف پول خود را شارژ کنید.
       </div>
 
       {plans.isLoading && <LoadingSpinner label="در حال بارگذاری اشتراک‌ها…" />}
@@ -64,10 +68,10 @@ function PlanCard({ plan }: { plan: Plan }) {
   const { data: user } = useMe();
   const myPlan = useMyPlan(!!user);
   const activatePlan = useActivatePlan();
-  const createPayment = useCreatePayment();
+  const purchasePlan = usePurchasePlan();
 
   const isCurrent = myPlan.data?.id === plan.id;
-  const busy = activatePlan.isPending || createPayment.isPending;
+  const busy = activatePlan.isPending || purchasePlan.isPending;
 
   const requireLogin = () => {
     if (!user) {
@@ -88,23 +92,22 @@ function PlanCard({ plan }: { plan: Plan }) {
 
   const buy = () => {
     if (!requireLogin()) return;
-    createPayment.mutate(
-      { planId: plan.id },
-      {
-        onSuccess: (payment) => {
-          if (payment.redirect_url) {
-            window.location.href = payment.redirect_url;
-          } else {
-            toast('درخواست پرداخت ثبت شد.', 'success');
-          }
-        },
-        onError: (err) =>
-          toast(
-            err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ثبت پرداخت ناموفق بود.',
-            'error',
-          ),
+    purchasePlan.mutate(plan.id, {
+      onSuccess: () => {
+        toast(`اشتراک «${plan.name}» برای شما فعال شد.`, 'success');
       },
-    );
+      onError: (err) => {
+        if (err instanceof ApiError && err.code === 'INSUFFICIENT_BALANCE') {
+          toast('موجودی کیف پول کافی نیست؛ ابتدا کیف پول را شارژ کنید.', 'error');
+          router.push('/dashboard/wallet');
+          return;
+        }
+        toast(
+          err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'خرید اشتراک ناموفق بود.',
+          'error',
+        );
+      },
+    });
   };
 
   return (
@@ -180,7 +183,7 @@ function PlanCard({ plan }: { plan: Plan }) {
           disabled={busy}
           className={plan.is_featured ? 'btn-primary w-full' : 'btn-secondary w-full'}
         >
-          {createPayment.isPending ? 'در حال ثبت…' : 'خرید'}
+          {purchasePlan.isPending ? 'در حال خرید…' : 'خرید'}
         </button>
       )}
 

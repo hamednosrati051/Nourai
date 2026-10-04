@@ -230,6 +230,91 @@ def register_cli(app: Flask) -> None:
         db.session.commit()
         click.echo("demo subscription plans seeded")
 
+    @app.cli.command("seed-plans")
+    def seed_plans() -> None:
+        """Seed the default subscription plans (idempotent, any environment)."""
+        from app.extensions import db
+        from app.models.plans import Plan
+
+        plans = [
+            {
+                "name": "کم‌مصرف",
+                "description": "برای شروع و مصرف سبک",
+                "price_irr": 1_990_000,
+                "period_days": 30,
+                "features": [
+                    "۱۰۰۰ پیام متنی در ماه",
+                    "۵ تصویر در ماه",
+                    "۲۰ دقیقه خدمات صوتی در ماه",
+                    "اعتبار ۳۰ روزه",
+                ],
+                "usage_limits": {"monthly_text": 1000, "monthly_image": 5, "monthly_audio_minutes": 20},
+                "is_featured": False,
+                "sort_order": 1,
+            },
+            {
+                "name": "پایه",
+                "description": "برای استفاده روزمره",
+                "price_irr": 2_990_000,
+                "period_days": 30,
+                "features": [
+                    "۲۰۰۰ پیام متنی در ماه",
+                    "۱۰ تصویر در ماه",
+                    "۶۰ دقیقه خدمات صوتی در ماه",
+                    "اعتبار ۳۰ روزه",
+                ],
+                "usage_limits": {"monthly_text": 2000, "monthly_image": 10, "monthly_audio_minutes": 60},
+                "is_featured": False,
+                "sort_order": 2,
+            },
+            {
+                "name": "اقتصادی",
+                "description": "به‌صرفه برای کاربران فعال",
+                "price_irr": 4_990_000,
+                "period_days": 30,
+                "features": [
+                    "۳۰۰۰ پیام متنی در ماه",
+                    "۲۰ تصویر در ماه",
+                    "۱۵۰ دقیقه خدمات صوتی در ماه",
+                    "اعتبار ۳۰ روزه",
+                ],
+                "usage_limits": {"monthly_text": 3000, "monthly_image": 20, "monthly_audio_minutes": 150},
+                "is_featured": True,
+                "sort_order": 3,
+            },
+            {
+                "name": "تولید تصویر اقتصادی",
+                "description": "ویژه تولید تصویر",
+                "price_irr": 7_000_000,
+                "period_days": 30,
+                "features": [
+                    "۶۰ تولید تصویر در ماه",
+                    "اعتبار ۳۰ روزه",
+                ],
+                "usage_limits": {"monthly_image": 60},
+                "is_featured": False,
+                "sort_order": 4,
+            },
+        ]
+        for spec in plans:
+            existing = db.session.query(Plan).filter_by(name=spec["name"]).one_or_none()
+            if existing is None:
+                db.session.add(Plan(
+                    name=spec["name"],
+                    description=spec["description"],
+                    price_irr=spec["price_irr"],
+                    period_days=spec["period_days"],
+                    features_json=spec["features"],
+                    usage_limits_json=spec["usage_limits"],
+                    bonus_irr=0,
+                    is_free=False,
+                    is_featured=spec["is_featured"],
+                    is_active=True,
+                    sort_order=spec["sort_order"],
+                ))
+        db.session.commit()
+        click.echo("default subscription plans seeded")
+
     @app.cli.command("cancel-stuck-jobs")
     @click.option("--status", "status_filter", default="queued",
                   help="Job status to cancel (default: queued).")

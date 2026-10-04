@@ -24,18 +24,12 @@ export function useWalletTransactions(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
 export interface CreatePaymentInput {
   /** Amount in toman (UI unit); converted to IRR before sending. */
   amountToman?: number;
-  /** Plan purchase: the backend prices the payment from the plan. */
-  planId?: string;
 }
 
 export function useCreatePayment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePaymentInput) => {
-      if (input.planId) {
-        // Plan purchase: backend resolves the price from the plan.
-        return apiPost<Payment>('/payments', { plan_id: input.planId });
-      }
       // Plain wallet top-up: the gateway contract lives in the backend adapter; we send IRR.
       return apiPost<Payment>('/payments', { amount_irr: tomanToIrr(input.amountToman ?? 0) });
     },

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError, field_validator
@@ -34,7 +35,7 @@ from app.models.catalog import CAP_STT, CAP_TEXT, CAP_TTS
 from app.models.jobs import ASSET_INPUT_AUDIO, ASSET_OUTPUT_AUDIO, JOB_QUEUED
 from app.services.storage import asset_key, storage
 from app.services.audit import audit
-from app.services.plans import PlanLimitExceeded, PlanLimitService
+from app.services.plans import PlanLimitService
 
 log = logging.getLogger(__name__)
 
@@ -128,10 +129,8 @@ def create_audio_job():
                     config.rate_limit_ai_request_window):
         return error_response("RATE_LIMITED", status=429)
 
-    try:
-        PlanLimitService(db.session).check(g.current_user_id, "audio")
-    except PlanLimitExceeded:
-        return error_response("PLAN_LIMIT_EXCEEDED", status=403)
+    # Soft quota: decided fully after duration validation below (needs minutes).
+    quota_covered = False
 
     try:
         data = AudioJobSchema(**{k: request.form.get(k) or None
@@ -177,6 +176,12 @@ def create_audio_job():
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
     estimated_irr = estimate["total_irr"]
 
+    # Soft quota: minutes billed against the plan when covered, else wallet.
+    quota_minutes = max(1, math.ceil(config.audio_max_duration_seconds / 60))
+    quota_covered = PlanLimitService(db.session).quota_available(
+        g.current_user_id, "audio", amount=quota_minutes
+    )
+
     # Store the private input asset.
     ext = {"audio/mpeg": "mp3", "audio/wav": "wav", "audio/ogg": "ogg",
            "audio/webm": "webm", "audio/mp4": "mp4", "audio/m4a": "m4a"}.get(mime, "bin")
@@ -209,24 +214,26 @@ def create_audio_job():
             "tts_model_id": tts_model.id if tts_model else None,
             "mime_type": mime,
             "size_bytes": len(raw),
+            "quota_covered": quota_covered,
         },
     )
     db.session.add(job)
     db.session.flush()
 
-    wallet = get_wallet_for_update(db.session, g.current_user_id)
-    try:
-        reserve(
-            db.session, wallet=wallet, amount_irr=estimated_irr,
-            idempotency_key=f"audio:{job.id}:reserve",
-            reference_type="job", reference_id=job.id,
-            description="reserve audio processing",
-        )
-    except InsufficientBalance:
-        db.session.rollback()
-        return error_response("INSUFFICIENT_BALANCE", status=402)
-    except DuplicateIdempotencyKey:
-        pass
+    if not quota_covered:
+        wallet = get_wallet_for_update(db.session, g.current_user_id)
+        try:
+            reserve(
+                db.session, wallet=wallet, amount_irr=estimated_irr,
+                idempotency_key=f"audio:{job.id}:reserve",
+                reference_type="job", reference_id=job.id,
+                description="reserve audio processing",
+            )
+        except InsufficientBalance:
+            db.session.rollback()
+            return error_response("INSUFFICIENT_BALANCE", status=402)
+        except DuplicateIdempotencyKey:
+            pass
 
     input_asset.job_id = job.id
     usage = UsageEvent(
@@ -235,8 +242,9 @@ def create_audio_job():
         audio_seconds=config.audio_max_duration_seconds,
         tokenizer_encoding=None, token_count_source=None,
         pricing_snapshot_json=estimate["pricing_snapshots"],
-        estimated_amount_irr=estimated_irr, reserved_amount_irr=estimated_irr,
-        metadata_json={"idempotency_key": idempotency_key},
+        estimated_amount_irr=estimated_irr if not quota_covered else 0,
+        reserved_amount_irr=estimated_irr if not quota_covered else 0,
+        metadata_json={"idempotency_key": idempotency_key, "quota_covered": quota_covered},
     )
     db.session.add(usage)
     db.session.commit()

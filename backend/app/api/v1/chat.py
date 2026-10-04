@@ -48,7 +48,7 @@ from app.models import AiModel, Conversation, Message, UsageEvent
 from app.models.catalog import CAP_TEXT
 from app.models.chat import ROLE_ASSISTANT, ROLE_SYSTEM, ROLE_USER
 from app.services.audit import audit
-from app.services.plans import PlanLimitExceeded, PlanLimitService
+from app.services.plans import PlanLimitService
 from app.services.prompt_filter import find_blocked_phrase
 
 log = logging.getLogger(__name__)
@@ -228,10 +228,11 @@ def send_message(conversation_id: str):
                     config.rate_limit_ai_request_window):
         return error_response("RATE_LIMITED", status=429)
 
-    try:
-        PlanLimitService(db.session).check(g.current_user_id, "text")
-    except PlanLimitExceeded:
-        return error_response("PLAN_LIMIT_EXCEEDED", status=403)
+    # Soft quota: a remaining plan quota covers this request (no wallet
+    # charge); otherwise it is billed from the wallet as usual.
+    quota_covered = PlanLimitService(db.session).quota_available(
+        g.current_user_id, "text"
+    )
 
     model = _resolve_text_model(data.model_id or conversation.model_id)
     if model is None or not model.is_active:
@@ -323,18 +324,19 @@ def send_message(conversation_id: str):
     db.session.flush()
 
     wallet = get_wallet_for_update(db.session, g.current_user_id)
-    try:
-        reserve(
-            db.session, wallet=wallet, amount_irr=estimated_irr,
-            idempotency_key=f"chat:{user_message.id}:reserve",
-            reference_type="message", reference_id=user_message.id,
-            description="reserve text generation",
-        )
-    except InsufficientBalance:
-        db.session.rollback()
-        return error_response("INSUFFICIENT_BALANCE", status=402)
-    except DuplicateIdempotencyKey:
-        pass  # retried request; the reserve already exists
+    if not quota_covered:
+        try:
+            reserve(
+                db.session, wallet=wallet, amount_irr=estimated_irr,
+                idempotency_key=f"chat:{user_message.id}:reserve",
+                reference_type="message", reference_id=user_message.id,
+                description="reserve text generation",
+            )
+        except InsufficientBalance:
+            db.session.rollback()
+            return error_response("INSUFFICIENT_BALANCE", status=402)
+        except DuplicateIdempotencyKey:
+            pass  # retried request; the reserve already exists
 
     usage = UsageEvent(
         user_id=g.current_user_id,
@@ -348,9 +350,9 @@ def send_message(conversation_id: str):
         token_count_source="tiktoken",
         pricing_rule_id=None,
         pricing_snapshot_json=estimate["pricing_snapshots"],
-        estimated_amount_irr=estimated_irr,
-        reserved_amount_irr=estimated_irr,
-        metadata_json={"idempotency_key": idempotency_key},
+        estimated_amount_irr=estimated_irr if not quota_covered else 0,
+        reserved_amount_irr=estimated_irr if not quota_covered else 0,
+        metadata_json={"idempotency_key": idempotency_key, "quota_covered": quota_covered},
     )
     db.session.add(usage)
     db.session.flush()
@@ -375,16 +377,17 @@ def send_message(conversation_id: str):
 
     if result is None or not result.ok:
         code = (result.error_code if result else None) or (result_error[0] if result_error else "PROVIDER_ERROR")
-        wallet = get_wallet_for_update(db.session, g.current_user_id)
-        try:
-            release(
-                db.session, wallet=wallet, reserved_amount_irr=estimated_irr,
-                idempotency_key=f"chat:{user_message.id}:release",
-                reference_type="usage_event", reference_id=usage.id,
-                description="release after failed generation",
-            )
-        except DuplicateIdempotencyKey:
-            pass
+        if not quota_covered:
+            wallet = get_wallet_for_update(db.session, g.current_user_id)
+            try:
+                release(
+                    db.session, wallet=wallet, reserved_amount_irr=estimated_irr,
+                    idempotency_key=f"chat:{user_message.id}:release",
+                    reference_type="usage_event", reference_id=usage.id,
+                    description="release after failed generation",
+                )
+            except DuplicateIdempotencyKey:
+                pass
         user_message.status = "failed"
         user_message.error_code = code
         usage.status = "failed"
@@ -408,19 +411,21 @@ def send_message(conversation_id: str):
     final_estimate = pricing.estimate_text(model.id, final_in, final_out)
     final_irr = final_estimate["total_irr"]
 
-    wallet = get_wallet_for_update(db.session, g.current_user_id)
-    try:
-        settle(
-            db.session, wallet=wallet,
-            reserved_amount_irr=estimated_irr, final_amount_irr=final_irr,
-            idempotency_key=f"chat:{user_message.id}:settle",
-            reference_type="usage_event", reference_id=usage.id,
-            description="settle text generation",
-        )
-    except (DuplicateIdempotencyKey, InsufficientBalance):
-        db.session.rollback()
-        log.exception("settle failed for message %s", user_message.id)
-        return error_response("INTERNAL_ERROR", status=500)
+    if not quota_covered:
+        # Wallet billing; quota-covered requests skip the wallet entirely.
+        wallet = get_wallet_for_update(db.session, g.current_user_id)
+        try:
+            settle(
+                db.session, wallet=wallet,
+                reserved_amount_irr=estimated_irr, final_amount_irr=final_irr,
+                idempotency_key=f"chat:{user_message.id}:settle",
+                reference_type="usage_event", reference_id=usage.id,
+                description="settle text generation",
+            )
+        except (DuplicateIdempotencyKey, InsufficientBalance):
+            db.session.rollback()
+            log.exception("settle failed for message %s", user_message.id)
+            return error_response("INTERNAL_ERROR", status=500)
 
     assistant_message = Message(
         conversation_id=conversation.id, role=ROLE_ASSISTANT,
@@ -432,7 +437,7 @@ def send_message(conversation_id: str):
     usage.final_input_tokens = final_in
     usage.final_output_tokens = final_out
     usage.token_count_source = source
-    usage.charged_amount_irr = final_irr
+    usage.charged_amount_irr = 0 if quota_covered else final_irr
     usage.provider_request_id = result.provider_request_id
     conversation.updated_at = utcnow()
     db.session.commit()

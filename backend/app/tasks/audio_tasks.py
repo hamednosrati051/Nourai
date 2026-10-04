@@ -64,6 +64,7 @@ def process_audio_job(self, job_id: str) -> dict:
         job.started_at = utcnow()
         session.commit()
 
+        quota_covered = bool((job.parameters_json or {}).get("quota_covered"))
         try:
             transcript, reply_text, output_asset = _run_chain(session, job)
         except Exception:  # noqa: BLE001
@@ -72,8 +73,11 @@ def process_audio_job(self, job_id: str) -> dict:
             job.error_code = "PROVIDER_ERROR"
             job.error_message = _SAFE_ERROR
             job.finished_at = utcnow()
-            if usage is not None:
+            if usage is not None and not quota_covered:
                 release_job_billing(session, job=job, usage=usage, reason="provider failed")
+            elif usage is not None:
+                usage.charged_amount_irr = 0
+                usage.status = "failed"
             session.commit()
             return {"ok": False, "error": "PROVIDER_ERROR"}
 
@@ -90,7 +94,11 @@ def process_audio_job(self, job_id: str) -> dict:
         if usage is not None:
             usage.audio_seconds = duration
             usage.pricing_snapshot_json = estimate["pricing_snapshots"]
-            settle_job_billing(session, job=job, usage=usage, final_amount_irr=final_amount)
+            if quota_covered:
+                usage.charged_amount_irr = 0
+                usage.status = "succeeded"
+            else:
+                settle_job_billing(session, job=job, usage=usage, final_amount_irr=final_amount)
 
         job.status = JOB_SUCCEEDED
         job.result_text = reply_text

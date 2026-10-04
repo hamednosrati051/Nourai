@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-import pytest
-
 from app.extensions import db
 from app.models import (
     Conversation,
-    Payment,
     Plan,
     UserPlanSubscription,
     WalletAccount,
@@ -17,10 +14,10 @@ from app.models import (
 )
 from app.models.plans import SUB_ACTIVE, SUB_CANCELLED
 from app.services.plans import (
-    PlanLimitExceeded,
     PlanLimitService,
     activate_subscription,
     get_active_subscription,
+    over_quota_kinds,
 )
 from tests.conftest import admin_headers, user_headers
 
@@ -125,73 +122,81 @@ def test_reactivation_replaces_old_subscription(client, app, user):
         assert any(s.status == SUB_CANCELLED and s.plan_id == old_plan.id for s in subs)
 
 
-def test_paid_plan_purchase_flow(client, app, user):
-    """POST /payments with plan_id forces price_irr; after a successful
-    (fake) Zibal verify the wallet is credited price + bonus AND a
-    subscription is activated."""
-    plan = _plan(name="حرفه‌ای", is_free=False, price_irr=3_000_000,
-                 bonus_irr=300_000, period_days=30)
-    headers = user_headers(client, user)
+def test_plan_purchase_with_wallet_credit(client, app, user):
+    """New flow: the wallet is topped up first; POST /plans/{id}/purchase
+    deducts the plan price from the balance (no Zibal for plans) and
+    activates the subscription. The wallet is NOT credited."""
+    from app.billing.ledger import deposit, get_wallet_for_update
 
-    # A wrong client amount is ignored; the plan price wins.
-    resp = client.post(f"{BASE}/payments",
-                       json={"plan_id": plan.id, "amount_irr": 1},
-                       headers=headers)
-    assert resp.status_code == 201, resp.get_json()
-    payload = resp.get_json()["data"]
-    assert payload["amount_irr"] == 3_000_000
-    assert payload["plan_id"] == plan.id
-
+    plan = _plan(name="حرفه‌ای", is_free=False, price_irr=3_000_000, period_days=30)
     with app.app_context():
-        payment = db.session.get(Payment, payload["id"])
-        assert payment is not None
-        track_id = payment.track_id
-        assert track_id
+        wallet = get_wallet_for_update(db.session, user)
+        deposit(db.session, wallet=wallet, amount_irr=5_000_000,
+                idempotency_key="test:topup", reference_type="test",
+                reference_id="t1", description="test top-up")
+        db.session.commit()
 
-    # Simulate the Zibal browser callback through the fake gateway.
-    resp = client.get(f"{BASE}/payments/callback/zibal",
-                      query_string={"fake_track_id": track_id})
-    assert resp.status_code == 302
-    assert "payment=success" in resp.headers["Location"]
+    headers = user_headers(client, user)
+    resp = client.post(f"{BASE}/plans/{plan.id}/purchase", headers=headers)
+    assert resp.status_code == 201, resp.get_json()
 
     with app.app_context():
         wallet = db.session.query(WalletAccount).filter_by(user_id=user).one()
-        # price_irr (deposit) + bonus_irr (separate bonus entry)
-        assert wallet.balance_irr == 3_300_000
-        types = sorted(
-            t.type for t in
-            db.session.query(WalletTransaction).filter_by(wallet_id=wallet.id).all()
-        )
-        assert "deposit" in types and "bonus" in types
+        # 5M top-up minus 3M plan price; the plan price is NOT credited back.
+        assert wallet.balance_irr == 2_000_000
+        txs = db.session.query(WalletTransaction).filter_by(wallet_id=wallet.id).all()
+        purchase = [t for t in txs if t.type == "plan_purchase"]
+        assert len(purchase) == 1 and purchase[0].amount_irr == -3_000_000
 
         sub = get_active_subscription(db.session, user)
         assert sub is not None and sub.plan_id == plan.id
         assert sub.status == SUB_ACTIVE
 
 
-def test_payment_rejects_free_plan(client, user):
+def test_plan_purchase_insufficient_balance(client, app, user):
+    """Without enough wallet credit the purchase is rejected (402)."""
+    plan = _plan(name="گران", is_free=False, price_irr=3_000_000)
+    headers = user_headers(client, user)
+    resp = client.post(f"{BASE}/plans/{plan.id}/purchase", headers=headers)
+    assert resp.status_code == 402
+    assert resp.get_json()["error"]["code"] == "INSUFFICIENT_BALANCE"
+    with app.app_context():
+        assert get_active_subscription(db.session, user) is None
+
+
+def test_purchase_free_plan_rejected(client, user):
     plan = _plan(name="رایگان", is_free=True, price_irr=0)
     headers = user_headers(client, user)
-    resp = client.post(f"{BASE}/payments", json={"plan_id": plan.id}, headers=headers)
+    resp = client.post(f"{BASE}/plans/{plan.id}/purchase", headers=headers)
     assert resp.status_code == 422
 
 
-def test_plan_limit_service_allows_then_blocks(app, user):
+def test_purchase_inactive_plan_404(client, user):
+    plan = _plan(name="غیرفعال", is_active=False, is_free=False, price_irr=1_000)
+    headers = user_headers(client, user)
+    resp = client.post(f"{BASE}/plans/{plan.id}/purchase", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_quota_available_soft(app, user):
+    """Quotas are soft: quota_available() routes billing, never blocks."""
     with app.app_context():
         plan = _plan(name="محدود", usage_limits_json={"monthly_text": 1})
-        activate_subscription(db.session, user, plan)
+        sub = activate_subscription(db.session, user, plan)
         db.session.commit()
 
         svc = PlanLimitService(db.session)
-        svc.check(user, "text")  # 0 < 1: allowed
+        assert svc.quota_available(user, "text") is True  # 0 < 1: covered
         svc.increment(user, "text")
         db.session.commit()
-        with pytest.raises(PlanLimitExceeded):
-            svc.check(user, "text")  # 1 >= 1: blocked
+        assert svc.quota_available(user, "text") is False  # 1 >= 1: wallet-billed
 
-        # Kinds without a configured limit stay unlimited.
-        svc.check(user, "image")
-        svc.check(user, "audio")
+        sub = db.session.get(UserPlanSubscription, sub.id)
+        assert over_quota_kinds(db.session, sub) == ["text"]
+
+        # Kinds without a configured limit are never quota-covered.
+        assert svc.quota_available(user, "image") is False
+        assert svc.quota_available(user, "audio") is False
 
 
 def test_expired_subscription_imposes_no_limits(app, user):
@@ -201,14 +206,37 @@ def test_expired_subscription_imposes_no_limits(app, user):
         sub.expires_at = sub.started_at - timedelta(seconds=1)  # already expired
         db.session.commit()
 
-        PlanLimitService(db.session).check(user, "text")  # must not raise
+        assert PlanLimitService(db.session).quota_available(user, "text") is False
         db.session.commit()
         stored = db.session.get(UserPlanSubscription, sub.id)
         assert stored.status == "expired"
 
 
-def test_chat_rejects_when_plan_limit_exceeded(client, app, user):
-    """API level: exceeding the plan quota -> 403 PLAN_LIMIT_EXCEEDED."""
+def test_chat_quota_covered_skips_wallet(client, app, user):
+    """Quota-covered chat is not billed: zero balance, no 402/403.
+
+    (No text model is registered in tests, so the request proceeds past
+    billing to MODEL_UNAVAILABLE — the point is the wallet is untouched.)
+    """
+    with app.app_context():
+        plan = _plan(name="محدود", usage_limits_json={"monthly_text": 5})
+        activate_subscription(db.session, user, plan)
+        db.session.commit()
+        conv = Conversation(user_id=user, title="t")
+        db.session.add(conv)
+        db.session.commit()
+        conv_id = conv.id
+
+    headers = user_headers(client, user)
+    resp = client.post(f"{BASE}/conversations/{conv_id}/messages",
+                       json={"content": "سلام"},
+                       headers={**headers, "Idempotency-Key": "k1"})
+    assert resp.status_code not in (402, 403), resp.get_json()
+
+
+def test_chat_over_quota_never_403s(client, app, user):
+    """Exhausted quota never blocks with 403 (the old hard limit is gone);
+    the request follows the normal wallet flow."""
     with app.app_context():
         plan = _plan(name="محدود", usage_limits_json={"monthly_text": 1})
         activate_subscription(db.session, user, plan)
@@ -222,10 +250,9 @@ def test_chat_rejects_when_plan_limit_exceeded(client, app, user):
     headers = user_headers(client, user)
     resp = client.post(f"{BASE}/conversations/{conv_id}/messages",
                        json={"content": "سلام"},
-                       headers={**headers, "Idempotency-Key": "k1"})
-    assert resp.status_code == 403, resp.get_json()
-    body = resp.get_json()
-    assert body["error"]["code"] == "PLAN_LIMIT_EXCEEDED"
+                       headers={**headers, "Idempotency-Key": "k2"})
+    assert resp.status_code != 403, resp.get_json()
+    assert resp.get_json()["error"]["code"] != "PLAN_LIMIT_EXCEEDED"
 
 
 def test_admin_delete_plan_with_active_subscription_fails(client, app, user, admin):

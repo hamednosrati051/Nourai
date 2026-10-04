@@ -20,6 +20,7 @@ from app.models.wallet import (
     TX_ADMIN_ADJUSTMENT,
     TX_BONUS,
     TX_DEPOSIT,
+    TX_PLAN_PURCHASE,
     TX_REFUND,
     TX_RELEASE,
     TX_RESERVE,
@@ -195,6 +196,22 @@ def bonus(session, *, wallet, amount_irr: int, idempotency_key: str,
         raise ValueError("bonus amount must be positive")
     return post_transaction(
         session, wallet=wallet, type=TX_BONUS, amount_irr=amount_irr,
+        reference_type=reference_type, reference_id=reference_id,
+        idempotency_key=idempotency_key, description=description,
+    )
+
+
+def plan_purchase(session, *, wallet, amount_irr: int, idempotency_key: str,
+                  reference_type: str | None = None, reference_id: str | None = None,
+                  description: str | None = None) -> WalletTransaction:
+    """Buy a subscription with wallet credit (deducts the plan price).
+
+    Raises InsufficientBalance when the wallet cannot cover the price.
+    """
+    if amount_irr <= 0:
+        raise ValueError("plan price must be positive")
+    return post_transaction(
+        session, wallet=wallet, type=TX_PLAN_PURCHASE, amount_irr=-amount_irr,
         reference_type=reference_type, reference_id=reference_id,
         idempotency_key=idempotency_key, description=description,
     )

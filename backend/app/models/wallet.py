@@ -18,6 +18,7 @@ TX_SETTLEMENT = "settlement"
 TX_RELEASE = "release"
 TX_REFUND = "refund"
 TX_ADMIN_ADJUSTMENT = "admin_adjustment"
+TX_PLAN_PURCHASE = "plan_purchase"  # subscription bought with wallet credit
 
 TRANSACTION_TYPES = (
     TX_DEPOSIT,
@@ -27,6 +28,7 @@ TRANSACTION_TYPES = (
     TX_RELEASE,
     TX_REFUND,
     TX_ADMIN_ADJUSTMENT,
+    TX_PLAN_PURCHASE,
 )
 
 

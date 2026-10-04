@@ -44,7 +44,6 @@ ERROR_MESSAGES: dict[str, str] = {
     "OTP_EXPIRED": "کد منقضی شده است. لطفاً کد جدید درخواست کنید.",
     "CSRF_INVALID": "توکن امنیتی نامعتبر است.",
     "PAYMENT_REQUIRED": "پرداخت لازم است.",
-    "PLAN_LIMIT_EXCEEDED": "سقف مصرف دوره‌ای پلن شما به پایان رسیده است.",
     "NOT_FOUND": "یافت نشد.",
     "CONFLICT": "رکورد تکراری است.",
     "METHOD_NOT_ALLOWED": "روش درخواست مجاز نیست.",

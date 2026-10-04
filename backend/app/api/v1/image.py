@@ -51,7 +51,7 @@ from app.models.jobs import (
     MODE_TEXT_TO_IMAGE,
 )
 from app.services.audit import audit
-from app.services.plans import PlanLimitExceeded, PlanLimitService
+from app.services.plans import PlanLimitService
 from app.services.prompt_filter import find_blocked_phrase
 from app.services.storage import asset_key, storage
 
@@ -283,10 +283,11 @@ def create_image_job():
                     config.rate_limit_ai_request_window):
         return error_response("RATE_LIMITED", status=429)
 
-    try:
-        PlanLimitService(db.session).check(g.current_user_id, "image")
-    except PlanLimitExceeded:
-        return error_response("PLAN_LIMIT_EXCEEDED", status=403)
+    # Soft quota: a remaining plan quota covers this request (no wallet
+    # charge); otherwise it is billed from the wallet as usual.
+    quota_covered = PlanLimitService(db.session).quota_available(
+        g.current_user_id, "image"
+    )
 
     form = request.form
     body = request.get_json(silent=True) or {}
@@ -401,25 +402,27 @@ def create_image_job():
             "output_megapixels": str(output_mp),
             "image_count": 1,
             "model_id": model.id,
+            "quota_covered": quota_covered,
         },
         processing_profile_snapshot_json=profile_snapshot,
     )
     db.session.add(job)
     db.session.flush()
 
-    wallet = get_wallet_for_update(db.session, g.current_user_id)
-    try:
-        reserve(
-            db.session, wallet=wallet, amount_irr=estimated_irr,
-            idempotency_key=f"image:{job.id}:reserve",
-            reference_type="job", reference_id=job.id,
-            description="reserve image generation",
-        )
-    except InsufficientBalance:
-        db.session.rollback()
-        return error_response("INSUFFICIENT_BALANCE", status=402)
-    except DuplicateIdempotencyKey:
-        pass
+    if not quota_covered:
+        wallet = get_wallet_for_update(db.session, g.current_user_id)
+        try:
+            reserve(
+                db.session, wallet=wallet, amount_irr=estimated_irr,
+                idempotency_key=f"image:{job.id}:reserve",
+                reference_type="job", reference_id=job.id,
+                description="reserve image generation",
+            )
+        except InsufficientBalance:
+            db.session.rollback()
+            return error_response("INSUFFICIENT_BALANCE", status=402)
+        except DuplicateIdempotencyKey:
+            pass
 
     for asset in (original_asset, processed_asset):
         if asset is not None:
@@ -429,8 +432,9 @@ def create_image_job():
         provider_key=model.provider_key, status="processing",
         image_count=1, input_pixels=int(input_mp * 1_000_000) if input_mp else 0,
         pricing_snapshot_json=estimate["pricing_snapshots"],
-        estimated_amount_irr=estimated_irr, reserved_amount_irr=estimated_irr,
-        metadata_json={"idempotency_key": idempotency_key},
+        estimated_amount_irr=estimated_irr if not quota_covered else 0,
+        reserved_amount_irr=estimated_irr if not quota_covered else 0,
+        metadata_json={"idempotency_key": idempotency_key, "quota_covered": quota_covered},
     )
     db.session.add(usage)
     db.session.commit()

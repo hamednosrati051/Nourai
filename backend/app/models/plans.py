@@ -2,8 +2,10 @@
 
 Plans are admin-priced (price_irr, canonical IRR; toman display only in UI).
 Buying a paid plan runs the normal Zibal payment flow; on successful
-verification the wallet is credited price_irr + bonus_irr and a subscription
-is activated. Free plans are activated directly without payment.
+verification a subscription is activated — the wallet is NOT credited.
+The plan price buys the quota bundle; the wallet is only topped up by
+explicit top-ups and is billed when quota is exhausted (or without a plan).
+Free plans are activated directly without payment.
 
 At most one *active* subscription per user at a time (enforced in the
 service layer; see services/plans.py).
