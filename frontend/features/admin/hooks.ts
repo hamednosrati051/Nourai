@@ -382,6 +382,8 @@ export interface PlanInput {
   period?: string;
   features: string[];
   limits: string[];
+  /** Real quotas: { monthly_text, monthly_image, monthly_audio_minutes }. */
+  usage_limits?: Record<string, number>;
   is_free: boolean;
   is_featured: boolean;
   is_active: boolean;

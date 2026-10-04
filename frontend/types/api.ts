@@ -441,6 +441,8 @@ export interface Plan {
   features: string[];
   /** Usage limits shown under the features, e.g. «۲۰ درخواست متنی در ماه». */
   limits: string[];
+  /** Machine-readable quotas: monthly_text / monthly_image / monthly_audio_minutes. */
+  usage_limits?: Record<string, number> | null;
   is_free: boolean;
   /** Featured plan gets the «پیشنهاد ما» badge and highlighted style. */
   is_featured: boolean;

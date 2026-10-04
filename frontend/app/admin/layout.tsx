@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/payments', label: 'پرداخت‌ها', icon: Receipt },
   { href: '/admin/gallery', label: 'گالری', icon: ImageIcon },
   { href: '/admin/models', label: 'مدل‌ها', icon: Bot },
-  { href: '/admin/plans', label: 'پلن‌ها', icon: CreditCard },
+  { href: '/admin/plans', label: 'اشتراک‌ها', icon: CreditCard },
   { href: '/admin/pricing', label: 'تعرفه‌ها', icon: CircleDollarSign },
   { href: '/admin/currency', label: 'تنظیمات نرخ ارز', icon: ArrowLeftRight },
   { href: '/admin/image-settings', label: 'تنظیمات تصویر', icon: Settings },

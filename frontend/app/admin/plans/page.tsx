@@ -26,6 +26,9 @@ const emptyForm = {
   period: '',
   features: '',
   limits: '',
+  quota_text: '',
+  quota_image: '',
+  quota_audio: '',
   is_free: false,
   is_featured: false,
   is_active: true,
@@ -52,6 +55,7 @@ export default function AdminPlansPage() {
 
   const openEdit = (plan: Plan) => {
     setEditing(plan);
+    const ul = plan.usage_limits ?? {};
     setForm({
       name: plan.name,
       tagline: plan.tagline ?? '',
@@ -59,6 +63,9 @@ export default function AdminPlansPage() {
       period: plan.period ?? '',
       features: plan.features.join('\n'),
       limits: plan.limits.join('\n'),
+      quota_text: ul.monthly_text != null ? String(ul.monthly_text) : '',
+      quota_image: ul.monthly_image != null ? String(ul.monthly_image) : '',
+      quota_audio: ul.monthly_audio_minutes != null ? String(ul.monthly_audio_minutes) : '',
       is_free: plan.is_free,
       is_featured: plan.is_featured,
       is_active: plan.is_active,
@@ -77,6 +84,17 @@ export default function AdminPlansPage() {
         .map((s) => s.trim())
         .filter(Boolean);
     const isFree = form.is_free;
+    const num = (v: string) => {
+      const n = Number(v);
+      return v.trim() !== '' && Number.isInteger(n) && n >= 0 ? n : undefined;
+    };
+    const usage_limits: Record<string, number> = {};
+    const qt = num(form.quota_text);
+    const qi = num(form.quota_image);
+    const qa = num(form.quota_audio);
+    if (qt !== undefined) usage_limits.monthly_text = qt;
+    if (qi !== undefined) usage_limits.monthly_image = qi;
+    if (qa !== undefined) usage_limits.monthly_audio_minutes = qa;
     return {
       name: form.name.trim(),
       tagline: form.tagline.trim() || undefined,
@@ -84,6 +102,7 @@ export default function AdminPlansPage() {
       period: form.period.trim() || undefined,
       features: lines(form.features),
       limits: lines(form.limits),
+      usage_limits,
       is_free: isFree,
       is_featured: form.is_featured,
       is_active: form.is_active,
@@ -94,11 +113,11 @@ export default function AdminPlansPage() {
   const save = () => {
     const input = toInput();
     if (!input.name) {
-      toast('نام پلن الزامی است.', 'error');
+      toast('نام اشتراک الزامی است.', 'error');
       return;
     }
     if (!input.is_free && input.amount_irr <= 0) {
-      toast('قیمت پلن پولی باید بیشتر از صفر باشد.', 'error');
+      toast('قیمت اشتراک پولی باید بیشتر از صفر باشد.', 'error');
       return;
     }
     if (editing) {
@@ -106,28 +125,28 @@ export default function AdminPlansPage() {
         { id: editing.id, input },
         {
           onSuccess: () => {
-            toast('پلن به‌روزرسانی شد.', 'success');
+            toast('اشتراک به‌روزرسانی شد.', 'success');
             setModalOpen(false);
           },
-          onError: () => toast('به‌روزرسانی پلن ناموفق بود.', 'error'),
+          onError: () => toast('به‌روزرسانی اشتراک ناموفق بود.', 'error'),
         },
       );
     } else {
       createPlan.mutate(input, {
         onSuccess: () => {
-          toast('پلن جدید ثبت شد.', 'success');
+          toast('اشتراک جدید ثبت شد.', 'success');
           setModalOpen(false);
         },
-        onError: () => toast('ثبت پلن ناموفق بود.', 'error'),
+        onError: () => toast('ثبت اشتراک ناموفق بود.', 'error'),
       });
     }
   };
 
   const remove = (plan: Plan) => {
-    if (!window.confirm(`پلن «${plan.name}» حذف شود؟ این عمل قابل بازگشت نیست.`)) return;
+    if (!window.confirm(`اشتراک «${plan.name}» حذف شود؟ این عمل قابل بازگشت نیست.`)) return;
     deletePlan.mutate(plan.id, {
-      onSuccess: () => toast('پلن حذف شد.', 'success'),
-      onError: () => toast('حذف پلن ناموفق بود.', 'error'),
+      onSuccess: () => toast('اشتراک حذف شد.', 'success'),
+      onError: () => toast('حذف اشتراک ناموفق بود.', 'error'),
     });
   };
 
@@ -137,27 +156,27 @@ export default function AdminPlansPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold">مدیریت پلن‌ها</h1>
+          <h1 className="text-2xl font-extrabold">مدیریت اشتراک‌ها</h1>
           <p className="text-sm text-neutral-500 dark:text-slate-400">
-            پلن‌ها از همین‌جا در صفحه اصلی نمایش داده می‌شوند؛ قیمت‌ها به تومان وارد و به IRR ذخیره می‌شوند.
+            اشتراک‌ها از همین‌جا در صفحه اصلی نمایش داده می‌شوند؛ قیمت‌ها به تومان وارد و به IRR ذخیره می‌شوند.
           </p>
         </div>
         <button type="button" onClick={openAdd} className="btn-primary">
-          افزودن پلن
+          افزودن اشتراک
         </button>
       </div>
 
-      {plans.isLoading && <LoadingSpinner label="در حال بارگذاری پلن‌ها…" />}
+      {plans.isLoading && <LoadingSpinner label="در حال بارگذاری اشتراک‌ها…" />}
       {plans.isError && (
-        <ErrorState message="بارگذاری پلن‌ها ناموفق بود." onRetry={() => plans.refetch()} />
+        <ErrorState message="بارگذاری اشتراک‌ها ناموفق بود." onRetry={() => plans.refetch()} />
       )}
       {plans.data && plans.data.length === 0 && (
-        <EmptyState icon={CreditCard} title="پلنی ثبت نشده است" description="اولین پلن را با «افزودن پلن» بسازید." />
+        <EmptyState icon={CreditCard} title="اشتراکی ثبت نشده است" description="اولین اشتراک را با «افزودن اشتراک» بسازید." />
       )}
 
       {plans.data && plans.data.length > 0 && (
         <ResponsiveTable
-          ariaLabel="جدول پلن‌ها"
+          ariaLabel="جدول اشتراک‌ها"
           columns={[
             { header: 'نام', render: (p: Plan) => <span className="font-bold">{p.name}</span> },
             {
@@ -216,10 +235,10 @@ export default function AdminPlansPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? `ویرایش پلن «${editing.name}»` : 'افزودن پلن جدید'}
+        title={editing ? `ویرایش اشتراک «${editing.name}»` : 'افزودن اشتراک جدید'}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="نام پلن" value={form.name} onChange={(v) => set('name', v)} required placeholder="پایه" />
+          <TextField label="نام اشتراک" value={form.name} onChange={(v) => set('name', v)} required placeholder="پایه" />
           <TextField label="توضیح کوتاه" value={form.tagline} onChange={(v) => set('tagline', v)} placeholder="مناسب استفاده روزمره" />
           <NumberField
             label="قیمت (تومان)"
@@ -247,10 +266,18 @@ export default function AdminPlansPage() {
             placeholder={'۲۰ درخواست متنی در ماه\nبدون دسترسی به مدل‌های پیشرفته'}
           />
         </div>
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-bold">سقف‌های واقعی سهمیه (عدد؛ خالی = بدون سقف)</p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <NumberField label="پیام متنی در ماه" value={form.quota_text} onChange={(v) => set('quota_text', v)} min={0} placeholder="۱۰۰۰" />
+            <NumberField label="تصویر در ماه" value={form.quota_image} onChange={(v) => set('quota_image', v)} min={0} placeholder="۱۰" />
+            <NumberField label="دقیقه صوت در ماه" value={form.quota_audio} onChange={(v) => set('quota_audio', v)} min={0} placeholder="۶۰" />
+          </div>
+        </div>
         <div className="mt-4 flex flex-wrap gap-4">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.is_free} onChange={(e) => set('is_free', e.target.checked)} className="h-5 w-5" />
-            پلن رایگان
+            اشتراک رایگان
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.is_featured} onChange={(e) => set('is_featured', e.target.checked)} className="h-5 w-5" />
@@ -266,7 +293,7 @@ export default function AdminPlansPage() {
             انصراف
           </button>
           <button type="button" onClick={save} className="btn-primary" disabled={busy}>
-            {busy ? 'در حال ذخیره…' : editing ? 'ذخیره تغییرات' : 'ثبت پلن'}
+            {busy ? 'در حال ذخیره…' : editing ? 'ذخیره تغییرات' : 'ثبت اشتراک'}
           </button>
         </div>
       </Modal>
