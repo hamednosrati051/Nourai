@@ -8,6 +8,7 @@ from app.config import config
 from app.providers.base import PaymentGateway, SmsProvider
 from app.providers.fake_payment import FakePaymentGateway
 from app.providers.fake_sms import FakeSmsProvider
+from app.providers.melipayamak import MelipayamakProvider
 from app.providers.sms_ir import SmsIrProvider
 from app.providers.zibal import ZibalPaymentGateway
 
@@ -16,6 +17,8 @@ def get_sms_provider() -> SmsProvider:
     name = (config.sms_provider or "fake").lower()
     if name == "smsir":
         return SmsIrProvider()
+    if name == "melipayamak":
+        return MelipayamakProvider()
     if name == "fake":
         return FakeSmsProvider()
     raise ValueError(f"unknown SMS_PROVIDER: {name}")

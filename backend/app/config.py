@@ -50,6 +50,13 @@ class Config:
     smsir_api_base_url: str = field(default_factory=lambda: _get("SMSIR_API_BASE_URL", ""))
     # Name of the OTP placeholder inside the sms.ir pattern (e.g. "Code" for #CODE#).
     smsir_param_name: str = field(default_factory=lambda: _get("SMSIR_PARAM_NAME", "Code"))
+    # --- melipayamak (ملی پیامک) ---
+    melipayamak_api_base_url: str = field(
+        default_factory=lambda: _get("MELIPAYAMAK_API_BASE_URL", "https://rest.payamak-panel.com"))
+    melipayamak_username: str = field(default_factory=lambda: _get("MELIPAYAMAK_USERNAME", ""))
+    melipayamak_password: str = field(default_factory=lambda: _get("MELIPAYAMAK_PASSWORD", ""))
+    # Approved pattern (پترن) code from the panel.
+    melipayamak_body_id: str = field(default_factory=lambda: _get("MELIPAYAMAK_BODY_ID", ""))
 
     # --- payments ---
     payment_provider: str = field(default_factory=lambda: _get("PAYMENT_PROVIDER", "fake"))
