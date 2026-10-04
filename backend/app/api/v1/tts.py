@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError
@@ -32,6 +33,7 @@ from app.billing.ledger import (
     get_wallet_for_update,
     reserve,
 )
+from app.services.plans import PlanLimitService
 from app.billing.pricing import (
     UNIT_FIXED_REQUEST,
     PricingRuleUnavailable,
@@ -132,32 +134,49 @@ def create_tts_job():
         model_id=tts_model.id,
         status=JOB_QUEUED,
         prompt_text=text,
-        parameters_json={"tts_model_id": tts_model.id, "text_chars": len(text)},
+        parameters_json={
+            "tts_model_id": tts_model.id,
+            "text_chars": len(text),
+        },
     )
     db.session.add(job)
     db.session.flush()
 
-    wallet = get_wallet_for_update(db.session, g.current_user_id)
-    try:
-        reserve(
-            db.session, wallet=wallet, amount_irr=estimated_irr,
-            idempotency_key=f"tts:{job.id}:reserve",
-            reference_type="job", reference_id=job.id,
-            description="reserve text-to-speech",
-        )
-    except InsufficientBalance:
-        db.session.rollback()
-        return error_response("INSUFFICIENT_BALANCE", status=402)
-    except DuplicateIdempotencyKey:
-        pass
+    # Soft quota: TTS consumes audio minutes (~800 chars/min, min 1).
+    quota_minutes = max(1, math.ceil(len(text) / 800))
+    quota_covered = PlanLimitService(db.session).quota_available(
+        g.current_user_id, "audio", amount=quota_minutes
+    )
+    job.parameters_json = {
+        **job.parameters_json,
+        "quota_covered": quota_covered,
+        "quota_minutes": quota_minutes,
+    }
+    db.session.flush()
+
+    if not quota_covered:
+        wallet = get_wallet_for_update(db.session, g.current_user_id)
+        try:
+            reserve(
+                db.session, wallet=wallet, amount_irr=estimated_irr,
+                idempotency_key=f"tts:{job.id}:reserve",
+                reference_type="job", reference_id=job.id,
+                description="reserve text-to-speech",
+            )
+        except InsufficientBalance:
+            db.session.rollback()
+            return error_response("INSUFFICIENT_BALANCE", status=402)
+        except DuplicateIdempotencyKey:
+            pass
 
     usage = UsageEvent(
         user_id=g.current_user_id, job_id=job.id, model_id=tts_model.id,
         provider_key=tts_model.provider_key, status="processing",
         tokenizer_encoding=None, token_count_source=None,
         pricing_snapshot_json=snapshots,
-        estimated_amount_irr=estimated_irr, reserved_amount_irr=estimated_irr,
-        metadata_json={"idempotency_key": idempotency_key},
+        estimated_amount_irr=estimated_irr if not quota_covered else 0,
+        reserved_amount_irr=estimated_irr if not quota_covered else 0,
+        metadata_json={"idempotency_key": idempotency_key, "quota_covered": quota_covered},
     )
     db.session.add(usage)
     db.session.commit()

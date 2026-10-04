@@ -19,6 +19,7 @@ from app.models.jobs import (
     JOB_PROCESSING,
     JOB_SUCCEEDED,
 )
+from app.services.plans import PlanLimitService
 from app.services.storage import asset_key, storage
 from app.tasks import (
     aborted_during_processing,
@@ -58,6 +59,8 @@ def process_tts_job(self, job_id: str) -> dict:
         job.started_at = utcnow()
         session.commit()
 
+        quota_covered = bool((job.parameters_json or {}).get("quota_covered"))
+        quota_minutes = int((job.parameters_json or {}).get("quota_minutes") or 1)
         try:
             output_asset = _run_synthesis(session, job)
         except Exception:  # noqa: BLE001
@@ -66,8 +69,11 @@ def process_tts_job(self, job_id: str) -> dict:
             job.error_code = "PROVIDER_ERROR"
             job.error_message = _SAFE_ERROR
             job.finished_at = utcnow()
-            if usage is not None:
+            if usage is not None and not quota_covered:
                 release_job_billing(session, job=job, usage=usage, reason="provider failed")
+            elif usage is not None:
+                usage.charged_amount_irr = 0
+                usage.status = "failed"
             session.commit()
             return {"ok": False, "error": "PROVIDER_ERROR"}
 
@@ -78,10 +84,15 @@ def process_tts_job(self, job_id: str) -> dict:
 
         final_amount = usage.reserved_amount_irr or 0 if usage else 0
         if usage is not None:
-            settle_job_billing(session, job=job, usage=usage, final_amount_irr=final_amount)
+            if quota_covered:
+                usage.charged_amount_irr = 0
+                usage.status = "succeeded"
+            else:
+                settle_job_billing(session, job=job, usage=usage, final_amount_irr=final_amount)
 
         job.status = JOB_SUCCEEDED
         job.finished_at = utcnow()
+        PlanLimitService(session).increment(job.user_id, "audio", amount=quota_minutes)
         session.commit()
         log.info("tts job %s succeeded chars=%d", job_id, len(job.prompt_text or ""))
         return {"ok": True, "asset_id": output_asset.id}
