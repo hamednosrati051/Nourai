@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError
@@ -142,8 +141,9 @@ def create_tts_job():
     db.session.add(job)
     db.session.flush()
 
-    # Soft quota: TTS consumes audio minutes (~800 chars/min, min 1).
-    quota_minutes = max(1, math.ceil(len(text) / 800))
+    # Soft quota: TTS consumes audio minutes proportional to text length
+    # (~800 chars ≈ 1 minute of speech). Fractional; "سلام" ≈ 0.005 min.
+    quota_minutes = round(len(text) / 800, 3)
     quota_covered = PlanLimitService(db.session).quota_available(
         g.current_user_id, "audio", amount=quota_minutes
     )

@@ -31,8 +31,10 @@ const REMAINING_LABELS: Record<string, string> = {
 };
 
 function formatRemaining(remaining: Record<string, number>): string {
+  const fmt = (n: number) =>
+    (Number.isInteger(n) ? n : Math.round(n * 10) / 10).toLocaleString('fa-IR');
   return Object.entries(remaining)
-    .map(([kind, n]) => `${n.toLocaleString('fa-IR')} ${REMAINING_LABELS[kind] ?? kind}`)
+    .map(([kind, n]) => `${fmt(n)} ${REMAINING_LABELS[kind] ?? kind}`)
     .join('، ');
 }
 
