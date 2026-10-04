@@ -92,6 +92,17 @@ function PlanCard({ plan }: { plan: Plan }) {
 
   const buy = () => {
     if (!requireLogin()) return;
+    // Warn when replacing an active subscription: the old one is cancelled
+    // even with remaining time/quota.
+    const currentName = myPlan.data?.name;
+    if (currentName && currentName !== plan.name) {
+      const ok = window.confirm(
+        `شما اشتراک فعال «${currentName}» دارید.\n` +
+        `با خرید «${plan.name}»، اشتراک فعلی شما — حتی با وجود مهلت و سهمیه باقی‌مانده — لغو می‌شود و قابل بازگشت نیست.\n` +
+        `ادامه می‌دهید؟`,
+      );
+      if (!ok) return;
+    }
     purchasePlan.mutate(plan.id, {
       onSuccess: () => {
         toast(`اشتراک «${plan.name}» برای شما فعال شد.`, 'success');
