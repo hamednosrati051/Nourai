@@ -39,6 +39,8 @@ export interface MySubscription {
   status: string;
   usage_counters: Record<string, number>;
   over_quota: string[];
+  remaining: Record<string, number>;
+  days_remaining: number;
 }
 
 export interface MySubscriptionResponse {

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { CircleCheck, FileText, Image as ImageIcon, MessageSquare, Mic, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
-import { useMyPlan } from '@/features/plans/hooks';
+import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
 import { useModels } from '@/features/models/hooks';
 import type { ModelCapability } from '@/types/api';
@@ -23,10 +23,23 @@ import { ApiError, getErrorMessage } from '@/lib/api';
  * right-side nav, color-coded service cards, wallet overview with top-up /
  * history shortcuts, and the «اشتراک فعال شما» banner from GET /api/v1/me/plan.
  */
+
+const REMAINING_LABELS: Record<string, string> = {
+  text: 'پیام متنی',
+  image: 'تصویر',
+  audio: 'دقیقه صوت',
+};
+
+function formatRemaining(remaining: Record<string, number>): string {
+  return Object.entries(remaining)
+    .map(([kind, n]) => `${n.toLocaleString('fa-IR')} ${REMAINING_LABELS[kind] ?? kind}`)
+    .join('، ');
+}
+
 export default function DashboardPage() {
   const { data: user } = useMe();
   const wallet = useWallet();
-  const myPlan = useMyPlan(!!user);
+  const myPlan = useMySubscription(!!user);
   const models = useModels();
 
   // Capabilities that have at least one active model. While loading (or on
@@ -77,7 +90,7 @@ export default function DashboardPage() {
         )}
 
         {/* Active plan banner */}
-        {myPlan.data && (
+        {myPlan.data?.plan && (
           <div
             role="status"
             className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 dark:bg-emerald-500/10"
@@ -85,11 +98,14 @@ export default function DashboardPage() {
             <CircleCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-emerald-500" />
             <div>
               <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
-                اشتراک فعال شما: {myPlan.data.name}
+                اشتراک فعال شما: {myPlan.data.plan.name}
+                <span className="mr-2 text-xs font-normal text-neutral-500 dark:text-slate-400">
+                  {myPlan.data.days_remaining.toLocaleString('fa-IR')} روز مانده
+                </span>
               </p>
-              {(myPlan.data.limits?.length ?? 0) > 0 && (
+              {Object.keys(myPlan.data.remaining).length > 0 && (
                 <p className="text-xs text-neutral-600 dark:text-slate-400">
-                  محدودیت مصرف: {myPlan.data.limits.join('، ')}
+                  باقی‌مانده: {formatRemaining(myPlan.data.remaining)}
                 </p>
               )}
             </div>

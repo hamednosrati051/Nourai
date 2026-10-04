@@ -12,6 +12,7 @@ topped up by explicit top-ups.
 """
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -144,6 +145,13 @@ def plan_to_public_dict(plan: Plan) -> dict:
 
 def subscription_to_dict(session, sub: UserPlanSubscription) -> dict:
     plan = session.get(Plan, sub.plan_id)
+    counters = sub.usage_counters_json or {}
+    limits = (plan.usage_limits_json or {}) if plan else {}
+    remaining = {}
+    for kind, limit_key in LIMIT_KEYS.items():
+        limit = limits.get(limit_key)
+        if limit is not None:
+            remaining[kind] = max(0, limit - counters.get(COUNTER_KEYS[kind], 0))
     return {
         "id": sub.id,
         "plan_id": sub.plan_id,
@@ -151,8 +159,12 @@ def subscription_to_dict(session, sub: UserPlanSubscription) -> dict:
         "status": sub.status,
         "started_at": sub.started_at.isoformat() + "Z",
         "expires_at": sub.expires_at.isoformat() + "Z",
-        "usage_counters": sub.usage_counters_json or {},
+        "usage_counters": counters,
         "over_quota": over_quota_kinds(session, sub),
+        "remaining": remaining,
+        "days_remaining": max(
+            0, math.ceil((sub.expires_at - utcnow()).total_seconds() / 86400)
+        ),
     }
 
 

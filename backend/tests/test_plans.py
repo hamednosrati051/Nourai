@@ -199,6 +199,27 @@ def test_quota_available_soft(app, user):
         assert svc.quota_available(user, "audio") is False
 
 
+def test_subscription_dict_reports_remaining_and_days(app, user):
+    from app.services.plans import subscription_to_dict
+
+    with app.app_context():
+        plan = _plan(
+            name="پایه",
+            usage_limits_json={"monthly_text": 1000, "monthly_image": 10},
+        )
+        sub = activate_subscription(db.session, user, plan)
+        db.session.commit()
+        svc = PlanLimitService(db.session)
+        for _ in range(3):
+            svc.increment(user, "text")
+        db.session.commit()
+
+        payload = subscription_to_dict(db.session, sub)
+        assert payload["remaining"] == {"text": 997, "image": 10}
+        assert payload["days_remaining"] == 30
+        assert payload["over_quota"] == []
+
+
 def test_expired_subscription_imposes_no_limits(app, user):
     with app.app_context():
         plan = _plan(name="منقضی", usage_limits_json={"monthly_text": 0})
