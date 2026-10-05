@@ -143,9 +143,20 @@ class Config:
     def is_development(self) -> bool:
         return self.app_env == "development"
 
+    cookie_secure_override: str | None = field(
+        default_factory=lambda: _get("COOKIE_SECURE", "")
+    )
+
     @property
     def cookie_secure(self) -> bool:
         # Secure cookies require HTTPS; only enforce in production.
+        # COOKIE_SECURE=true/false overrides the default (e.g. HTTP-only
+        # staging behind no TLS yet); empty means "follow is_production".
+        override = (self.cookie_secure_override or "").strip().lower()
+        if override in {"1", "true", "yes", "on"}:
+            return True
+        if override in {"0", "false", "no", "off"}:
+            return False
         return self.is_production
 
     @property
