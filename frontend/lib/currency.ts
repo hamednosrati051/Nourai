@@ -21,7 +21,8 @@ const tomanFormatter = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0
 const irrFormatter = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 });
 
 /** Format an IRR amount as a Persian toman string, e.g. «۱۲٬۵۰۰ تومان». */
-export function formatToman(irr: number): string {
+export function formatToman(irr: number | null | undefined): string {
+  if (irr === null || irr === undefined || Number.isNaN(irr)) return '—';
   return `${tomanFormatter.format(irrToToman(irr))} تومان`;
 }
 

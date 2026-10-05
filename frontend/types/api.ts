@@ -293,7 +293,7 @@ export interface UsageEvent {
   usage_amount?: number | null;
   usage_unit?: string | null;
   /** Charged amount in integer IRR. */
-  cost_irr: number;
+  charged_amount_irr: number | null;
   created_at: string;
 }
 

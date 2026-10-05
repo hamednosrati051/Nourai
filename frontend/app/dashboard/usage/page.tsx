@@ -140,7 +140,7 @@ export default function UsagePage() {
             keyOf={(u) => u.id}
             rows={usage.data.items}
             cardHeader={(u) => (
-              <span className="tabular-nums">{formatToman(u.cost_irr)}</span>
+              <span className="tabular-nums">{formatToman(u.charged_amount_irr)}</span>
             )}
             columns={[
               { header: 'سرویس', render: (u) => SERVICE_LABELS[u.service] ?? u.service },
@@ -152,7 +152,7 @@ export default function UsagePage() {
               },
               {
                 header: 'هزینه',
-                render: (u) => <span className="tabular-nums">{formatToman(u.cost_irr)}</span>,
+                render: (u) => <span className="tabular-nums">{formatToman(u.charged_amount_irr)}</span>,
               },
               {
                 header: 'وضعیت',
