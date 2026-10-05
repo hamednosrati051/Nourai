@@ -15,11 +15,37 @@ const vazirmatn = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://inourai.ir'),
   title: {
-    default: `${BRAND.fa} | پلتفرم هوش مصنوعی`,
+    default: `${BRAND.fa} | پلتفرم هوش مصنوعی فارسی`,
     template: `%s | ${BRAND.fa}`,
   },
-  description: 'پلتفرم هوش مصنوعی نورا: گفت‌وگوی متنی، تعامل صوتی و تولید تصویر.',
+  description:
+    'نورا؛ پلتفرم هوش مصنوعی فارسی: چت‌بات هوشمند، تولید تصویر با هوش مصنوعی، تبدیل متن به صوت و صوت به متن. همه‌چیز به زبان فارسی.',
+  keywords: [
+    'هوش مصنوعی',
+    'هوش مصنوعی فارسی',
+    'چت‌بات فارسی',
+    'تولید تصویر با هوش مصنوعی',
+    'تبدیل متن به صوت',
+    'تبدیل صوت به متن',
+    'دستیار هوش مصنوعی',
+  ],
+  openGraph: {
+    type: 'website',
+    locale: 'fa_IR',
+    url: 'https://inourai.ir',
+    siteName: BRAND.fa,
+    title: `${BRAND.fa} | پلتفرم هوش مصنوعی فارسی`,
+    description:
+      'چت‌بات هوشمند، تولید تصویر، تبدیل متن به صوت و صوت به متن — همه به زبان فارسی.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${BRAND.fa} | پلتفرم هوش مصنوعی فارسی`,
+    description: 'چت‌بات هوشمند، تولید تصویر، تبدیل متن به صوت و صوت به متن — فارسی.',
+  },
+  robots: { index: true, follow: true },
 };
 
 // Inline, render-blocking script: applies the persisted theme before first paint
