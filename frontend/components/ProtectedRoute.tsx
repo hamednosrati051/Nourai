@@ -65,7 +65,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && (isAuthError(error) || isForbidden(error) || (!admin && !error))) {
-      router.replace('/noura-de03b5bbc11b/login');
+      router.replace('/noura-roham1197/login');
     }
   }, [isLoading, error, admin, router]);
 

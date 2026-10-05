@@ -17,7 +17,7 @@ export function SideNav({ items, ariaLabel }: { items: NavItem[]; ariaLabel: str
   const pathname = usePathname();
 
   const isActive = (href: string) =>
-    pathname === href || (href !== '/dashboard' && href !== '/noura-de03b5bbc11b' && pathname.startsWith(`${href}/`));
+    pathname === href || (href !== '/dashboard' && href !== '/noura-roham1197' && pathname.startsWith(`${href}/`));
 
   return (
     <nav aria-label={ariaLabel} className="lg:w-60 lg:shrink-0">

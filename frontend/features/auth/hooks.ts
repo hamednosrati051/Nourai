@@ -55,7 +55,7 @@ export function useLogout() {
 export function useAdminMe() {
   return useQuery({
     queryKey: ['admin', 'me'],
-    queryFn: () => apiGet<AdminAccount>('/noura-de03b5bbc11b/me'),
+    queryFn: () => apiGet<AdminAccount>('/noura-roham1197/me'),
     retry: false,
   });
 }
@@ -64,7 +64,7 @@ export function useAdminLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ username, password }: { username: string; password: string }) =>
-      apiPost<AdminAccount>('/noura-de03b5bbc11b/auth/login', { username, password }),
+      apiPost<AdminAccount>('/noura-roham1197/auth/login', { username, password }),
     onSuccess: (admin) => {
       queryClient.setQueryData(['admin', 'me'], admin);
     },
@@ -75,10 +75,10 @@ export function useAdminLogout() {
   const queryClient = useQueryClient();
   const router = useRouter();
   return useMutation({
-    mutationFn: () => apiPost<void>('/noura-de03b5bbc11b/auth/logout'),
+    mutationFn: () => apiPost<void>('/noura-roham1197/auth/logout'),
     onSettled: () => {
       queryClient.clear();
-      router.replace('/noura-de03b5bbc11b/login');
+      router.replace('/noura-roham1197/login');
     },
   });
 }
