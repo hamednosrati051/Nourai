@@ -112,7 +112,7 @@ def otp_request():
 
     log.info("otp requested for %s", mask_mobile(mobile))
     payload = {"sent": True}
-    if not config.is_production and result.dev_code:
+    if (not config.is_production or config.allow_fake_sms) and result.dev_code:
         payload["dev_code"] = result.dev_code
     response = success_response(payload)
     return ensure_csrf_cookie(response)

@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 class FakeSmsProvider(SmsProvider):
     def __init__(self):
-        if config.is_production:
+        if config.is_production and not config.allow_fake_sms:
             raise RuntimeError("FakeSmsProvider must never be used in production")
 
     def send_otp(self, mobile: str, code: str) -> SendOtpResult:

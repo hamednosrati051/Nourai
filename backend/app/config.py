@@ -45,6 +45,12 @@ class Config:
 
     # --- sms ---
     sms_provider: str = field(default_factory=lambda: _get("SMS_PROVIDER", "fake"))
+    # Explicit opt-in for the fake SMS provider in production. Temporary
+    # testing only — OTP codes are returned in API responses when enabled.
+    allow_fake_sms: bool = field(
+        default_factory=lambda: _get("ALLOW_FAKE_SMS", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     smsir_api_key: str = field(default_factory=lambda: _get("SMSIR_API_KEY", ""))
     smsir_template_id: str = field(default_factory=lambda: _get("SMSIR_TEMPLATE_ID", ""))
     smsir_api_base_url: str = field(default_factory=lambda: _get("SMSIR_API_BASE_URL", ""))
@@ -168,7 +174,7 @@ class Config:
         if self.is_production:
             if not self.secret_key or self.secret_key in {"dev-secret-key", "change-me"}:
                 raise RuntimeError("SECRET_KEY must be set to a strong value in production")
-            if self.sms_provider == "fake":
+            if self.sms_provider == "fake" and not self.allow_fake_sms:
                 raise RuntimeError("SMS_PROVIDER=fake is not allowed in production")
             if self.payment_provider == "fake":
                 raise RuntimeError("PAYMENT_PROVIDER=fake is not allowed in production")
