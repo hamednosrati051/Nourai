@@ -50,8 +50,12 @@ export default function ImagePage() {
   const createJob = useCreateImageJob();
   const trackedJob = useImageJob(trackedJobId);
   const history = useImageJobs(historyPage);
+  const [historyTab, setHistoryTab] = useState<'generated' | 'edited'>('generated');
   const doneImages = (history.data?.items ?? []).filter(
-    (job) => job.status === 'succeeded' && job.result_url,
+    (job) =>
+      job.status === 'succeeded' &&
+      job.result_url &&
+      (historyTab === 'generated' ? job.type === 'text_to_image' : job.type === 'image_to_image'),
   );
 
   const {
@@ -251,6 +255,34 @@ export default function ImagePage() {
           {/* User's image history */}
           <section aria-label="تصاویر شما" className="flex flex-col gap-3">
             <h2 className="text-lg font-extrabold">تصاویر شما</h2>
+            <div className="flex gap-2" role="tablist" aria-label="نوع تصاویر">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={historyTab === 'generated'}
+                onClick={() => setHistoryTab('generated')}
+                className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+                  historyTab === 'generated'
+                    ? 'bg-gold-500 text-navy-950'
+                    : 'bg-neutral-200 text-neutral-600 dark:bg-navy-800 dark:text-slate-300'
+                }`}
+              >
+                تولید شده
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={historyTab === 'edited'}
+                onClick={() => setHistoryTab('edited')}
+                className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+                  historyTab === 'edited'
+                    ? 'bg-gold-500 text-navy-950'
+                    : 'bg-neutral-200 text-neutral-600 dark:bg-navy-800 dark:text-slate-300'
+                }`}
+              >
+                ویرایش شده
+              </button>
+            </div>
             {history.isLoading && <LoadingSpinner label="در حال بارگذاری تصاویر…" />}
             {history.isError && (
               <ErrorState message="بارگذاری تصاویر ناموفق بود." onRetry={() => history.refetch()} />
@@ -258,7 +290,7 @@ export default function ImagePage() {
             {history.data && doneImages.length === 0 && (
               <EmptyState
                 icon={ImageIcon}
-                title="هنوز تصویری تولید نکرده‌اید"
+                title={historyTab === 'generated' ? 'هنوز تصویری تولید نکرده‌اید' : 'هنوز تصویری ویرایش نکرده‌اید'}
                 description="از فرم بالا اولین تصویرتان را بسازید."
               />
             )}
