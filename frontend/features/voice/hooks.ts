@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPostForm, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
 import type { AssetDownload, AudioJob, Paginated } from '@/types/api';
+import { randomUUID } from '@/lib/uuid';
 
 export function useCreateAudioJob() {
   const queryClient = useQueryClient();
@@ -13,7 +14,7 @@ export function useCreateAudioJob() {
       // Backend reads request.files["file"]; models resolve to defaults.
       form.set('file', file, file.name);
       form.set('mode', mode ?? 'assistant');
-      return apiPostForm<AudioJob>('/audio/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
+      return apiPostForm<AudioJob>('/audio/jobs', form, undefined, { 'Idempotency-Key': randomUUID() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['audio', 'jobs'] });

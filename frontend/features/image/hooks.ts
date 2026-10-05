@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPostForm, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
 import type { ImageConfig, ImageJob, Paginated } from '@/types/api';
+import { randomUUID } from '@/lib/uuid';
 
 export function useImageConfig() {
   return useQuery({
@@ -36,10 +37,10 @@ export function useCreateImageJob() {
         if (input.quality) form.set('quality', input.quality);
         if (input.model_id) form.set('model_id', input.model_id);
         form.set('image', input.inputFile, input.inputFile.name);
-        return apiPostForm<ImageJob>('/image/jobs', form, undefined, { 'Idempotency-Key': crypto.randomUUID() });
+        return apiPostForm<ImageJob>('/image/jobs', form, undefined, { 'Idempotency-Key': randomUUID() });
       }
       const { inputFile: _ignored, ...json } = input;
-      return apiPost<ImageJob>('/image/jobs', json, undefined, { 'Idempotency-Key': crypto.randomUUID() });
+      return apiPost<ImageJob>('/image/jobs', json, undefined, { 'Idempotency-Key': randomUUID() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['image', 'jobs'] });

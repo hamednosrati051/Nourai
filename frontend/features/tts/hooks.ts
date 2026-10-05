@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
 import type { Paginated, TtsJob } from '@/types/api';
+import { randomUUID } from '@/lib/uuid';
 
 export const TTS_MAX_CHARS = 2000;
 
@@ -10,7 +11,7 @@ export function useCreateTtsJob() {
   return useMutation({
     mutationFn: ({ text }: { text: string }) =>
       apiPost<TtsJob>('/tts/jobs', { text }, undefined, {
-        'Idempotency-Key': crypto.randomUUID(),
+        'Idempotency-Key': randomUUID(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tts', 'jobs'] });

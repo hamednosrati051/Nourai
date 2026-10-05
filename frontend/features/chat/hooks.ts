@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import type { ChatMessage, Conversation } from '@/types/api';
+import { randomUUID } from '@/lib/uuid';
 
 export function useConversations() {
   return useQuery({
@@ -59,7 +60,7 @@ export function useSendMessage() {
         `/conversations/${conversationId}/messages`,
         { content },
         undefined,
-        { 'Idempotency-Key': crypto.randomUUID() },
+        { 'Idempotency-Key': randomUUID() },
       ),
     onSuccess: (_data, variables) => {
       // Messages are read from GET /conversations/{id}.
