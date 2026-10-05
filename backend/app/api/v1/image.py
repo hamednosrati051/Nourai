@@ -235,6 +235,7 @@ def _job_payload(job: GenerationJob) -> dict:
         result_url = f"/api/v1/assets/{output_asset.id}/download?stream=1"
     model = db.session.get(AiModel, job.model_id) if job.model_id else None
     width, height = params.get("width"), params.get("height")
+    usage = db.session.query(UsageEvent).filter_by(job_id=job.id).first()
     return {
         "id": job.id,
         "type": job.mode,
@@ -244,6 +245,7 @@ def _job_payload(job: GenerationJob) -> dict:
         "prompt": job.prompt_text,
         "size": f"{width}x{height}" if width and height else None,
         "quality": params.get("quality"),
+        "cost_irr": usage.charged_amount_irr if usage else None,
         "result_url": result_url,
         "result_width": output_asset.width if output_asset else None,
         "result_height": output_asset.height if output_asset else None,

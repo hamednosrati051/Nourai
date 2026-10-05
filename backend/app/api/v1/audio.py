@@ -129,6 +129,7 @@ def _job_payload(job: GenerationJob) -> dict:
         .order_by(Asset.created_at.desc())
         .first()
     )
+    usage = db.session.query(UsageEvent).filter_by(job_id=job.id).first()
     return {
         "id": job.id,
         "status": job.status,
@@ -139,6 +140,7 @@ def _job_payload(job: GenerationJob) -> dict:
         "error_message": job.error_message,
         "input_asset_id": (job.parameters_json or {}).get("input_asset_id"),
         "output_asset_id": output_asset.id if output_asset else None,
+        "cost_irr": usage.charged_amount_irr if usage else None,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
