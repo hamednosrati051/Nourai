@@ -39,7 +39,12 @@ def upgrade() -> None:
             "WHERE unit_price_irr IS NOT NULL"
         ).bindparams(rate=USD_TO_IRR)
     )
-    op.alter_column("model_pricing_rules", "unit_price_usd", nullable=False)
+    op.alter_column(
+        "model_pricing_rules",
+        "unit_price_usd",
+        existing_type=sa.Numeric(20, 8),
+        nullable=False,
+    )
     op.drop_column("model_pricing_rules", "unit_price_irr")
 
     # Seed the conversion rate wherever it was never configured.
@@ -71,5 +76,10 @@ def downgrade() -> None:
             "WHERE unit_price_usd IS NOT NULL"
         ).bindparams(rate=USD_TO_IRR)
     )
-    op.alter_column("model_pricing_rules", "unit_price_irr", nullable=False)
+    op.alter_column(
+        "model_pricing_rules",
+        "unit_price_irr",
+        existing_type=sa.BigInteger(),
+        nullable=False,
+    )
     op.drop_column("model_pricing_rules", "unit_price_usd")
