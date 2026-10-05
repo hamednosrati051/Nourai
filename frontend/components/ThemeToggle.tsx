@@ -17,7 +17,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   // On mobile: single button cycling through modes (saves space).
   const cycle = () => {
     const order: ThemeMode[] = ['light', 'dark', 'system'];
-    const next = order[(order.indexOf(mode) + 1) % order.length];
+    const next = order[(order.indexOf(mode) + 1) % order.length] ?? 'system';
     setMode(next);
   };
   const CurrentIcon = OPTIONS.find((o) => o.value === mode)?.icon ?? Monitor;
