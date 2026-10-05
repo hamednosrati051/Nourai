@@ -21,7 +21,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(128), nullable=False),
         sa.Column("title", sa.String(256), nullable=False),
         sa.Column("description", sa.String(512), nullable=False, server_default=""),
-        sa.Column("content_json", sa.JSON, nullable=False, server_default="[]"),
+        sa.Column("content_json", sa.JSON, nullable=False),
         sa.Column("is_published", sa.Boolean, nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime, nullable=False, server_default=sa.func.now()),
