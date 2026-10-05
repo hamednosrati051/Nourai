@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Image as ImageIcon, Newspaper } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { ThemeToggle } from './ThemeToggle';
@@ -28,15 +29,19 @@ export function PillHeader() {
         <Link
           href="/gallery"
           className="btn-ghost btn-sm whitespace-nowrap"
+          aria-label="گالری"
         >
-          گالری
+          <ImageIcon className="h-4 w-4 sm:hidden" />
+          <span className="hidden sm:inline">گالری</span>
         </Link>
 
         <Link
           href="/blog"
           className="btn-ghost btn-sm whitespace-nowrap"
+          aria-label="بلاگ"
         >
-          بلاگ
+          <Newspaper className="h-4 w-4 sm:hidden" />
+          <span className="hidden sm:inline">بلاگ</span>
         </Link>
 
         <ThemeToggle compact />
