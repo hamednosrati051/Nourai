@@ -62,6 +62,28 @@ def sniff_audio_mime(data: bytes, declared: str | None = None) -> str | None:
     return None
 
 
+def estimate_audio_duration_seconds(data: bytes, mime: str | None) -> float:
+    """Best-effort audio duration in seconds.
+
+    WAV is parsed precisely from the header. For compressed formats the
+    duration is estimated from the file size assuming a conservative
+    32 kbps bitrate (lower bitrate -> longer estimate -> safer hold).
+    """
+    if mime == "audio/wav" and len(data) >= 44:
+        try:
+            import wave
+            from io import BytesIO
+            with wave.open(BytesIO(data), "rb") as w:
+                frames = w.getnframes()
+                rate = w.getframerate()
+                if rate > 0:
+                    return frames / rate
+        except Exception:  # noqa: BLE001
+            pass
+    # Fallback: size-based estimate at 32 kbps (conservative).
+    return len(data) * 8 / 32000
+
+
 def _resolve_model(model_id: str | None, capability: str) -> AiModel | None:
     if model_id:
         model = db.session.get(AiModel, model_id)
@@ -166,18 +188,23 @@ def create_audio_job():
     if not idempotency_key:
         return error_response("VALIDATION_ERROR", "Idempotency-Key header is required.", 422)
 
-    # Reserve conservatively on the maximum billable duration; the worker
-    # settles on the actual duration afterwards.
+    # Reserve on 2x the actual audio duration (capped at the max); the worker
+    # settles on the real duration afterwards and returns the excess.
+    actual_seconds = estimate_audio_duration_seconds(raw, mime)
+    billable_seconds = min(
+        config.audio_max_duration_seconds,
+        max(1, math.ceil(actual_seconds * 2)),
+    )
     pricing = PricingService(db.session)
     try:
-        estimate = pricing.estimate_audio(stt_model.id, config.audio_max_duration_seconds,
+        estimate = pricing.estimate_audio(stt_model.id, billable_seconds,
                                           text_model_id=text_model.id if text_model else None)
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
     estimated_irr = estimate["total_irr"]
 
     # Soft quota: minutes billed against the plan when covered, else wallet.
-    quota_minutes = max(1, math.ceil(config.audio_max_duration_seconds / 60))
+    quota_minutes = max(1, math.ceil(billable_seconds / 60))
     quota_covered = PlanLimitService(db.session).quota_available(
         g.current_user_id, "audio", amount=quota_minutes
     )
