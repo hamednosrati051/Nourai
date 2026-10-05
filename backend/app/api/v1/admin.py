@@ -701,18 +701,6 @@ PROVIDER_TYPES = {
 }
 
 
-def _enforce_single_active(capability: str, except_id: str | None = None) -> int:
-    """Deactivate all other active models of a capability. Returns count."""
-    q = db.session.query(AiModel).filter(
-        AiModel.capability == capability, AiModel.is_active.is_(True))
-    if except_id:
-        q = q.filter(AiModel.id != except_id)
-    others = q.all()
-    for m in others:
-        m.is_active = False
-    return len(others)
-
-
 def _extract_provider_creds(config_json: dict | None) -> tuple[str, str]:
     """(base_url, api_key) stored on the model via the admin form."""
     creds = (config_json or {}).get(_PROVIDER_CREDS_KEY) or {}
@@ -827,17 +815,10 @@ def create_model():
         description=data.description,
     )
     db.session.add(model)
-    # Flush first so model.id is assigned: single-active enforcement must
-    # not deactivate the model being created, and the audit needs its id.
     db.session.flush()
-    deactivated = 0
-    if model.is_active:
-        # Only one active model per capability: deactivate the rest first.
-        deactivated = _enforce_single_active(model.capability, except_id=model.id)
     _audit("model.created", "ai_model", model.id, {"slug": model.slug})
     db.session.commit()
     payload = _model_payload(model)
-    payload["deactivated_others"] = deactivated
     return success_response(payload, status=201)
 
 
@@ -880,14 +861,9 @@ def update_model(model_id: str):
         changes["provider_credentials"] = True
     if data.description is not None:
         model.description = data.description; changes["description"] = True
-    deactivated = 0
-    if model.is_active:
-        # Only one active model per capability.
-        deactivated = _enforce_single_active(model.capability, except_id=model.id)
     _audit("model.updated", "ai_model", model.id, changes)
     db.session.commit()
     payload = _model_payload(model)
-    payload["deactivated_others"] = deactivated
     return success_response(payload)
 
 
