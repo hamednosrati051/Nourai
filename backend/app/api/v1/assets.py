@@ -5,7 +5,7 @@ may access any asset through the admin endpoints instead.
 """
 from __future__ import annotations
 
-from flask import Blueprint, g
+from flask import Blueprint, g, request
 
 from app.api.deps import error_response, login_required, success_response
 from app.config import config
