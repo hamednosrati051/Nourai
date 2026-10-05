@@ -154,6 +154,39 @@ export default function HomePage() {
             onRetry={() => gallery.refetch()}
           />
         </section>
+        {/* SEO: FAQ about AI in Persian */}
+        <section aria-labelledby="faq-heading" className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+          <h2 id="faq-heading" className="mb-8 text-center text-2xl font-black sm:text-3xl">
+            سؤالات متداول درباره <span className="text-gradient">هوش مصنوعی</span>
+          </h2>
+          <div className="flex flex-col gap-4">
+            {[
+              {
+                q: 'هوش مصنوعی چیست و چه کاربردی دارد؟',
+                a: 'هوش مصنوعی فناوری‌ای است که به کامپیوترها امکان می‌دهد مثل انسان فکر کنند، بنویسند، تصویر بسازند و صدا تولید کنند. نورا این قابلیت‌ها را به زبان فارسی در اختیار شما می‌گذارد: از گفت‌وگوی هوشمند تا تولید تصویر با هوش مصنوعی.',
+              },
+              {
+                q: 'چطور با هوش مصنوعی فارسی تصویر بسازم؟',
+                a: 'کافی است در بخش تولید تصویر نورا، توضیح متنی خود را به فارسی بنویسید. هوش مصنوعی در چند ثانیه تصویر مورد نظر شما را می‌سازد. می‌توانید تصویر موجود را هم ویرایش کنید.',
+              },
+              {
+                q: 'آیا نورا از زبان فارسی پشتیبانی می‌کند؟',
+                a: 'بله. نورا به‌طور کامل فارسی است: چت‌بات فارسی، تبدیل گفتار فارسی به متن، و تبدیل متن فارسی به گفتار طبیعی.',
+              },
+              {
+                q: 'هزینه استفاده از هوش مصنوعی نورا چقدر است؟',
+                a: 'نورا با کیف پول شفاف کار می‌کند؛ قبل از هر درخواست، هزینه دقیق نمایش داده می‌شود و فقط همان مبلغ کسر می‌گردد. تعرفه‌ها در صفحه اصلی مشخص است.',
+              },
+            ].map((item) => (
+              <details key={item.q} className="card group">
+                <summary className="cursor-pointer list-none font-bold marker:hidden [&::-webkit-details-marker]:hidden">
+                  {item.q}
+                </summary>
+                <p className="mt-3 leading-8 text-neutral-600 dark:text-slate-400">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </main>
 
       <Footer />
