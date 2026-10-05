@@ -73,6 +73,12 @@ export default function ImagePage() {
   // user never chooses a model here.
   const jobType = watch('type');
 
+  // Sync history tabs with the form mode: picking "ویرایش تصویر" up top
+  // also switches the gallery below to edited images, and vice versa.
+  useEffect(() => {
+    setHistoryTab(jobType === 'image_to_image' ? 'edited' : 'generated');
+  }, [jobType]);
+
   // Object URL for the selected input image preview.
 
   // Object URL for the selected input image preview.
