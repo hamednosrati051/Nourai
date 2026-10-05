@@ -47,7 +47,12 @@ export function PillHeader() {
         <ThemeToggle compact />
 
         <Link href={authed ? '/dashboard' : '/auth/login'} className="btn-primary btn-sm whitespace-nowrap">
-          {isLoading ? '…' : authed ? 'داشبورد' : 'ثبت‌نام / ورود'}
+          {isLoading ? '…' : authed ? 'داشبورد' : (
+            <>
+              <span className="sm:hidden">ورود</span>
+              <span className="hidden sm:inline">ثبت‌نام / ورود</span>
+            </>
+          )}
         </Link>
       </header>
     </div>
