@@ -127,8 +127,8 @@ function tryRefresh(refreshPath: string): Promise<boolean> {
  * a 401 there means "not logged in / wrong code", not "token expired".
  */
 function refreshPathFor(path: string): string | null {
-  if (path.startsWith('/auth/') || path.startsWith('/admin/auth/')) return null;
-  if (path.startsWith('/admin/')) return '/admin/auth/refresh';
+  if (path.startsWith('/auth/') || path.startsWith('/noura-de03b5bbc11b/auth/')) return null;
+  if (path.startsWith('/noura-de03b5bbc11b/')) return '/noura-de03b5bbc11b/auth/refresh';
   return '/auth/refresh';
 }
 

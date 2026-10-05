@@ -24,10 +24,10 @@ function loginRedirect(request: NextRequest, pathname: string) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith('/admin')) {
-    if (pathname === '/admin/login') return NextResponse.next();
+  if (pathname.startsWith('/noura-de03b5bbc11b')) {
+    if (pathname === '/noura-de03b5bbc11b/login') return NextResponse.next();
     if (!request.cookies.get(ADMIN_COOKIE)) {
-      return loginRedirect(request, '/admin/login');
+      return loginRedirect(request, '/noura-de03b5bbc11b/login');
     }
     return NextResponse.next();
   }
@@ -42,5 +42,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/noura-de03b5bbc11b/:path*'],
 };

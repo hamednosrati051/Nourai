@@ -10,10 +10,10 @@ import { ThemeToggle } from './ThemeToggle';
 export function Header() {
   const pathname = usePathname();
   const { data: user, isLoading } = useMe();
-  const isAdminArea = pathname.startsWith('/admin');
+  const isAdminArea = pathname.startsWith('/noura-de03b5bbc11b');
   const isAuthed = !!user;
 
-  const ctaHref = isAdminArea ? '/admin' : isAuthed ? '/dashboard' : '/auth/login';
+  const ctaHref = isAdminArea ? '/noura-de03b5bbc11b' : isAuthed ? '/dashboard' : '/auth/login';
   const ctaLabel = isAdminArea ? 'پنل ادمین' : isAuthed ? 'داشبورد من' : 'ثبت‌نام / ورود';
 
   return (
