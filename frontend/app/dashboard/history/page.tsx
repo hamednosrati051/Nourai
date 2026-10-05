@@ -3,7 +3,7 @@
 import { Image as ImageIcon, Mic } from 'lucide-react';
 import { useState } from 'react';
 import { useImageJobs } from '@/features/image/hooks';
-import { useAudioJobs, useAssetDownloadUrl } from '@/features/voice/hooks';
+import { useAudioJobs, useAssetDownloadUrl, assetStreamUrl } from '@/features/voice/hooks';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -158,6 +158,6 @@ function HistoryAudioCell({ assetId }: { assetId: string | null }) {
   const { data, isLoading } = useAssetDownloadUrl(assetId);
   if (!assetId) return <span className="text-neutral-400">—</span>;
   if (isLoading) return <span className="text-xs text-neutral-400">در حال آماده‌سازی…</span>;
-  if (!data?.download_url) return <span className="text-neutral-400">—</span>;
-  return <audio controls src={data.download_url} className="w-48" aria-label="پاسخ صوتی" />;
+  if (!data?.download_url && !assetId) return <span className="text-neutral-400">—</span>;
+  return <audio controls src={assetId ? assetStreamUrl(assetId) : data?.download_url} className="w-48" aria-label="پاسخ صوتی" />;
 }

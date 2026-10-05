@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useAssetDownloadUrl } from '@/features/voice/hooks';
+import { useAssetDownloadUrl, assetStreamUrl } from '@/features/voice/hooks';
 
 /** Pretty custom audio player: play/pause, seekable progress, time, download. */
 export function VoicePlayer({
@@ -19,7 +19,7 @@ export function VoicePlayer({
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [downloading, setDownloading] = useState(false);
-  const url = data?.download_url;
+  const url = assetId ? assetStreamUrl(assetId) : data?.download_url;
 
   const toggle = () => {
     const a = audioRef.current;

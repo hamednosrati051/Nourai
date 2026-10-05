@@ -3,7 +3,7 @@
 import { Paperclip } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob } from '@/features/voice/hooks';
+import { useAudioJob, useAudioJobs, useAssetDownloadUrl, useCreateAudioJob, assetStreamUrl } from '@/features/voice/hooks';
 import { useRecorder } from '@/features/voice/useRecorder';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ErrorState } from '@/components/ErrorState';
@@ -264,7 +264,7 @@ function ReplyAutoPlayer({
   const playedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    const url = data?.download_url;
+    const url = assetId ? assetStreamUrl(assetId) : data?.download_url;
     if (!enabled || !jobId || !url || playedFor.current === jobId) return;
     playedFor.current = jobId;
     const audio = new Audio(url);

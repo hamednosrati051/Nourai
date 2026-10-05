@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPostForm, buildQuery } from '@/lib/api';
+import { apiGet, apiPostForm, apiUrl, buildQuery } from '@/lib/api';
 import { DEFAULT_PAGE_SIZE } from '@/lib/config';
 import type { AssetDownload, AudioJob, Paginated } from '@/types/api';
 import { randomUUID } from '@/lib/uuid';
@@ -53,4 +53,9 @@ export function useAssetDownloadUrl(assetId: string | null) {
     enabled: !!assetId,
     staleTime: 1000 * 60 * 5,
   });
+}
+
+/** Direct stream URL for <audio>/<img> tags (same-origin, cookie auth). */
+export function assetStreamUrl(assetId: string): string {
+  return apiUrl(`/assets/${assetId}/download?stream=1`);
 }
