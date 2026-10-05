@@ -22,10 +22,8 @@ bp = Blueprint("gallery", __name__)
 def get_gallery():
     items = public_gallery(db.session)
     for item in items:
-        try:
-            asset = db.session.get(Asset, item["asset_id"])
-            item["image_url"] = storage.presigned_get_url(asset.storage_key)
-        except Exception:  # noqa: BLE001 - storage down -> omit url
-            item["image_url"] = None
+        asset = db.session.get(Asset, item["asset_id"])
+        # Stream via backend (same-origin). Presigned URLs point at localhost.
+        item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1" if asset else None
         del item["asset_id"]
     return success_response(items, {"limit": config.gallery_public_limit})

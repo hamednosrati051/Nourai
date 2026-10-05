@@ -123,4 +123,4 @@ def test_model_driven_image_flow(app, client, admin, user, monkeypatch):
     assert data["status"] == "succeeded"
     assert data["type"] == "text_to_image"
     assert data["prompt"] == "یک گربه روی فرش ایرانی"
-    assert data["result_url"] == f"https://cdn.test/{asset.storage_key}"
+    assert data["result_url"] == f"/api/v1/assets/{asset.id}/download?stream=1"

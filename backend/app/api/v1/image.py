@@ -230,10 +230,9 @@ def _job_payload(job: GenerationJob) -> dict:
     params = job.parameters_json or {}
     result_url = None
     if output_asset is not None:
-        try:
-            result_url = storage.presigned_get_url(output_asset.storage_key)
-        except Exception:  # noqa: BLE001 - storage optional/misconfigured
-            log.warning("could not mint result_url for image job %s", job.id)
+        # Stream via the backend (same-origin, cookie auth). Presigned S3
+        # URLs point at localhost and don't work in browsers.
+        result_url = f"/api/v1/assets/{output_asset.id}/download?stream=1"
     model = db.session.get(AiModel, job.model_id) if job.model_id else None
     width, height = params.get("width"), params.get("height")
     return {

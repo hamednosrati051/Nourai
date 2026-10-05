@@ -529,10 +529,8 @@ def _asset_payload(asset: Asset, include_url: bool = False) -> dict:
         "created_at": asset.created_at.isoformat() if asset.created_at else None,
     }
     if include_url:
-        try:
-            payload["download_url"] = storage.presigned_get_url(asset.storage_key)
-        except Exception:  # noqa: BLE001
-            payload["download_url"] = None
+        # Stream via backend (same-origin). Presigned URLs point at localhost.
+        payload["download_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
         # The admin UI's AssetItem contract expects `url`.
         payload["url"] = payload["download_url"]
     return payload
@@ -573,10 +571,7 @@ def list_gallery():
                 "width": asset.width, "height": asset.height,
                 "mime_type": asset.mime_type, "size_bytes": asset.size_bytes,
             })
-            try:
-                item["image_url"] = storage.presigned_get_url(asset.storage_key)
-            except Exception:  # noqa: BLE001
-                item["image_url"] = None
+            item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
             # The admin UI renders the prompt (small) under each image.
             job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
             prompt = (job.prompt_text or "").strip() if job else ""
