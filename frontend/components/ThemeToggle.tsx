@@ -14,12 +14,30 @@ const OPTIONS: { value: ThemeMode; label: string; icon: LucideIcon }[] = [
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { mode, setMode } = useTheme();
 
+  // On mobile: single button cycling through modes (saves space).
+  const cycle = () => {
+    const order: ThemeMode[] = ['light', 'dark', 'system'];
+    const next = order[(order.indexOf(mode) + 1) % order.length];
+    setMode(next);
+  };
+  const CurrentIcon = OPTIONS.find((o) => o.value === mode)?.icon ?? Monitor;
+
   return (
-    <div
-      role="radiogroup"
-      aria-label="انتخاب تم"
-      className="inline-flex items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 p-1 dark:border-white/15 dark:bg-navy-900"
-    >
+    <>
+      <button
+        type="button"
+        onClick={cycle}
+        aria-label="تغییر تم"
+        title="تغییر تم"
+        className="btn-ghost btn-sm sm:hidden"
+      >
+        <CurrentIcon aria-hidden="true" className="h-4 w-4" />
+      </button>
+      <div
+        role="radiogroup"
+        aria-label="انتخاب تم"
+        className="hidden items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 p-1 sm:inline-flex dark:border-white/15 dark:bg-navy-900"
+      >
       {OPTIONS.map((opt) => (
         <button
           key={opt.value}
@@ -39,6 +57,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
           <span className="sr-only">{opt.label}</span>
         </button>
       ))}
-    </div>
+      </div>
+    </>
   );
 }
