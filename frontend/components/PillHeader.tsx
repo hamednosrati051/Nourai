@@ -32,6 +32,13 @@ export function PillHeader() {
           گالری
         </Link>
 
+        <Link
+          href="/blog"
+          className="btn-ghost btn-sm whitespace-nowrap"
+        >
+          بلاگ
+        </Link>
+
         <ThemeToggle compact />
 
         <Link href={authed ? '/dashboard' : '/auth/login'} className="btn-primary btn-sm whitespace-nowrap">

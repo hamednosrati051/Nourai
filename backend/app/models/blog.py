@@ -16,6 +16,8 @@ class BlogPost(Base):
     slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(String(512), nullable=False, default="")
+    # Cover image URL (optional, for beautiful cards).
+    cover_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Paragraphs stored as JSON list of strings.
     content_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)

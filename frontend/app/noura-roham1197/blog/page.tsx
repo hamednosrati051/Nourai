@@ -7,6 +7,7 @@ import {
   useCreateBlogPost,
   useDeleteBlogPost,
   useUpdateBlogPost,
+  useUploadBlogCover,
   type AdminBlogPost,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -16,7 +17,7 @@ import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
 
-const EMPTY_FORM = { slug: '', title: '', description: '', content: '', is_published: false };
+const EMPTY_FORM = { slug: '', title: '', description: '', cover_image_url: '', content: '', is_published: false };
 
 /** Admin blog management: list, create, edit, publish, delete. */
 export default function BlogAdminPage() {
@@ -25,6 +26,7 @@ export default function BlogAdminPage() {
   const createPost = useCreateBlogPost();
   const updatePost = useUpdateBlogPost();
   const deletePost = useDeleteBlogPost();
+  const uploadCover = useUploadBlogCover();
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<AdminBlogPost | null>(null);
@@ -45,10 +47,23 @@ export default function BlogAdminPage() {
       slug: p.slug,
       title: p.title,
       description: p.description,
+      cover_image_url: p.cover_image_url || '',
       content: p.content.join('\n\n'),
       is_published: p.is_published,
     });
     setShowForm(true);
+  };
+
+  const onCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadCover.mutate(file, {
+      onSuccess: (res) => {
+        setForm({ ...form, cover_image_url: res.url });
+        toast('کاور آپلود شد.', 'success');
+      },
+      onError: (err) => errMsg(err, 'آپلود کاور ناموفق بود.'),
+    });
   };
 
   const onSubmit = () => {
@@ -56,6 +71,7 @@ export default function BlogAdminPage() {
       slug: form.slug.trim(),
       title: form.title.trim(),
       description: form.description.trim(),
+      cover_image_url: form.cover_image_url.trim() || null,
       content: form.content.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean),
       is_published: form.is_published,
     };
@@ -185,6 +201,23 @@ export default function BlogAdminPage() {
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
+              </div>
+              <div>
+                <label className="label">عکس کاور</label>
+                {form.cover_image_url && (
+                  <img
+                    src={form.cover_image_url}
+                    alt="کاور"
+                    className="mb-2 h-32 w-full rounded-xl object-cover"
+                  />
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={onCoverSelect}
+                  className="input"
+                />
+                {uploadCover.isPending && <p className="mt-1 text-xs">در حال آپلود…</p>}
               </div>
               <div>
                 <label className="label">متن (هر پاراگراف با یک خط خالی جدا شود)</label>

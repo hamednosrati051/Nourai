@@ -511,6 +511,7 @@ export interface AdminBlogPost {
   slug: string;
   title: string;
   description: string;
+  cover_image_url: string | null;
   content: string[];
   is_published: boolean;
   created_at: string;
@@ -547,5 +548,16 @@ export function useDeleteBlogPost() {
   return useMutation({
     mutationFn: (id: string) => apiDelete<void>(`/admin/blog/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] }),
+  });
+}
+
+export function useUploadBlogCover() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const { apiPostForm } = await import('@/lib/api');
+      return apiPostForm<{ key: string; url: string }>('/admin/blog/upload-cover', form);
+    },
   });
 }

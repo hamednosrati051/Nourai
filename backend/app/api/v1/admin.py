@@ -1745,6 +1745,7 @@ def _blog_payload(p) -> dict:
         "slug": p.slug,
         "title": p.title,
         "description": p.description,
+        "cover_image_url": p.cover_image_url,
         "content": p.content_json or [],
         "is_published": p.is_published,
         "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -1763,6 +1764,7 @@ class BlogPostSchema(BaseModel):
     slug: str
     title: str
     description: str = ""
+    cover_image_url: str | None = None
     content: list[str] = []
     is_published: bool = False
 
@@ -1783,6 +1785,7 @@ def create_blog_post():
         slug=slug,
         title=data.title.strip(),
         description=(data.description or "").strip(),
+        cover_image_url=(data.cover_image_url or "").strip() or None,
         content_json=[str(c) for c in (data.content or [])],
         is_published=data.is_published,
     )
@@ -1810,6 +1813,8 @@ def update_blog_post(post_id: str):
     post.slug = slug
     post.title = data.title.strip()
     post.description = (data.description or "").strip()
+    if data.cover_image_url is not None:
+        post.cover_image_url = data.cover_image_url.strip() or None
     post.content_json = [str(c) for c in (data.content or [])]
     post.is_published = data.is_published
     _audit("blog.updated", "blog_post", post.id, {"slug": slug})
@@ -1827,3 +1832,24 @@ def delete_blog_post(post_id: str):
     db.session.delete(post)
     db.session.commit()
     return success_response({"id": post_id})
+
+
+@bp.post("/admin/blog/upload-cover")
+@admin_required
+def upload_blog_cover():
+    """Upload a blog cover image. Returns the storage key."""
+    upload = request.files.get("file") or request.files.get("image")
+    if upload is None:
+        return validation_error()
+    raw = upload.read()
+    if not raw or len(raw) > 5 * 1024 * 1024:
+        return validation_error()
+    # Basic image type check.
+    import imghdr
+    kind = imghdr.what(None, h=raw)
+    if kind not in ("jpeg", "png", "webp", "gif"):
+        return error_response("VALIDATION_ERROR", "فرمت تصویر پشتیبانی نمی‌شود.", 422)
+    ext = "jpg" if kind == "jpeg" else kind
+    key = f"blog/covers/{new_uuid()}.{ext}"
+    storage.put_bytes(key, raw, f"image/{kind}")
+    return success_response({"key": key, "url": f"/api/v1/assets/blog-cover?key={key}"})

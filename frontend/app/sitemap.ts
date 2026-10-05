@@ -2,10 +2,11 @@ import type { MetadataRoute } from 'next';
 
 const BASE = 'https://inourai.ir';
 
+const API_BASE = process.env.BLOG_API_URL || 'http://127.0.0.1:8000';
+
 async function blogSlugs(): Promise<string[]> {
   try {
-    // Server-side: hit the backend directly (same machine).
-    const res = await fetch(`${process.env.BLOG_API_URL || 'http://127.0.0.1:8000'}/api/v1/blog`, {
+    const res = await fetch(`${API_BASE}/api/v1/blog`, {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return [];
