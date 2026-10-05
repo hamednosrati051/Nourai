@@ -263,7 +263,7 @@ export default function ImagePage() {
                 onClick={() => setHistoryTab('generated')}
                 className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
                   historyTab === 'generated'
-                    ? 'bg-gold-500 text-navy-950'
+                    ? 'bg-brand-500 text-navy-950'
                     : 'bg-neutral-200 text-neutral-600 dark:bg-navy-800 dark:text-slate-300'
                 }`}
               >
@@ -276,7 +276,7 @@ export default function ImagePage() {
                 onClick={() => setHistoryTab('edited')}
                 className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
                   historyTab === 'edited'
-                    ? 'bg-gold-500 text-navy-950'
+                    ? 'bg-brand-500 text-navy-950'
                     : 'bg-neutral-200 text-neutral-600 dark:bg-navy-800 dark:text-slate-300'
                 }`}
               >
