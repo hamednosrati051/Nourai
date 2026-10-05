@@ -14,10 +14,10 @@ interface BlogPost {
 
 async function getPost(slug: string): Promise<BlogPost | null> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/blog/${slug}`,
-      { next: { revalidate: 300 } },
-    );
+    // Server-side: hit the backend directly (same machine).
+    const res = await fetch(`${process.env.BLOG_API_URL || 'http://127.0.0.1:8000'}/api/v1/blog/${slug}`, {
+      next: { revalidate: 300 },
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data ?? null;
