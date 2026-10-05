@@ -2,6 +2,7 @@
 from app.models.admin import AdminUser
 from app.models.audit import AuditLog
 from app.models.base import Base, new_uuid, utcnow
+from app.models.blog import BlogPost
 from app.models.catalog import AiModel, ModelPricingRule
 from app.models.chat import Conversation, Message, MessageAsset
 from app.models.gallery import GalleryEntry
@@ -20,6 +21,7 @@ __all__ = [
     "Asset",
     "AuditLog",
     "Base",
+    "BlogPost",
     "Conversation",
     "CurrencySettings",
     "GalleryEntry",

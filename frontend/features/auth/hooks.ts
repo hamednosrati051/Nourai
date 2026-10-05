@@ -55,7 +55,7 @@ export function useLogout() {
 export function useAdminMe() {
   return useQuery({
     queryKey: ['admin', 'me'],
-    queryFn: () => apiGet<AdminAccount>('/noura-roham1197/me'),
+    queryFn: () => apiGet<AdminAccount>('/admin/me'),
     retry: false,
   });
 }
@@ -64,7 +64,7 @@ export function useAdminLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ username, password }: { username: string; password: string }) =>
-      apiPost<AdminAccount>('/noura-roham1197/auth/login', { username, password }),
+      apiPost<AdminAccount>('/admin/auth/login', { username, password }),
     onSuccess: (admin) => {
       queryClient.setQueryData(['admin', 'me'], admin);
     },
@@ -75,7 +75,7 @@ export function useAdminLogout() {
   const queryClient = useQueryClient();
   const router = useRouter();
   return useMutation({
-    mutationFn: () => apiPost<void>('/noura-roham1197/auth/logout'),
+    mutationFn: () => apiPost<void>('/admin/auth/logout'),
     onSettled: () => {
       queryClient.clear();
       router.replace('/noura-roham1197/login');

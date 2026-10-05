@@ -29,7 +29,7 @@ import type {
 export function useAdminDashboard() {
   return useQuery({
     queryKey: ['admin', 'dashboard'],
-    queryFn: () => apiGet<AdminStats>('/noura-roham1197/dashboard'),
+    queryFn: () => apiGet<AdminStats>('/admin/dashboard'),
   });
 }
 
@@ -50,7 +50,7 @@ export function useAdminUsers(filters: AdminUserFilters = {}) {
     queryKey: ['admin', 'users', page, pageSize, search, isActive],
     queryFn: () =>
       apiGet<Paginated<AdminUserRow>>(
-        `/noura-roham1197/users${buildQuery({
+        `/admin/users${buildQuery({
           page,
           page_size: pageSize,
           search: search || undefined,
@@ -63,7 +63,7 @@ export function useAdminUsers(filters: AdminUserFilters = {}) {
 export function useAdminUser(id: string | null) {
   return useQuery({
     queryKey: ['admin', 'users', id],
-    queryFn: () => apiGet<AdminUserDetail>(`/noura-roham1197/users/${id}`),
+    queryFn: () => apiGet<AdminUserDetail>(`/admin/users/${id}`),
     enabled: !!id,
   });
 }
@@ -73,7 +73,7 @@ export function useUserActivity(id: string | null, page = 1) {
     queryKey: ['admin', 'users', id, 'activity', page],
     queryFn: () =>
       apiGet<Paginated<ActivityItem>>(
-        `/noura-roham1197/users/${id}/activity${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+        `/admin/users/${id}/activity${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
       ),
     enabled: !!id,
   });
@@ -90,7 +90,7 @@ export function useUserAssets(id: string | null, kind?: 'generated' | 'chat_inpu
     queryKey: ['admin', 'users', id, 'assets', kind],
     queryFn: () =>
       apiGet<AssetItem[]>(
-        `/noura-roham1197/users/${id}/assets${buildQuery({ kind: kind ? USER_ASSET_KIND_MAP[kind] : undefined })}`,
+        `/admin/users/${id}/assets${buildQuery({ kind: kind ? USER_ASSET_KIND_MAP[kind] : undefined })}`,
       ),
     enabled: !!id && enabled,
   });
@@ -101,7 +101,7 @@ export function useUserWalletTransactions(id: string | null, page = 1) {
     queryKey: ['admin', 'users', id, 'wallet-transactions', page],
     queryFn: () =>
       apiGet<Paginated<WalletTransaction>>(
-        `/noura-roham1197/users/${id}/wallet-transactions${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+        `/admin/users/${id}/wallet-transactions${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
       ),
     enabled: !!id,
   });
@@ -111,7 +111,7 @@ export function useUpdateUserStatus() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, isActive, reason }: { id: string; isActive: boolean; reason: string }) =>
-      apiPatch<AdminUserDetail>(`/noura-roham1197/users/${id}/status`, { is_active: isActive, reason }),
+      apiPatch<AdminUserDetail>(`/admin/users/${id}/status`, { is_active: isActive, reason }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -131,7 +131,7 @@ export function useWalletAdjustment() {
       /** Signed integer IRR: positive = credit, negative = debit. */
       amountIrr: number;
       reason: string;
-    }) => apiPost<WalletTransaction>(`/noura-roham1197/users/${id}/wallet-adjustments`, { amount_irr: amountIrr, reason }),
+    }) => apiPost<WalletTransaction>(`/admin/users/${id}/wallet-adjustments`, { amount_irr: amountIrr, reason }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.id, 'wallet-transactions'] });
@@ -148,7 +148,7 @@ export function useAdminPayments(page = 1, status?: string) {
     queryKey: ['admin', 'payments', page, status],
     queryFn: () =>
       apiGet<Paginated<Payment>>(
-        `/noura-roham1197/payments${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, status: status || undefined })}`,
+        `/admin/payments${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, status: status || undefined })}`,
       ),
   });
 }
@@ -158,7 +158,7 @@ export function useAdminUsage(page = 1, filters?: { service?: string; userId?: s
     queryKey: ['admin', 'usage', page, filters],
     queryFn: () =>
       apiGet<Paginated<UsageEvent>>(
-        `/noura-roham1197/usage${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, ...filters })}`,
+        `/admin/usage${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, ...filters })}`,
       ),
   });
 }
@@ -170,14 +170,14 @@ export function useAdminUsage(page = 1, filters?: { service?: string; userId?: s
 export function useAdminGallery(status: 'pending' | 'approved' | 'rejected' = 'pending') {
   return useQuery({
     queryKey: ['admin', 'gallery', status],
-    queryFn: () => apiGet<GalleryQueueItem[]>(`/noura-roham1197/gallery${buildQuery({ status })}`),
+    queryFn: () => apiGet<GalleryQueueItem[]>(`/admin/gallery${buildQuery({ status })}`),
   });
 }
 
 export function useApproveGalleryItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (assetId: string) => apiPost<GalleryQueueItem>(`/noura-roham1197/gallery/${assetId}/approve`),
+    mutationFn: (assetId: string) => apiPost<GalleryQueueItem>(`/admin/gallery/${assetId}/approve`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
   });
 }
@@ -186,7 +186,7 @@ export function useRejectGalleryItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ assetId, reason }: { assetId: string; reason?: string }) =>
-      apiPost<GalleryQueueItem>(`/noura-roham1197/gallery/${assetId}/reject`, { reason }),
+      apiPost<GalleryQueueItem>(`/admin/gallery/${assetId}/reject`, { reason }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
   });
 }
@@ -194,7 +194,7 @@ export function useRejectGalleryItem() {
 export function useRemoveGalleryItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (assetId: string) => apiDelete<void>(`/noura-roham1197/gallery/${assetId}`),
+    mutationFn: (assetId: string) => apiDelete<void>(`/admin/gallery/${assetId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
   });
 }
@@ -206,14 +206,14 @@ export function useRemoveGalleryItem() {
 export function useAdminModels() {
   return useQuery({
     queryKey: ['admin', 'models'],
-    queryFn: () => apiGet<AiModel[]>('/noura-roham1197/models'),
+    queryFn: () => apiGet<AiModel[]>('/admin/models'),
   });
 }
 
 export function useCreateAdminModel() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<AiModel>) => apiPost<AiModel>('/noura-roham1197/models', input),
+    mutationFn: (input: Partial<AiModel>) => apiPost<AiModel>('/admin/models', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
   });
 }
@@ -222,7 +222,7 @@ export function useUpdateAdminModel() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<AiModel> }) =>
-      apiPatch<AiModel>(`/noura-roham1197/models/${id}`, patch),
+      apiPatch<AiModel>(`/admin/models/${id}`, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
   });
 }
@@ -234,14 +234,14 @@ export function useUpdateAdminModel() {
 export function usePricingRules() {
   return useQuery({
     queryKey: ['admin', 'pricing-rules'],
-    queryFn: () => apiGet<PricingRule[]>('/noura-roham1197/pricing-rules'),
+    queryFn: () => apiGet<PricingRule[]>('/admin/pricing-rules'),
   });
 }
 
 export function useCreatePricingRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<PricingRule>) => apiPost<PricingRule>('/noura-roham1197/pricing-rules', input),
+    mutationFn: (input: Partial<PricingRule>) => apiPost<PricingRule>('/admin/pricing-rules', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
   });
 }
@@ -250,7 +250,7 @@ export function useUpdatePricingRule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<PricingRule> }) =>
-      apiPatch<PricingRule>(`/noura-roham1197/pricing-rules/${id}`, patch),
+      apiPatch<PricingRule>(`/admin/pricing-rules/${id}`, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
   });
 }
@@ -258,7 +258,7 @@ export function useUpdatePricingRule() {
 export function useDeletePricingRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiDelete<unknown>(`/noura-roham1197/pricing-rules/${id}`),
+    mutationFn: (id: string) => apiDelete<unknown>(`/admin/pricing-rules/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'pricing-rules'] }),
   });
 }
@@ -266,7 +266,7 @@ export function useDeletePricingRule() {
 export function useDeleteModel() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiDelete<unknown>(`/noura-roham1197/models/${id}`),
+    mutationFn: (id: string) => apiDelete<unknown>(`/admin/models/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'models'] }),
   });
 }
@@ -284,7 +284,7 @@ export function usePricingEstimate() {
   return useMutation({
     mutationFn: (input: Record<string, unknown>) =>
       apiPost<{ total_irr: number; lines: PricingEstimateLine[] }>(
-        '/noura-roham1197/pricing/estimate',
+        '/admin/pricing/estimate',
         input,
       ),
   });
@@ -302,7 +302,7 @@ export interface CurrencySettings {
 export function useCurrencySettings() {
   return useQuery({
     queryKey: ['admin', 'currency-settings'],
-    queryFn: () => apiGet<CurrencySettings>('/noura-roham1197/settings/currency'),
+    queryFn: () => apiGet<CurrencySettings>('/admin/settings/currency'),
   });
 }
 
@@ -310,7 +310,7 @@ export function useUpdateCurrencySettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { usd_to_irr: number; image_cost_margin_pct: number }) =>
-      apiPut<CurrencySettings>('/noura-roham1197/settings/currency', input),
+      apiPut<CurrencySettings>('/admin/settings/currency', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'currency-settings'] }),
   });
 }
@@ -322,7 +322,7 @@ export function useUpdateCurrencySettings() {
 export function useImageProfiles() {
   return useQuery({
     queryKey: ['admin', 'image-profiles'],
-    queryFn: () => apiGet<ImageProfile[]>('/noura-roham1197/settings/image-processing'),
+    queryFn: () => apiGet<ImageProfile[]>('/admin/settings/image-processing'),
   });
 }
 
@@ -330,7 +330,7 @@ export function useUpdateImageProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<ImageProfile> }) =>
-      apiPut<ImageProfile>(`/noura-roham1197/settings/image-processing/${id}`, patch),
+      apiPut<ImageProfile>(`/admin/settings/image-processing/${id}`, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'image-profiles'] }),
   });
 }
@@ -342,8 +342,8 @@ export function useImageProfilePreview() {
       const form = new FormData();
       form.set('image', file, file.name);
       form.set('profile_id', profileId);
-      // Spec endpoint: POST /api/v1/noura-roham1197/settings/image-processing/preview
-      return apiPostForm<ImagePreviewResult>('/noura-roham1197/settings/image-processing/preview', form);
+      // Spec endpoint: POST /api/v1/admin/settings/image-processing/preview
+      return apiPostForm<ImagePreviewResult>('/admin/settings/image-processing/preview', form);
     },
   });
 }
@@ -357,7 +357,7 @@ export function useAuditLog(page = 1, search?: string) {
     queryKey: ['admin', 'audit', page, search || ''],
     queryFn: () =>
       apiGet<Paginated<AuditLogEntry>>(
-        `/noura-roham1197/audit-logs${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, search: search || undefined })}`,
+        `/admin/audit-logs${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, search: search || undefined })}`,
       ),
   });
 }
@@ -369,7 +369,7 @@ export function useAuditLog(page = 1, search?: string) {
 export function useAdminPlans() {
   return useQuery({
     queryKey: ['admin', 'plans'],
-    queryFn: () => apiGet<Plan[]>('/noura-roham1197/plans'),
+    queryFn: () => apiGet<Plan[]>('/admin/plans'),
     staleTime: 30_000,
   });
 }
@@ -392,7 +392,7 @@ export interface PlanInput {
 export function useCreateAdminPlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: PlanInput) => apiPost<Plan>('/noura-roham1197/plans', input),
+    mutationFn: (input: PlanInput) => apiPost<Plan>('/admin/plans', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
   });
 }
@@ -401,7 +401,7 @@ export function useUpdateAdminPlan() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<PlanInput> }) =>
-      apiPatch<Plan>('/noura-roham1197/plans/{id}'.replace('{id}', id), input),
+      apiPatch<Plan>('/admin/plans/{id}'.replace('{id}', id), input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
   });
 }
@@ -409,7 +409,7 @@ export function useUpdateAdminPlan() {
 export function useDeleteAdminPlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiDelete<unknown>('/noura-roham1197/plans/{id}'.replace('{id}', id)),
+    mutationFn: (id: string) => apiDelete<unknown>('/admin/plans/{id}'.replace('{id}', id)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'plans'] }),
   });
 }
@@ -429,14 +429,14 @@ export function useAdminJobs(status: 'queued' | 'processing') {
   return useQuery({
     queryKey: ['admin', 'jobs', status],
     queryFn: () =>
-      apiGet<Paginated<AdminJob>>(`/noura-roham1197/jobs${buildQuery({ status })}`),
+      apiGet<Paginated<AdminJob>>(`/admin/jobs${buildQuery({ status })}`),
   });
 }
 
 export function useAdminCancelJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (jobId: string) => apiPost<{ id: string; status: string }>(`/noura-roham1197/jobs/${jobId}/cancel`),
+    mutationFn: (jobId: string) => apiPost<{ id: string; status: string }>(`/admin/jobs/${jobId}/cancel`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] });
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
@@ -460,7 +460,7 @@ export interface PromptBlocklistWord {
 export function usePromptFilter() {
   return useQuery({
     queryKey: ['admin', 'prompt-filter'],
-    queryFn: () => apiGet<{ enabled: boolean }>('/noura-roham1197/prompt-filter'),
+    queryFn: () => apiGet<{ enabled: boolean }>('/admin/prompt-filter'),
   });
 }
 
@@ -468,7 +468,7 @@ export function useSetPromptFilter() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (enabled: boolean) =>
-      apiPut<{ enabled: boolean }>('/noura-roham1197/prompt-filter', { enabled }),
+      apiPut<{ enabled: boolean }>('/admin/prompt-filter', { enabled }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter'] }),
   });
 }
@@ -476,7 +476,7 @@ export function useSetPromptFilter() {
 export function useBlocklistWords() {
   return useQuery({
     queryKey: ['admin', 'prompt-filter', 'words'],
-    queryFn: () => apiGet<PromptBlocklistWord[]>('/noura-roham1197/prompt-filter/words'),
+    queryFn: () => apiGet<PromptBlocklistWord[]>('/admin/prompt-filter/words'),
   });
 }
 
@@ -484,7 +484,7 @@ export function useCreateBlocklistWord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { phrase: string; category?: string; is_active?: boolean }) =>
-      apiPost<PromptBlocklistWord>('/noura-roham1197/prompt-filter/words', input),
+      apiPost<PromptBlocklistWord>('/admin/prompt-filter/words', input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
   });
 }
@@ -493,7 +493,7 @@ export function useUpdateBlocklistWord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<PromptBlocklistWord, 'phrase' | 'category' | 'is_active' | 'note'>> }) =>
-      apiPatch<PromptBlocklistWord>(`/noura-roham1197/prompt-filter/words/${id}`, patch),
+      apiPatch<PromptBlocklistWord>(`/admin/prompt-filter/words/${id}`, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
   });
 }
@@ -501,7 +501,51 @@ export function useUpdateBlocklistWord() {
 export function useDeleteBlocklistWord() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiDelete<void>(`/noura-roham1197/prompt-filter/words/${id}`),
+    mutationFn: (id: string) => apiDelete<void>(`/admin/prompt-filter/words/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'prompt-filter', 'words'] }),
+  });
+}
+
+export interface AdminBlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  content: string[];
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useAdminBlogPosts() {
+  return useQuery({
+    queryKey: ['admin', 'blog'],
+    queryFn: () => apiGet<AdminBlogPost[]>('/admin/blog'),
+  });
+}
+
+export function useCreateBlogPost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { slug: string; title: string; description?: string; content?: string[]; is_published?: boolean }) =>
+      apiPost<AdminBlogPost>('/admin/blog', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] }),
+  });
+}
+
+export function useUpdateBlogPost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Omit<AdminBlogPost, 'id' | 'created_at' | 'updated_at'>> }) =>
+      apiPatch<AdminBlogPost>(`/admin/blog/${id}`, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] }),
+  });
+}
+
+export function useDeleteBlogPost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiDelete<void>(`/admin/blog/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'blog'] }),
   });
 }

@@ -39,6 +39,7 @@ from app.models import (
     AiModel,
     Asset,
     AuditLog,
+    BlogPost,
     CurrencySettings,
     GalleryEntry,
     GenerationJob,
@@ -1734,3 +1735,95 @@ def delete_blocklist_word(word_id: str):
     db.session.delete(word)
     db.session.commit()
     return success_response({"id": word_id})
+
+
+# -- blog posts ------------------------------------------------------------
+
+def _blog_payload(p) -> dict:
+    return {
+        "id": p.id,
+        "slug": p.slug,
+        "title": p.title,
+        "description": p.description,
+        "content": p.content_json or [],
+        "is_published": p.is_published,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+    }
+
+
+@bp.get("/admin/blog")
+@admin_required
+def list_blog_posts():
+    posts = db.session.query(BlogPost).order_by(BlogPost.created_at.desc()).all()
+    return success_response([_blog_payload(p) for p in posts])
+
+
+class BlogPostSchema(BaseModel):
+    slug: str
+    title: str
+    description: str = ""
+    content: list[str] = []
+    is_published: bool = False
+
+
+@bp.post("/admin/blog")
+@admin_required
+def create_blog_post():
+    data, err = _parse(BlogPostSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    slug = data.slug.strip()
+    if not slug or not data.title.strip():
+        return validation_error()
+    if db.session.query(BlogPost).filter_by(slug=slug).first():
+        return error_response("DUPLICATE", "این نامک قبلاً استفاده شده است.", 422)
+    post = BlogPost(
+        id=new_uuid(),
+        slug=slug,
+        title=data.title.strip(),
+        description=(data.description or "").strip(),
+        content_json=[str(c) for c in (data.content or [])],
+        is_published=data.is_published,
+    )
+    db.session.add(post)
+    _audit("blog.created", "blog_post", post.id, {"slug": slug, "title": post.title})
+    db.session.commit()
+    return success_response(_blog_payload(post), status=201)
+
+
+@bp.patch("/admin/blog/<post_id>")
+@admin_required
+def update_blog_post(post_id: str):
+    post = db.session.get(BlogPost, post_id)
+    if post is None:
+        return error_response("NOT_FOUND", status=404)
+    data, err = _parse(BlogPostSchema, request.get_json(silent=True) or {})
+    if err:
+        return err
+    slug = data.slug.strip()
+    if not slug or not data.title.strip():
+        return validation_error()
+    dup = db.session.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.id != post_id).first()
+    if dup:
+        return error_response("DUPLICATE", "این نامک قبلاً استفاده شده است.", 422)
+    post.slug = slug
+    post.title = data.title.strip()
+    post.description = (data.description or "").strip()
+    post.content_json = [str(c) for c in (data.content or [])]
+    post.is_published = data.is_published
+    _audit("blog.updated", "blog_post", post.id, {"slug": slug})
+    db.session.commit()
+    return success_response(_blog_payload(post))
+
+
+@bp.delete("/admin/blog/<post_id>")
+@admin_required
+def delete_blog_post(post_id: str):
+    post = db.session.get(BlogPost, post_id)
+    if post is None:
+        return error_response("NOT_FOUND", status=404)
+    _audit("blog.deleted", "blog_post", post.id, {"slug": post.slug})
+    db.session.delete(post)
+    db.session.commit()
+    return success_response({"id": post_id})

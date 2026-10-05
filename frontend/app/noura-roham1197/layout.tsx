@@ -11,6 +11,7 @@ import {
   Home,
   Hourglass,
   Image as ImageIcon,
+  Newspaper,
   Receipt,
   Settings,
   ShieldCheck,
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/noura-roham1197/image-settings', label: 'تنظیمات تصویر', icon: Settings },
   { href: '/noura-roham1197/prompt-filter', label: 'فیلتر پرامت', icon: ShieldCheck },
   { href: '/noura-roham1197/jobs', label: 'درخواست‌های جاری', icon: Hourglass },
+  { href: '/noura-roham1197/blog', label: 'بلاگ', icon: Newspaper },
   { href: '/noura-roham1197/audit', label: 'گزارش حسابرسی', icon: ClipboardList },
 ];
 

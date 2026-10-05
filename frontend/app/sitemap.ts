@@ -1,12 +1,24 @@
 import type { MetadataRoute } from 'next';
 
-import { BLOG_POSTS } from './blog/posts';
-
 const BASE = 'https://inourai.ir';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const posts: MetadataRoute.Sitemap = BLOG_POSTS.map((p) => ({
-    url: `${BASE}/blog/${p.slug}`,
+async function blogSlugs(): Promise<string[]> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/blog`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.data ?? []).map((p: { slug: string }) => p.slug);
+  } catch {
+    return [];
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const slugs = await blogSlugs();
+  const posts: MetadataRoute.Sitemap = slugs.map((slug) => ({
+    url: `${BASE}/blog/${slug}`,
     changeFrequency: 'monthly',
     priority: 0.7,
   }));

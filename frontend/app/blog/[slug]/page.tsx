@@ -3,18 +3,35 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PillHeader } from '@/components/PillHeader';
 import { Footer } from '@/components/Footer';
-import { BLOG_POSTS, getPost } from '../posts';
 
-export function generateStaticParams() {
-  return BLOG_POSTS.map((p) => ({ slug: p.slug }));
+interface BlogPost {
+  slug: string;
+  title: string;
+  description: string;
+  content: string[];
+  created_at: string;
 }
 
-export function generateMetadata({
+async function getPost(slug: string): Promise<BlogPost | null> {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/blog/${slug}`,
+      { next: { revalidate: 300 } },
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function generateMetadata({
   params,
 }: {
   params: { slug: string };
-}): Metadata {
-  const post = getPost(params.slug);
+}): Promise<Metadata> {
+  const post = await getPost(params.slug);
   if (!post) return {};
   return {
     title: post.title,
@@ -27,8 +44,16 @@ export function generateMetadata({
   };
 }
 
-export default function BlogPostPage({ params }: { params: { slug: string } }) {
-  const post = getPost(params.slug);
+function toFaDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(new Date(iso));
+  } catch {
+    return '';
+  }
+}
+
+export default async function BlogPostPage({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
   if (!post) notFound();
 
   return (
@@ -39,7 +64,7 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
           → بازگشت به بلاگ
         </Link>
         <h1 className="mt-4 text-3xl font-black leading-[1.6]">{post.title}</h1>
-        <p className="mt-2 text-xs text-neutral-400">{post.date}</p>
+        <p className="mt-2 text-xs text-neutral-400">{toFaDate(post.created_at)}</p>
         <article className="mt-8 flex flex-col gap-5">
           {post.content.map((para, i) => (
             <p key={i} className="leading-9 text-neutral-700 dark:text-slate-300">
