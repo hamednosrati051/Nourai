@@ -118,7 +118,7 @@ class Config:
     otp_max_attempts: int = 5
     otp_request_cooldown_seconds: int = 60
 
-    jwt_access_ttl_seconds: int = 900          # 15 minutes
+    jwt_access_ttl_seconds: int = 3600         # 1 hour
     jwt_refresh_ttl_seconds: int = 30 * 24 * 3600  # 30 days
 
     rate_limit_otp_request: int = 5            # per window
