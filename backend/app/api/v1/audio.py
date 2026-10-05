@@ -293,7 +293,7 @@ def create_audio_job():
 @login_required
 def get_audio_job(job_id: str):
     job = db.session.get(GenerationJob, job_id)
-    if job is None or job.user_id != g.current_user_id or job.capability != "audio":
+    if job is None or job.user_id != g.current_user_id or job.capability not in ("audio", "text_to_speech"):
         return error_response("NOT_FOUND", status=404)
     return success_response(_job_payload(job))
 
@@ -304,7 +304,10 @@ def list_audio_jobs():
     page, page_size = pagination_params()
     query = (
         db.session.query(GenerationJob)
-        .filter_by(user_id=g.current_user_id, capability="audio")
+        .filter(
+            GenerationJob.user_id == g.current_user_id,
+            GenerationJob.capability.in_(["audio", "text_to_speech"]),
+        )
         .order_by(GenerationJob.created_at.desc())
     )
     items, meta = paginate_query(query, page, page_size)
