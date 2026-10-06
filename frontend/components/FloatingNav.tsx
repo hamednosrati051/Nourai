@@ -51,7 +51,7 @@ export function FloatingNav() {
                 }`}
               >
                 <Icon aria-hidden="true" className="h-7 w-7 leading-none" />
-                <span className="text-[11px] font-medium leading-none">{item.label}</span>
+                <span className="hidden text-[11px] font-medium leading-none md:block">{item.label}</span>
               </Link>
             </li>
           );
