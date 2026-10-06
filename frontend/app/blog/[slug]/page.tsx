@@ -40,10 +40,14 @@ export async function generateMetadata({
   return {
     title: post.title,
     description: post.description,
+    alternates: {
+      canonical: `https://inourai.ir/blog/${post.slug}`,
+    },
     openGraph: {
       title: post.title,
       description: post.description,
       type: 'article',
+      url: `https://inourai.ir/blog/${post.slug}`,
       images,
     },
   };

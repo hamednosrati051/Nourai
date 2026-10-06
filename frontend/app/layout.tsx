@@ -46,6 +46,9 @@ export const metadata: Metadata = {
     description: 'چت‌بات هوشمند، تولید تصویر، تبدیل متن به صوت و صوت به متن — فارسی.',
   },
   robots: { index: true, follow: true },
+  alternates: {
+    canonical: 'https://inourai.ir',
+  },
 };
 
 // Inline, render-blocking script: applies the persisted theme before first paint

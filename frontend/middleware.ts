@@ -25,22 +25,29 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/noura-roham1197')) {
-    if (pathname === '/noura-roham1197/login') return NextResponse.next();
+    const res = NextResponse.next();
+    // Never index the admin panel.
+    res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    if (pathname === '/noura-roham1197/login') return res;
     if (!request.cookies.get(ADMIN_COOKIE)) {
       return loginRedirect(request, '/noura-roham1197/login');
     }
-    return NextResponse.next();
+    return res;
   }
 
-  if (pathname.startsWith('/dashboard')) {
-    if (!request.cookies.get(USER_COOKIE)) {
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/auth')) {
+    const res = NextResponse.next();
+    // Private user areas: never index.
+    res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    if (pathname.startsWith('/dashboard') && !request.cookies.get(USER_COOKIE)) {
       return loginRedirect(request, '/auth/login');
     }
+    return res;
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/noura-roham1197/:path*'],
+  matcher: ['/dashboard/:path*', '/noura-roham1197/:path*', '/auth/:path*'],
 };
