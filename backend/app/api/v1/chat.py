@@ -297,14 +297,14 @@ def send_message(conversation_id: str):
         input_tokens = _estimate_tokens(provider_messages)
 
     pricing = PricingService(db.session)
-    # Hold 2x a realistic estimate (not the max-output worst case): output
-    # estimated from input length, capped, then doubled as safety margin.
-    est_output_tokens = min(max(input_tokens * 2, 256), 512)
+    # Hold the worst case (actual input + max output tokens): with current
+    # pricing this is a reasonable amount, and the balance can never go
+    # negative on settle, so under-holding would cost us the difference.
     try:
-        estimate = pricing.estimate_text(model.id, input_tokens, est_output_tokens)
+        estimate = pricing.estimate_text(model.id, input_tokens, max_output_tokens)
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
-    estimated_irr = estimate["total_irr"] * 2
+    estimated_irr = estimate["total_irr"]
 
     idempotency_key = request.headers.get("Idempotency-Key")
     if not idempotency_key:
