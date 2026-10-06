@@ -46,6 +46,7 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; badge: string }> = 
   failed: { label: 'ناموفق', badge: 'badge-danger' },
   cancelled: { label: 'لغوشده', badge: 'badge-neutral' },
   expired: { label: 'منقضی‌شده', badge: 'badge-neutral' },
+  created: { label: 'در حال ایجاد', badge: 'badge-neutral' },
 };
 
 /** Wallet: balance, top-up via Zibal, transaction ledger, payment history. */

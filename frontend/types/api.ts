@@ -59,7 +59,7 @@ export interface WalletTransaction {
   created_at: string;
 }
 
-export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired';
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'cancelled' | 'expired' | 'created';
 
 export interface Payment {
   id: string;

@@ -19,6 +19,7 @@ import uuid
 
 from flask import Blueprint, g, redirect, request
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import (
     client_ip,
@@ -112,7 +113,17 @@ def create_payment():
         idempotency_key=idempotency_key,
     )
     db.session.add(payment)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Lost a race with a concurrent request using the same idempotency
+        # key (e.g. double-click): return the winner's payment instead of 500.
+        db.session.rollback()
+        winner = db.session.query(Payment).filter_by(idempotency_key=idempotency_key).one_or_none()
+        if winner is not None and winner.user_id == g.current_user_id:
+            log.info("idempotency race resolved for key %s", idempotency_key)
+            return success_response(_payment_payload(winner))
+        raise
 
     try:
         gateway = get_payment_gateway()

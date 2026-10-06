@@ -18,6 +18,7 @@ const STATUS_META: Record<PaymentStatus, { label: string; badge: string }> = {
   failed: { label: 'ناموفق', badge: 'badge-danger' },
   cancelled: { label: 'لغوشده', badge: 'badge-neutral' },
   expired: { label: 'منقضی‌شده', badge: 'badge-neutral' },
+  created: { label: 'در حال ایجاد', badge: 'badge-neutral' },
 };
 
 /** Admin payments list with status, mobile and date filters. */
