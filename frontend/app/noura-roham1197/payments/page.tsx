@@ -20,31 +20,47 @@ const STATUS_META: Record<PaymentStatus, { label: string; badge: string }> = {
   expired: { label: 'منقضی‌شده', badge: 'badge-neutral' },
 };
 
-/** Admin payments list with status filter. */
+/** Admin payments list with status, mobile and date filters. */
 export default function AdminPaymentsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  // Applied filters (search runs on button/Enter, not on every keystroke).
+  const [filters, setFilters] = useState({ status: '', mobile: '', date_from: '', date_to: '' });
 
-  const payments = useAdminPayments(page, status);
+  const payments = useAdminPayments(page, filters);
+
+  const applyFilters = () => {
+    setFilters({ status, mobile: mobile.trim(), date_from: dateFrom, date_to: dateTo });
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setStatus('');
+    setMobile('');
+    setDateFrom('');
+    setDateTo('');
+    setFilters({ status: '', mobile: '', date_from: '', date_to: '' });
+    setPage(1);
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-extrabold">پرداخت‌ها</h1>
 
       <section aria-label="فیلتر پرداخت‌ها" className="card">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:flex-wrap">
           <div>
             <label htmlFor="pay-status" className="label">
               وضعیت
             </label>
             <select
               id="pay-status"
-              className="input sm:w-48"
+              className="input sm:w-40"
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setStatus(e.target.value)}
             >
               <option value="">همه</option>
               <option value="pending">در انتظار</option>
@@ -53,6 +69,56 @@ export default function AdminPaymentsPage() {
               <option value="cancelled">لغوشده</option>
               <option value="expired">منقضی‌شده</option>
             </select>
+          </div>
+          <div>
+            <label htmlFor="pay-mobile" className="label">
+              شماره کاربر
+            </label>
+            <input
+              id="pay-mobile"
+              type="text"
+              inputMode="tel"
+              dir="ltr"
+              placeholder="0912…"
+              className="input sm:w-40"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyFilters();
+              }}
+            />
+          </div>
+          <div>
+            <label htmlFor="pay-date-from" className="label">
+              از تاریخ
+            </label>
+            <input
+              id="pay-date-from"
+              type="date"
+              className="input sm:w-40"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="pay-date-to" className="label">
+              تا تاریخ
+            </label>
+            <input
+              id="pay-date-to"
+              type="date"
+              className="input sm:w-40"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn-primary btn-sm" onClick={applyFilters}>
+              جستجو
+            </button>
+            <button type="button" className="btn-secondary btn-sm" onClick={clearFilters}>
+              پاک کردن
+            </button>
           </div>
         </div>
       </section>
@@ -71,6 +137,10 @@ export default function AdminPaymentsPage() {
             cardHeader={(p) => <span className="tabular-nums">{formatToman(p.amount_irr)}</span>}
             columns={[
               { header: 'مبلغ', render: (p) => <span className="tabular-nums">{formatToman(p.amount_irr)}</span> },
+              {
+                header: 'کاربر',
+                render: (p) => <span dir="ltr" className="tabular-nums">{p.user_mobile_masked ?? '—'}</span>,
+              },
               {
                 header: 'وضعیت',
                 render: (p) => <span className={STATUS_META[p.status].badge}>{STATUS_META[p.status].label}</span>,

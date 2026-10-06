@@ -143,12 +143,26 @@ export function useWalletAdjustment() {
 // Payments / usage (admin)
 // ---------------------------------------------------------------------------
 
-export function useAdminPayments(page = 1, status?: string) {
+export interface AdminPaymentFilters {
+  status?: string;
+  mobile?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export function useAdminPayments(page = 1, filters?: AdminPaymentFilters) {
   return useQuery({
-    queryKey: ['admin', 'payments', page, status],
+    queryKey: ['admin', 'payments', page, filters],
     queryFn: () =>
       apiGet<Paginated<Payment>>(
-        `/admin/payments${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE, status: status || undefined })}`,
+        `/admin/payments${buildQuery({
+          page,
+          page_size: DEFAULT_PAGE_SIZE,
+          status: filters?.status || undefined,
+          mobile: filters?.mobile || undefined,
+          date_from: filters?.date_from || undefined,
+          date_to: filters?.date_to || undefined,
+        })}`,
       ),
   });
 }

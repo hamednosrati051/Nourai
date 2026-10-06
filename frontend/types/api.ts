@@ -73,6 +73,8 @@ export interface Payment {
   reference_id?: string | null;
   created_at: string;
   paid_at?: string | null;
+  /** Masked user mobile (admin endpoints only). */
+  user_mobile_masked?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from flask import Blueprint, g, request
@@ -68,6 +68,9 @@ from app.tasks import cancel_job
 from app.auth.otp import mask_mobile
 
 log = logging.getLogger(__name__)
+
+# Persian/Arabic-Indic digits -> ASCII (for admin search inputs).
+_FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 bp = Blueprint("admin", __name__)
 
@@ -367,6 +370,32 @@ def list_payments():
     user_id = request.args.get("user_id")
     if user_id:
         query = query.filter_by(user_id=user_id)
+    # Search by user mobile (partial match; accepts Persian digits).
+    mobile = request.args.get("mobile")
+    if mobile:
+        digits = re.sub(r"\D", "", mobile.translate(_FA_DIGITS))
+        if digits:
+            query = query.join(User, Payment.user_id == User.id).filter(
+                User.mobile_normalized.like(f"%{digits}%")
+            )
+        else:
+            query = query.filter(False)
+    # Date range filter on creation date (YYYY-MM-DD, inclusive).
+    date_from = request.args.get("date_from")
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            query = query.filter(Payment.created_at >= dt_from)
+        except ValueError:
+            pass
+    date_to = request.args.get("date_to")
+    if date_to:
+        try:
+            # Inclusive end: everything before the next day.
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            query = query.filter(Payment.created_at < dt_to)
+        except ValueError:
+            pass
     query = query.order_by(Payment.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
