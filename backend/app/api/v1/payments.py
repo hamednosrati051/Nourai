@@ -77,7 +77,14 @@ def create_payment():
     if existing is not None:
         if existing.user_id != g.current_user_id:
             return error_response("FORBIDDEN", status=403)
-        return success_response(_payment_payload(existing))
+        payload = _payment_payload(existing)
+        # Include the gateway URL so the frontend can redirect even for
+        # already-created (idempotent) payments.
+        if existing.track_id:
+            gateway_url = f"https://gateway.zibal.ir/start/{existing.track_id}"
+            payload["payment_url"] = gateway_url
+            payload["redirect_url"] = gateway_url
+        return success_response(payload)
 
     payment = Payment(
         user_id=g.current_user_id,
@@ -169,7 +176,7 @@ def zibal_callback():
     frontend = config.frontend_origin.rstrip("/")
 
     def _redirect(status: str, payment_id: str | None = None):
-        url = f"{frontend}/wallet?payment={status}"
+        url = f"{frontend}/dashboard/wallet?payment={status}"
         if payment_id:
             url += f"&id={payment_id}"
         return redirect(url, code=302)

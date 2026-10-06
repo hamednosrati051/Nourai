@@ -2,10 +2,11 @@
 
 import { NotebookText } from 'lucide-react';
 import { Receipt, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useSearchParams } from 'next/navigation';
 import { useCreatePayment, usePayments, useWallet, useWalletTransactions } from '@/features/wallet/hooks';
 import { formatToman, tomanToIrr } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
@@ -52,14 +53,28 @@ export default function WalletPage() {
   const { toast } = useToast();
   const [txPage, setTxPage] = useState(1);
   const [payPage, setPayPage] = useState(1);
+  const searchParams = useSearchParams();
 
   const wallet = useWallet();
   const transactions = useWalletTransactions(txPage);
   const payments = usePayments(payPage);
   const createPayment = useCreatePayment();
 
+  // Show a toast when returning from the Zibal gateway (success/cancel/fail).
+  useEffect(() => {
+    const status = searchParams.get('payment');
+    if (status === 'success') {
+      toast('پرداخت موفق بود و کیف پول شارژ شد.', 'success');
+    } else if (status === 'failed') {
+      toast('پرداخت ناموفق بود یا لغو شد.', 'error');
+    }
+    if (status) {
+      // Clean the query param so refresh doesn't re-toast.
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [searchParams, toast]);
+
   const {
-    register,
     handleSubmit,
     setValue,
     watch,
@@ -127,13 +142,15 @@ export default function WalletPage() {
             </label>
             <input
               id="topup-amount"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={MIN_TOPUP_TOMAN}
-              step={1000}
-              placeholder={String(MIN_TOPUP_TOMAN)}
+              placeholder={formatNumber(MIN_TOPUP_TOMAN)}
               className={`input ${errors.amountToman ? 'input-error' : ''}`}
-              {...register('amountToman', { valueAsNumber: true })}
+              value={amountToman != null && !Number.isNaN(amountToman) ? formatNumber(amountToman) : ''}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, '');
+                setValue('amountToman', digits ? parseInt(digits, 10) : NaN, { shouldValidate: true });
+              }}
             />
             {errors.amountToman ? (
               <p role="alert" className="field-error">
