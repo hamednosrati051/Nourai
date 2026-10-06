@@ -6,6 +6,27 @@ import { randomUUID } from '@/lib/uuid';
 
 export const TTS_MAX_CHARS = 2000;
 
+export interface TtsVoiceOption {
+  value: string;
+  label: string;
+}
+
+export interface TtsModel {
+  id: string;
+  slug: string;
+  display_name: string;
+  provider_type: string;
+  voices: TtsVoiceOption[];
+}
+
+export function useTtsModels() {
+  return useQuery({
+    queryKey: ['tts', 'models'],
+    queryFn: () => apiGet<TtsModel[]>('/tts/models'),
+    staleTime: 60_000,
+  });
+}
+
 export function useCreateTtsJob() {
   const queryClient = useQueryClient();
   return useMutation({

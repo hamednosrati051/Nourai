@@ -3,7 +3,7 @@
 import { History, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { TTS_MAX_CHARS, useCreateTtsJob, useTtsJob, useTtsJobs } from '@/features/tts/hooks';
+import { TTS_MAX_CHARS, useCreateTtsJob, useTtsJob, useTtsJobs, useTtsModels } from '@/features/tts/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
@@ -33,6 +33,18 @@ export default function TtsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
 
+  const modelsQuery = useTtsModels();
+  const activeModel = modelsQuery.data?.[0] ?? null;
+  const availableVoices = activeModel?.voices ?? [];
+  const showVoicePicker = availableVoices.length > 0;
+
+  useEffect(() => {
+    if (showVoicePicker && !availableVoices.some((v) => v.value === voice)) {
+      const first = availableVoices[0];
+      if (first) setVoice(first.value);
+    }
+  }, [showVoicePicker, availableVoices, voice]);
+
   const jobs = useTtsJobs(1, 20);
   const createJob = useCreateTtsJob();
   const trackedJob = useTtsJob(trackedJobId);
@@ -61,7 +73,7 @@ export default function TtsPage() {
       return;
     }
     createJob.mutate(
-      { text: value, voice },
+      { text: value, voice: showVoicePicker ? voice : undefined },
       {
         onSuccess: (job) => {
           setTrackedJobId(job.id);
@@ -111,22 +123,25 @@ export default function TtsPage() {
         <p id="tts-count" className="mt-1 text-left text-xs text-neutral-500">
           {text.length} / {TTS_MAX_CHARS}
         </p>
-        <div className="mt-3">
-          <label htmlFor="tts-voice" className="label">
-            صدای گوینده
-          </label>
-          <select
-            id="tts-voice"
-            className="input"
-            value={voice}
-            onChange={(e) => setVoice(e.target.value)}
-          >
-            <option value="amir">امیر (مرد)</option>
-            <option value="ganji">گنجی (مرد)</option>
-            <option value="gyro">ژیرو (مرد)</option>
-            <option value="reza_ibrahim">رضا ابراهیم (مرد)</option>
-          </select>
-        </div>
+        {showVoicePicker && (
+          <div className="mt-3">
+            <label htmlFor="tts-voice" className="label">
+              صدای گوینده
+            </label>
+            <select
+              id="tts-voice"
+              className="input"
+              value={voice}
+              onChange={(e) => setVoice(e.target.value)}
+            >
+              {availableVoices.map((v) => (
+                <option key={v.value} value={v.value}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           type="button"
           onClick={submit}

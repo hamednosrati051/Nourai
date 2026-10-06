@@ -8,6 +8,7 @@ TTS model in the admin pricing panel.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 
 from flask import Blueprint, g, request
@@ -201,6 +202,44 @@ def get_tts_job(job_id: str):
     if job is None or job.user_id != g.current_user_id or job.capability != CAP_TTS:
         return error_response("NOT_FOUND", status=404)
     return success_response(_tts_job_payload(job))
+
+
+@bp.get("/tts/models")
+@login_required
+def list_tts_models():
+    """Active TTS models with their voice options (for the voice picker).
+
+    Only models whose provider supports voice selection (currently
+    ``piper``) include a ``voices`` list; the frontend hides the voice
+    picker when the active model has no voices.
+    """
+    models = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_TTS, is_active=True)
+        .order_by(AiModel.created_at)
+        .all()
+    )
+    out = []
+    for m in models:
+        voices = []
+        if (m.provider_type or "").lower() == "piper":
+            try:
+                raw = m.config_json
+                cfg = json.loads(raw) if isinstance(raw, str) else (raw or {})
+                cfg = cfg.get("__provider__", cfg)
+                for key, spec in (cfg.get("piper_voices") or {}).items():
+                    label = (spec or {}).get("label") or key
+                    voices.append({"value": key, "label": label})
+            except Exception:  # noqa: BLE001
+                voices = []
+        out.append({
+            "id": m.id,
+            "slug": m.slug,
+            "display_name": m.display_name,
+            "provider_type": m.provider_type,
+            "voices": voices,
+        })
+    return success_response(out)
 
 
 @bp.get("/tts/jobs")
