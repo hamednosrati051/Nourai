@@ -79,6 +79,26 @@ export function useUserActivity(id: string | null, page = 1) {
   });
 }
 
+export interface UserChat {
+  id: string;
+  title: string | null;
+  model: string | null;
+  message_count: number;
+  preview: string | null;
+  created_at: string | null;
+}
+
+export function useUserChats(id: string | null, page = 1) {
+  return useQuery({
+    queryKey: ['admin', 'users', id, 'chats', page],
+    queryFn: () =>
+      apiGet<Paginated<UserChat>>(
+        `/admin/users/${id}/chats${buildQuery({ page, page_size: DEFAULT_PAGE_SIZE })}`,
+      ),
+    enabled: !!id,
+  });
+}
+
 const USER_ASSET_KIND_MAP = {
   generated: 'generated_image',
   chat_input: 'chat_input_image',

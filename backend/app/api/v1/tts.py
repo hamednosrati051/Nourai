@@ -124,11 +124,12 @@ def create_tts_job():
 
     pricing = PricingService(db.session)
     # Estimate speech duration from text length for the hold (~800 chars/min
-    # for Persian). The worker settles on the actual output duration.
+    # for Persian), doubled as safety margin. The worker settles on the
+    # actual output duration.
     est_seconds = max(1, math.ceil(len(text) / 13))
     try:
         estimate = pricing.estimate_audio(tts_model.id, est_seconds)
-        estimated_irr = estimate["total_irr"]
+        estimated_irr = estimate["total_irr"] * 2
         snapshots = estimate["pricing_snapshots"]
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)

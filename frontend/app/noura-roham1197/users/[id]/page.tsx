@@ -1,6 +1,6 @@
 'use client';
 
-import { NotebookText } from 'lucide-react';
+import { MessageSquare, NotebookText } from 'lucide-react';
 import { History, Images } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -12,6 +12,7 @@ import {
   useUpdateUserStatus,
   useUserActivity,
   useUserAssets,
+  useUserChats,
   useUserWalletTransactions,
   useWalletAdjustment,
 } from '@/features/admin/hooks';
@@ -45,7 +46,7 @@ const ASSET_LABELS: Record<AssetItem['kind'], string> = {
   output_audio: 'صوت خروجی',
 };
 
-type Tab = 'activity' | 'generated' | 'chat_input' | 'edit_input' | 'wallet' | 'session';
+type Tab = 'activity' | 'chats' | 'generated' | 'chat_input' | 'edit_input' | 'wallet' | 'session';
 
 const statusSchema = z.object({
   reason: z.string().trim().min(3, 'دلیل تغییر وضعیت را بنویسید (حداقل ۳ حرف).'),
@@ -64,12 +65,14 @@ export default function AdminUserDetailPage() {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>('activity');
   const [activityPage, setActivityPage] = useState(1);
+  const [chatsPage, setChatsPage] = useState(1);
   const [walletPage, setWalletPage] = useState(1);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
 
   const user = useAdminUser(id);
   const activity = useUserActivity(id, activityPage);
+  const chats = useUserChats(id, chatsPage);
   const walletTx = useUserWalletTransactions(id, walletPage);
   const generatedAssets = useUserAssets(id, 'generated', tab === 'generated');
   const chatInputAssets = useUserAssets(id, 'chat_input', tab === 'chat_input');
@@ -125,6 +128,7 @@ export default function AdminUserDetailPage() {
 
   const tabs: { value: Tab; label: string }[] = [
     { value: 'activity', label: 'timeline فعالیت' },
+    { value: 'chats', label: 'گفتگوها' },
     { value: 'generated', label: 'تصاویر تولیدشده' },
     { value: 'chat_input', label: 'تصاویر ورودی چت' },
     { value: 'edit_input', label: 'تصاویر ورودی ویرایش' },
@@ -215,6 +219,37 @@ export default function AdminUserDetailPage() {
                 ))}
               </ol>
               <Pagination page={activityPage} totalPages={activity.data.meta.total_pages} onPageChange={setActivityPage} />
+            </>
+          )}
+        </section>
+      )}
+
+      {/* User chats */}
+      {tab === 'chats' && (
+        <section aria-label="گفتگوهای کاربر">
+          {chats.isLoading && <LoadingSpinner />}
+          {chats.isError && <ErrorState message="بارگذاری گفتگوها ناموفق بود." onRetry={() => chats.refetch()} />}
+          {chats.data && chats.data.items.length === 0 && (
+            <EmptyState icon={MessageSquare} title="گفتگویی نیست" description="این کاربر هنوز گفتگویی نداشته است." />
+          )}
+          {chats.data && chats.data.items.length > 0 && (
+            <>
+              <ul className="flex flex-col gap-2">
+                {chats.data.items.map((c) => (
+                  <li key={c.id} className="card !p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-bold" dir="auto">{c.title || 'بدون عنوان'}</p>
+                      <time className="text-xs text-neutral-500 dark:text-slate-400">{c.created_at ? formatDateTime(c.created_at) : ''}</time>
+                    </div>
+                    {c.preview && <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400" dir="auto">{c.preview}…</p>}
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-slate-400">
+                      {c.model && <span className="badge badge-info">{c.model}</span>}
+                      <span>{formatNumber(c.message_count)} پیام</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <Pagination page={chatsPage} totalPages={chats.data.meta.total_pages} onPageChange={setChatsPage} />
             </>
           )}
         </section>

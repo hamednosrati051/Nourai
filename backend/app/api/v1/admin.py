@@ -40,6 +40,7 @@ from app.models import (
     Asset,
     AuditLog,
     BlogPost,
+    Conversation,
     CurrencySettings,
     SiteSettings,
     GalleryEntry,
@@ -208,6 +209,41 @@ def user_activity(user_id: str):
     total = len(events)
     start = (page - 1) * page_size
     items = [_activity_item(e, i) for i, e in enumerate(events[start:start + page_size], start=start)]
+    return paginated_response(items, page, page_size, total)
+
+
+@bp.get("/admin/users/<user_id>/chats")
+@admin_required
+def user_chats(user_id: str):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return error_response("NOT_FOUND", status=404)
+    page, page_size = pagination_params()
+    query = (
+        db.session.query(Conversation)
+        .filter_by(user_id=user_id)
+        .order_by(Conversation.created_at.desc())
+    )
+    total = query.count()
+    convs = query.offset((page - 1) * page_size).limit(page_size).all()
+    items = []
+    for c in convs:
+        msg_count = db.session.query(Message).filter_by(conversation_id=c.id).count()
+        first_msg = (
+            db.session.query(Message)
+            .filter_by(conversation_id=c.id, role="user")
+            .order_by(Message.created_at.asc())
+            .first()
+        )
+        model = db.session.get(AiModel, c.model_id) if c.model_id else None
+        items.append({
+            "id": c.id,
+            "title": c.title,
+            "model": model.slug if model else None,
+            "message_count": msg_count,
+            "preview": (first_msg.content_text or "")[:120] if first_msg else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
     return paginated_response(items, page, page_size, total)
 
 
