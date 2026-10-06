@@ -148,7 +148,9 @@ export default function WalletPage() {
               className={`input ${errors.amountToman ? 'input-error' : ''}`}
               value={amountToman != null && !Number.isNaN(amountToman) ? formatNumber(amountToman) : ''}
               onChange={(e) => {
-                const digits = e.target.value.replace(/[^0-9]/g, '');
+                // Normalize Persian/Arabic digits to ASCII before extracting.
+                const ascii = e.target.value.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+                const digits = ascii.replace(/[^0-9]/g, '');
                 setValue('amountToman', digits ? parseInt(digits, 10) : NaN, { shouldValidate: true });
               }}
             />
