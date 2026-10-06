@@ -86,6 +86,156 @@ class FakeSttProvider(SpeechToTextProvider):
         )
 
 
+class SherpaSttProvider(SpeechToTextProvider):
+    """Local sherpa-onnx speech-to-text — no API calls, no cost.
+
+    Runs a NeMo/CTC ONNX model (e.g. Shenava Persian ASR) via sherpa-onnx.
+    Configuration comes from the AiModel row's ``config_json``::
+
+        {
+            "sherpa_model": "/opt/nourai/stt-models/shenava-koochik/model.int8.onnx",
+            "sherpa_tokens": "/opt/nourai/stt-models/shenava-koochik/tokens.txt",
+            "sherpa_threads": 2
+        }
+
+    Audio is fetched from the app's storage backend by ``audio_key`` and
+    decoded to 16kHz mono float32 (via ffmpeg when available, else WAV).
+    """
+
+    _recognizer_cache: dict = {}
+
+    def __init__(self, model_path: str, tokens_path: str, num_threads: int = 2):
+        self.model_path = model_path
+        self.tokens_path = tokens_path
+        self.num_threads = num_threads
+
+    @classmethod
+    def from_model(cls, model) -> "SherpaSttProvider":
+        cfg = {}
+        try:
+            raw = getattr(model, "config_json", None)
+            cfg = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        except Exception:  # noqa: BLE001
+            cfg = {}
+        cfg = cfg.get("__provider__", cfg)
+        return cls(
+            model_path=cfg.get("sherpa_model") or "/opt/nourai/stt-models/shenava-koochik/model.int8.onnx",
+            tokens_path=cfg.get("sherpa_tokens") or "/opt/nourai/stt-models/shenava-koochik/tokens.txt",
+            num_threads=int(cfg.get("sherpa_threads") or 2),
+        )
+
+    def _get_recognizer(self):
+        key = f"{self.model_path}:{self.tokens_path}"
+        if key in SherpaSttProvider._recognizer_cache:
+            return SherpaSttProvider._recognizer_cache[key]
+        try:
+            import sherpa_onnx
+        except ImportError as exc:
+            raise RuntimeError("sherpa-onnx is not installed") from exc
+        if not os.path.isfile(self.model_path):
+            raise ValueError(f"sherpa model not found: {self.model_path}")
+        if not os.path.isfile(self.tokens_path):
+            raise ValueError(f"sherpa tokens not found: {self.tokens_path}")
+        recognizer = sherpa_onnx.OfflineRecognizer.from_nemo_ctc(
+            model=self.model_path,
+            tokens=self.tokens_path,
+            num_threads=self.num_threads,
+        )
+        SherpaSttProvider._recognizer_cache[key] = recognizer
+        return recognizer
+
+    def _decode_audio(self, audio_bytes: bytes, mime_type: str) -> tuple:
+        """Return (samples_float32_mono, sample_rate)."""
+        import io
+        import wave
+        import subprocess
+        import tempfile
+
+        # Fast path: WAV files
+        if mime_type in ("audio/wav", "audio/x-wav") or audio_bytes[:4] == b"RIFF":
+            try:
+                with wave.open(io.BytesIO(audio_bytes), "rb") as wav:
+                    n_channels = wav.getnchannels()
+                    sampwidth = wav.getsampwidth()
+                    sample_rate = wav.getframerate()
+                    frames = wav.readframes(wav.getnframes())
+                import numpy as np
+                if sampwidth == 2:
+                    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                elif sampwidth == 4:
+                    audio = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+                else:
+                    raise ValueError(f"unsupported WAV bit depth: {sampwidth * 8}")
+                if n_channels > 1:
+                    audio = audio.reshape(-1, n_channels).mean(axis=1)
+                return audio, sample_rate
+            except Exception:
+                pass  # fall through to ffmpeg
+
+        # General path: ffmpeg to 16kHz mono WAV
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-v", "error", "-i", "pipe:0",
+                 "-ar", "16000", "-ac", "1", "-f", "wav", tmp_path],
+                input=audio_bytes, capture_output=True, timeout=120,
+            )
+            if proc.returncode != 0:
+                raise ValueError("ffmpeg failed to decode audio")
+            with wave.open(tmp_path, "rb") as wav:
+                sample_rate = wav.getframerate()
+                frames = wav.readframes(wav.getnframes())
+            import numpy as np
+            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            return audio, sample_rate
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    def transcribe(self, model: str, audio_key: str, options: dict) -> TranscriptResult:
+        from app.services.storage import storage  # lazy: avoids import cycles
+
+        try:
+            audio_bytes = storage.get_bytes(audio_key)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("sherpa stt: failed to read audio %s: %s", audio_key, exc)
+            return TranscriptResult(ok=False, error_code="STORAGE_ERROR",
+                                    error_message="could not read input audio")
+        if not audio_bytes:
+            return TranscriptResult(ok=False, error_code="EMPTY_AUDIO",
+                                    error_message="input audio is empty")
+        try:
+            import numpy as np
+            recognizer = self._get_recognizer()
+            mime_type = options.get("mime_type") or "audio/wav"
+            audio, sample_rate = self._decode_audio(audio_bytes, mime_type)
+            if sample_rate != 16000:
+                # Resample to 16kHz
+                duration = len(audio) / sample_rate
+                num_samples = int(duration * 16000)
+                audio = np.interp(
+                    np.linspace(0, len(audio), num_samples),
+                    np.arange(len(audio)), audio,
+                ).astype(np.float32)
+                sample_rate = 16000
+            stream = recognizer.create_stream()
+            stream.accept_waveform(sample_rate, audio)
+            recognizer.decode_stream(stream)
+            text = (stream.result.text or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("sherpa stt failed: %s", exc)
+            return TranscriptResult(ok=False, error_code="PROVIDER_ERROR",
+                                    error_message=str(exc)[:200])
+        return TranscriptResult(
+            ok=True,
+            text=text,
+            duration_seconds=int(options.get("duration_seconds") or 0) or None,
+        )
+
+
 class FakeTtsProvider(TextToSpeechProvider):
     def __init__(self):
         _guard_not_production()
@@ -992,6 +1142,12 @@ def get_stt_provider(provider_key: str | None = None, model=None) -> SpeechToTex
     name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
     if name == "fake":
         return FakeSttProvider()
+    if name == "sherpa":
+        # Local sherpa-onnx STT: no credentials needed; model paths come
+        # from the model row's config_json (see SherpaSttProvider).
+        if model is None:
+            raise ValueError("sherpa provider requires a model row with config_json")
+        return SherpaSttProvider.from_model(model)
     if name == "openai_compat":
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
