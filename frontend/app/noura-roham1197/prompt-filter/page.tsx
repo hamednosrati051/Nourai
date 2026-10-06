@@ -14,6 +14,7 @@ import {
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { Pagination } from '@/components/Pagination';
 import { useToast } from '@/components/Toast';
 import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -23,13 +24,14 @@ export default function PromptFilterPage() {
   const { toast } = useToast();
   const filter = usePromptFilter();
   const setFilter = useSetPromptFilter();
-  const words = useBlocklistWords();
   const createWord = useCreateBlocklistWord();
   const updateWord = useUpdateBlocklistWord();
   const deleteWord = useDeleteBlocklistWord();
 
   const [phrase, setPhrase] = useState('');
   const [category, setCategory] = useState('');
+  const [page, setPage] = useState(1);
+  const words = useBlocklistWords(page, 20);
   const [editing, setEditing] = useState<PromptBlocklistWord | null>(null);
   const [editPhrase, setEditPhrase] = useState('');
   const [editCategory, setEditCategory] = useState('');
@@ -161,12 +163,13 @@ export default function PromptFilterPage() {
       <section aria-label="فهرست عبارات">
         {words.isLoading && <LoadingSpinner />}
         {words.isError && <ErrorState message="بارگذاری فهرست ناموفق بود." onRetry={() => words.refetch()} />}
-        {words.data && words.data.length === 0 && (
+        {words.data && words.data.items.length === 0 && (
           <EmptyState icon={ShieldCheck} title="لیستی خالی است" description="هنوز عبارتی ثبت نشده است." />
         )}
-        {words.data && words.data.length > 0 && (
+        {words.data && words.data.items.length > 0 && (
+          <>
           <ul className="flex flex-col gap-2">
-            {words.data.map((w) => (
+            {words.data.items.map((w) => (
               <li key={w.id} className="card flex flex-wrap items-center gap-3 !p-3">
                 {editing?.id === w.id ? (
                   <>
@@ -226,6 +229,12 @@ export default function PromptFilterPage() {
               </li>
             ))}
           </ul>
+          <Pagination
+            page={page}
+            totalPages={words.data.meta.total_pages}
+            onPageChange={setPage}
+          />
+          </>
         )}
       </section>
     </div>

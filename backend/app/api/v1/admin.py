@@ -1733,12 +1733,14 @@ def _blocklist_payload(word: PromptBlocklist) -> dict:
 @bp.get("/admin/prompt-filter/words")
 @admin_required
 def list_blocklist_words():
-    words = (
-        db.session.query(PromptBlocklist)
-        .order_by(PromptBlocklist.created_at.desc())
-        .all()
+    page = max(int(request.args.get("page", 1) or 1), 1)
+    per_page = min(max(int(request.args.get("per_page", 20) or 20), 1), 100)
+    query = db.session.query(PromptBlocklist).order_by(PromptBlocklist.created_at.desc())
+    total = query.count()
+    words = query.offset((page - 1) * per_page).limit(per_page).all()
+    return paginated_response(
+        [_blocklist_payload(w) for w in words], page, per_page, total
     )
-    return success_response([_blocklist_payload(w) for w in words])
 
 
 class BlocklistCreateSchema(BaseModel):

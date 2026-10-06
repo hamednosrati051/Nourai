@@ -495,10 +495,13 @@ export function useSetPromptFilter() {
   });
 }
 
-export function useBlocklistWords() {
+export function useBlocklistWords(page = 1, perPage = 20) {
   return useQuery({
-    queryKey: ['admin', 'prompt-filter', 'words'],
-    queryFn: () => apiGet<PromptBlocklistWord[]>('/admin/prompt-filter/words'),
+    queryKey: ['admin', 'prompt-filter', 'words', page, perPage],
+    queryFn: () =>
+      apiGet<Paginated<PromptBlocklistWord>>(
+        `/admin/prompt-filter/words${buildQuery({ page, per_page: perPage })}`,
+      ),
   });
 }
 
