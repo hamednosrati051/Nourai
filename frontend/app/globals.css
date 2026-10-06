@@ -96,7 +96,7 @@
   }
 
   body {
-    @apply bg-[#faf7f2] text-neutral-900 antialiased;
+    @apply bg-[#faf7f2] text-stone-900 antialiased;
     @apply dark:bg-navy-900 dark:text-slate-100;
     font-family: var(--font-sans);
     line-height: 1.75;
@@ -199,7 +199,7 @@
 }
 
 @utility card {
-  @apply rounded-3xl border border-neutral-200 bg-[#fffdf9] p-5 shadow-sm
+  @apply rounded-3xl border border-[#e7e0d3] bg-[#fffdf9] p-5 shadow-sm
     dark:border-white/10 dark:bg-navy-800 dark:shadow-none;
 }
 
@@ -229,7 +229,7 @@
 /* ---- App-style service card (color-coded, glowing icon, bottom accent) ---- */
 @utility service-card {
   @apply relative flex flex-col gap-3 overflow-hidden rounded-3xl border p-6
-    border-neutral-200 bg-[#fffdf9] shadow-sm
+    border-[#e7e0d3] bg-[#fffdf9] shadow-sm
     dark:border-white/10 dark:bg-navy-800
     transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
 }
@@ -252,12 +252,12 @@
 /* Floating pill header + floating side nav shells. */
 @utility pill-header {
   @apply pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border px-2.5 py-2
-    border-neutral-200 bg-white/85 shadow-lg shadow-neutral-200/50 backdrop-blur-xl
+    border-neutral-200 bg-[#fffdf9]/90 shadow-lg shadow-neutral-200/50 backdrop-blur-xl
     dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40 sm:gap-3 sm:px-4;
 }
 @utility floating-nav {
   @apply pointer-events-auto flex rounded-3xl border backdrop-blur-xl
-    border-neutral-200 bg-white/85 shadow-lg
+    border-neutral-200 bg-[#fffdf9]/90 shadow-lg
     dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40;
 }
 

@@ -17,7 +17,7 @@ export function Header() {
   const ctaLabel = isAdminArea ? 'پنل ادمین' : isAuthed ? 'داشبورد من' : 'ثبت‌نام / ورود';
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-navy-950/90">
+    <header className="sticky top-0 z-40 border-b border-neutral-200 bg-[#fffdf9]/95 backdrop-blur dark:border-white/10 dark:bg-navy-950/90">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label={`${BRAND.fa} — صفحه اصلی`}>
           <span
