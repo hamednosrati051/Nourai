@@ -276,6 +276,8 @@ export interface GalleryItem {
   height?: number | null;
   /** Safe alt text; never contains private prompts or user identifiers. */
   alt_text?: string | null;
+  /** The user's prompt that generated this image (public gallery only). */
+  prompt?: string | null;
   reviewed_at: string;
 }
 

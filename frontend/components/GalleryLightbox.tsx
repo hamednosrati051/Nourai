@@ -130,11 +130,12 @@ export function GalleryLightbox({
 
       {/* Image area */}
       <div
-        className="relative flex flex-1 items-center justify-center overflow-hidden px-12 pb-4"
+        className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-12 pb-4"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
       >
+        <div className="relative flex flex-1 items-center justify-center overflow-hidden">
         {/* Previous (right in RTL) */}
         <button
           type="button"
@@ -160,6 +161,16 @@ export function GalleryLightbox({
         >
           ›
         </button>
+        </div>
+        {/* User prompt */}
+        {item.prompt && (
+          <p
+            dir="auto"
+            className="mt-3 max-h-24 max-w-2xl overflow-y-auto rounded-lg bg-white/10 px-4 py-2 text-center text-sm leading-7 text-white/90"
+          >
+            {item.prompt}
+          </p>
+        )}
       </div>
     </div>
   );
