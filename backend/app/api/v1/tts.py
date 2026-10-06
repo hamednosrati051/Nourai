@@ -42,6 +42,7 @@ from app.billing.pricing import (
 )
 from app.config import config
 from app.extensions import db
+from app.ai.adapters import PiperTtsProvider
 from app.models import AiModel, Asset, GenerationJob, UsageEvent
 from app.models.catalog import CAP_TTS
 from app.models.jobs import ASSET_OUTPUT_AUDIO, JOB_QUEUED
@@ -227,7 +228,8 @@ def list_tts_models():
                 raw = m.config_json
                 cfg = json.loads(raw) if isinstance(raw, str) else (raw or {})
                 cfg = cfg.get("__provider__", cfg)
-                for key, spec in (cfg.get("piper_voices") or {}).items():
+                normalized = PiperTtsProvider._normalize_voices(cfg.get("piper_voices"))
+                for key, spec in normalized.items():
                     label = (spec or {}).get("label") or key
                     voices.append({"value": key, "label": label})
             except Exception:  # noqa: BLE001

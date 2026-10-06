@@ -110,16 +110,18 @@ class PiperTtsProvider(TextToSpeechProvider):
 
         {
             "piper_voices_dir": "/opt/nourai/piper-voices",
-            "piper_voices": {
-                "amir":  {"file": "fa_IR-amir-medium.onnx",  "label": "امیر (مرد)"},
-                "sara":  {"file": "fa_IR-sara-medium.onnx",  "label": "سارا (زن)"}
-            },
-            "default_voice": "amir"
+            "piper_voices": [
+                {"key": "raham", "file": "fa_IR-amir-medium.onnx", "label": "رهام (مرد)"},
+                {"key": "hana",  "file": "fa_IR-mana-medium.onnx", "label": "حنا (زن)"}
+            ],
+            "default_voice": "raham"
         }
 
-    The requested voice comes from ``options["voice"]`` (the TTS job's
-    ``voice`` parameter); falls back to ``default_voice``. Output is a
-    WAV byte stream.
+    ``piper_voices`` is an ordered list (a plain dict is also accepted for
+    backward compatibility, but MySQL JSON columns do not preserve key
+    order). The requested voice comes from ``options["voice"]`` (the TTS
+    job's ``voice`` parameter); falls back to ``default_voice``. Output is
+    a WAV byte stream.
     """
 
     _voice_cache: dict = {}
@@ -128,6 +130,17 @@ class PiperTtsProvider(TextToSpeechProvider):
         self.voices_dir = voices_dir
         self.voices = voices or {}
         self.default_voice = default_voice or (next(iter(self.voices), None))
+
+    @staticmethod
+    def _normalize_voices(raw) -> dict:
+        """Accept an ordered list of {key, file, label} or a legacy dict."""
+        if isinstance(raw, list):
+            out = {}
+            for spec in raw:
+                if isinstance(spec, dict) and spec.get("key") and spec.get("file"):
+                    out[spec["key"]] = {"file": spec["file"], "label": spec.get("label") or spec["key"]}
+            return out
+        return raw if isinstance(raw, dict) else {}
 
     @classmethod
     def from_model(cls, model) -> "PiperTtsProvider":
@@ -140,7 +153,7 @@ class PiperTtsProvider(TextToSpeechProvider):
         cfg = cfg.get("__provider__", cfg)
         return cls(
             voices_dir=cfg.get("piper_voices_dir") or "/opt/nourai/piper-voices",
-            voices=cfg.get("piper_voices") or {},
+            voices=cls._normalize_voices(cfg.get("piper_voices")),
             default_voice=cfg.get("default_voice"),
         )
 
