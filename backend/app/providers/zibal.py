@@ -182,6 +182,10 @@ class ZibalPaymentGateway(PaymentGateway):
         url, body = self._build_verify_request(track_id)
         response = self._post(url, body)
         result = self._normalise_verify_response(response, amount_irr)
+        # Zibal's verify response may not echo the trackId; fall back to the
+        # track_id we verified so the caller's track_id match check works.
+        if result.track_id is None:
+            result.track_id = str(track_id)
         # The caller (payments API) additionally matches result.track_id and
         # the amount against the internal payment row before crediting.
         log.info("zibal verify track_id=%s paid=%s", track_id, result.paid)
