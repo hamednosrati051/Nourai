@@ -29,10 +29,10 @@ export function PillHeader() {
         <Link
           href="/gallery"
           className="btn-ghost btn-sm whitespace-nowrap"
-          aria-label="گالری"
+          aria-label="نگارخانه"
         >
           <ImageIcon className="h-4 w-4 sm:hidden" />
-          <span className="hidden sm:inline">گالری</span>
+          <span className="hidden sm:inline">نگارخانه</span>
         </Link>
 
         <Link

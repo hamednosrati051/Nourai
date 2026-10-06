@@ -34,7 +34,7 @@ export function Header() {
             href="/gallery"
             className={`btn-ghost btn-sm ${pathname === '/gallery' ? 'bg-neutral-100 dark:bg-navy-800' : ''}`}
           >
-            گالری
+            نگارخانه
           </Link>
           <ThemeToggle compact />
           <Link href={ctaHref} className="btn-primary btn-sm">

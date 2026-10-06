@@ -22,7 +22,7 @@ export function FloatingNav() {
 
   const items: NavEntry[] = [
     { href: '/', label: 'خانه', icon: Home },
-    { href: '/gallery', label: 'گالری', icon: Images },
+    { href: '/gallery', label: 'نگارخانه', icon: Images },
     { href: user ? '/dashboard' : '/auth/login', label: 'حساب کاربری', icon: User },
   ];
 

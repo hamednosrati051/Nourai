@@ -28,20 +28,20 @@ export default function GalleryPage() {
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 pt-28 sm:px-6 md:pe-24">
         <div className="mb-8">
-          <p className="badge badge-warning mb-3">گالری عمومی</p>
+          <p className="badge badge-warning mb-3">نگارخانه عمومی</p>
           <h1 className="text-3xl font-black">
-            گالری <span className="text-gradient">{BRAND.fa}</span>
+            نگارخانه <span className="text-gradient">{BRAND.fa}</span>
           </h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-slate-400">
             منتخبی از تصاویر ساخته‌شده توسط کاربران که توسط تیم ما تأیید شده‌اند.
           </p>
         </div>
 
-        {isLoading && <LoadingSpinner label="در حال بارگذاری گالری…" />}
+        {isLoading && <LoadingSpinner label="در حال بارگذاری نگارخانه…" />}
 
         {isError && (
           <ErrorState
-            message={error instanceof ApiError ? getErrorMessage(error.code, error.message) : 'بارگذاری گالری ناموفق بود.'}
+            message={error instanceof ApiError ? getErrorMessage(error.code, error.message) : 'بارگذاری نگارخانه ناموفق بود.'}
             onRetry={() => refetch()}
           />
         )}
@@ -50,14 +50,14 @@ export default function GalleryPage() {
           <EmptyState
             icon={Images}
             title="هنوز تصویری تأیید نشده است"
-            description="به‌زودی تصاویر تأییدشده کاربران در این گالری نمایش داده می‌شود."
+            description="به‌زودی تصاویر تأییدشده کاربران در این نگارخانه نمایش داده می‌شود."
             actionLabel="بازگشت به صفحه اصلی"
             actionHref="/"
           />
         )}
 
         {!isLoading && !isError && items && items.length > 0 && (
-          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-label="تصاویر گالری">
+          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-label="تصاویر نگارخانه">
             {items.map((item, i) => (
               <li
                 key={item.id}
@@ -79,7 +79,7 @@ export default function GalleryPage() {
                   >
                     <img
                       src={item.thumbnail_url ?? item.image_url}
-                      alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
+                      alt={item.alt_text ?? `تصویر نگارخانه ${BRAND.fa}`}
                       loading="lazy"
                       decoding="async"
                       className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

@@ -85,7 +85,7 @@ export default function HomePage() {
               {authed ? 'ورود به داشبورد' : 'ثبت‌نام / ورود'}
             </Link>
             <Link href="/gallery" className="btn-secondary px-8 py-3.5 text-base">
-              مشاهده گالری
+              مشاهده نگارخانه
             </Link>
           </div>
 
@@ -144,7 +144,7 @@ export default function HomePage() {
               href="/gallery"
               className="inline-link shrink-0 font-bold text-brand-700 hover:underline dark:text-brand-300"
             >
-              مشاهده گالری ←
+              مشاهده نگارخانه ←
             </Link>
           </div>
           <GalleryCarousel

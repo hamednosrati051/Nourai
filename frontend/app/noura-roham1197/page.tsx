@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
           {stats.data.pending_gallery_items > 0 && (
             <Link href="/noura-roham1197/gallery" className="card flex items-center justify-between gap-2 border-amber-300 hover:border-amber-500 dark:border-amber-800">
               <div>
-                <p className="font-bold">صف بررسی گالری</p>
+                <p className="font-bold">صف بررسی نگارخانه</p>
                 <p className="text-sm text-neutral-500 dark:text-slate-400">
                   {formatNumber(stats.data.pending_gallery_items)} تصویر در انتظار تأیید است.
                 </p>

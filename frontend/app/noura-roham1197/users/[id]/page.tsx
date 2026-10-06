@@ -32,7 +32,7 @@ const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   ai_request: 'درخواست هوش مصنوعی',
   payment: 'پرداخت',
   wallet: 'کیف پول',
-  gallery: 'گالری',
+  gallery: 'نگارخانه',
   admin_action: 'اقدام ادمین',
 };
 
