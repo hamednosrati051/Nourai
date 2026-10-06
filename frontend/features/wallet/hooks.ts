@@ -24,6 +24,8 @@ export function useWalletTransactions(page = 1, pageSize = DEFAULT_PAGE_SIZE) {
 export interface CreatePaymentInput {
   /** Amount in toman (UI unit); converted to IRR before sending. */
   amountToman?: number;
+  /** Fresh UUID per user intent; double-clicks/retries reuse it. */
+  idempotencyKey?: string;
 }
 
 export function useCreatePayment() {
@@ -31,8 +33,20 @@ export function useCreatePayment() {
   return useMutation({
     mutationFn: (input: CreatePaymentInput) => {
       // Plain wallet top-up: the gateway contract lives in the backend adapter; we send IRR.
-      return apiPost<Payment>('/payments', { amount_irr: tomanToIrr(input.amountToman ?? 0) });
+      const headers = input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : undefined;
+      return apiPost<Payment>('/payments', { amount_irr: tomanToIrr(input.amountToman ?? 0) }, undefined, headers);
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wallet'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    },
+  });
+}
+
+export function useRecheckPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentId: string) => apiPost<Payment>(`/payments/${paymentId}/recheck`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });

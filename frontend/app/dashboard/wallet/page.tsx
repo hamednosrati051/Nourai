@@ -2,12 +2,12 @@
 
 import { NotebookText } from 'lucide-react';
 import { Receipt, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSearchParams } from 'next/navigation';
-import { useCreatePayment, usePayments, useWallet, useWalletTransactions } from '@/features/wallet/hooks';
+import { useCreatePayment, usePayments, useRecheckPayment, useWallet, useWalletTransactions } from '@/features/wallet/hooks';
 import { formatToman, tomanToIrr } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { StatCard } from '@/components/StatCard';
@@ -59,6 +59,10 @@ export default function WalletPage() {
   const transactions = useWalletTransactions(txPage);
   const payments = usePayments(payPage);
   const createPayment = useCreatePayment();
+  const recheckPayment = useRecheckPayment();
+  // One idempotency key per user submit-attempt: retries of the same attempt
+  // reuse it (no duplicate payment), a new attempt mints a new one.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   // Show a toast when returning from the Zibal gateway (success/cancel/fail).
   useEffect(() => {
@@ -66,7 +70,9 @@ export default function WalletPage() {
     if (status === 'success') {
       toast('پرداخت موفق بود و کیف پول شارژ شد.', 'success');
     } else if (status === 'failed') {
-      toast('پرداخت ناموفق بود یا لغو شد.', 'error');
+      toast('پرداخت ناموفق بود یا لغو شد. اگر مبلغی از حسابتان کم شده، حداکثر تا ۷۲ ساعت آینده به حسابتان برمی‌گردد.', 'error');
+    } else if (status === 'unknown') {
+      toast('نتیجه پرداخت مشخص نشد. از بخش سابقه پرداخت‌ها «بررسی مجدد» را بزنید.', 'error');
     }
     if (status) {
       // Clean the query param so refresh doesn't re-toast.
@@ -83,10 +89,17 @@ export default function WalletPage() {
   const amountToman = watch('amountToman');
 
   const onTopup = (values: TopupForm) => {
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
     createPayment.mutate(
-      { amountToman: values.amountToman },
+      { amountToman: values.amountToman, idempotencyKey: idempotencyKeyRef.current },
       {
         onSuccess: (payment) => {
+          idempotencyKeyRef.current = null;
           if (payment.redirect_url) {
             // Hand the user to the Zibal gateway; backend verifies server-side on callback.
             window.location.href = payment.redirect_url;
@@ -98,6 +111,22 @@ export default function WalletPage() {
           toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'ثبت پرداخت ناموفق بود.', 'error'),
       },
     );
+  };
+
+  const onRecheck = (paymentId: string) => {
+    recheckPayment.mutate(paymentId, {
+      onSuccess: (payment) => {
+        if (payment.status === 'paid') {
+          toast('پرداخت تأیید شد و کیف پول شارژ شد.', 'success');
+        } else if (payment.status === 'failed') {
+          toast('پرداخت ناموفق است. اگر مبلغی از حسابتان کم شده، حداکثر تا ۷۲ ساعت آینده برمی‌گردد.', 'error');
+        } else {
+          toast('نتیجه هنوز مشخص نیست؛ کمی بعد دوباره تلاش کنید.', 'error');
+        }
+      },
+      onError: (err) =>
+        toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'بررسی مجدد ناموفق بود.', 'error'),
+    });
   };
 
   return (
@@ -200,10 +229,22 @@ export default function WalletPage() {
                 {
                   header: 'اقدام',
                   render: (p) =>
-                    p.status === 'pending' && p.redirect_url ? (
-                      <a href={p.redirect_url} className="btn-secondary btn-sm">
-                        ادامه پرداخت
-                      </a>
+                    p.status === 'pending' ? (
+                      <div className="flex flex-wrap gap-2">
+                        {p.redirect_url && (
+                          <a href={p.redirect_url} className="btn-secondary btn-sm">
+                            ادامه پرداخت
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          disabled={recheckPayment.isPending}
+                          onClick={() => onRecheck(p.id)}
+                        >
+                          {recheckPayment.isPending ? 'در حال بررسی…' : 'بررسی مجدد'}
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-neutral-400">—</span>
                     ),
