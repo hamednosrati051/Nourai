@@ -28,7 +28,7 @@ export default function TtsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
-  const [voice, setVoice] = useState('amir');
+  const [voice, setVoice] = useState('raham');
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -40,7 +40,8 @@ export default function TtsPage() {
 
   useEffect(() => {
     if (showVoicePicker && !availableVoices.some((v) => v.value === voice)) {
-      const first = availableVoices[0];
+      const preferred = activeModel?.default_voice;
+      const first = availableVoices.find((v) => v.value === preferred) ?? availableVoices[0];
       if (first) setVoice(first.value);
     }
   }, [showVoicePicker, availableVoices, voice]);

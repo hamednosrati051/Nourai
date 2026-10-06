@@ -17,6 +17,7 @@ export interface TtsModel {
   display_name: string;
   provider_type: string;
   voices: TtsVoiceOption[];
+  default_voice?: string | null;
 }
 
 export function useTtsModels() {

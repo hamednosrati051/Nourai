@@ -223,6 +223,7 @@ def list_tts_models():
     out = []
     for m in models:
         voices = []
+        default_voice = None
         if (m.provider_type or "").lower() == "piper":
             try:
                 raw = m.config_json
@@ -232,6 +233,7 @@ def list_tts_models():
                 for key, spec in normalized.items():
                     label = (spec or {}).get("label") or key
                     voices.append({"value": key, "label": label})
+                default_voice = cfg.get("default_voice")
             except Exception:  # noqa: BLE001
                 voices = []
         out.append({
@@ -240,6 +242,7 @@ def list_tts_models():
             "display_name": m.display_name,
             "provider_type": m.provider_type,
             "voices": voices,
+            "default_voice": default_voice,
         })
     return success_response(out)
 
