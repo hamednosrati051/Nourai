@@ -5,6 +5,7 @@ import { CircleCheck, CircleDollarSign, Crown, FileText, Image as ImageIcon, Mes
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
+import { useLogout } from '@/features/auth/hooks';
 import { useModels } from '@/features/models/hooks';
 import type { ModelCapability } from '@/types/api';
 import { IMAGE_CAPABILITIES } from '@/types/api';
@@ -41,6 +42,7 @@ function formatRemaining(remaining: Record<string, number>): string {
 
 export default function DashboardPage() {
   const { data: user } = useMe();
+  const logout = useLogout();
   const wallet = useWallet();
   const myPlan = useMySubscription(!!user);
   const models = useModels();
@@ -141,6 +143,14 @@ export default function DashboardPage() {
                   <Link href="/dashboard/usage" className="btn-secondary">
                     سابقه مصرف
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => logout.mutate()}
+                    disabled={logout.isPending}
+                    className="btn-ghost"
+                  >
+                    {logout.isPending ? '…' : 'خروج از حساب'}
+                  </button>
                 </div>
               </div>
               <span aria-hidden="true" className="service-accent" style={{ ['--svc' as string]: '#f59e0b' }} />
