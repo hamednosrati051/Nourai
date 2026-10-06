@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { BRAND } from '@/lib/config';
 
-/** Simple public footer with brand name and legal link placeholders. */
+/** Footer with brand, legal links and the Enamad trust seal. */
 export function Footer() {
   return (
     <footer className="border-t border-neutral-200 bg-neutral-50 dark:border-white/10 dark:bg-navy-950">
@@ -20,6 +20,24 @@ export function Footer() {
             حریم خصوصی
           </Link>
         </nav>
+        <a
+          referrerPolicy="origin"
+          target="_blank"
+          rel="noopener noreferrer"
+          href="https://trustseal.enamad.ir/?id=8058389&Code=cMmPln8sGmEQlZXXJjuLHkIjjey0LK5L"
+          aria-label="نماد اعتماد الکترونیکی"
+          className="shrink-0"
+        >
+          <img
+            referrerPolicy="origin"
+            src="https://trustseal.enamad.ir/logo.aspx?id=8058389&Code=cMmPln8sGmEQlZXXJjuLHkIjjey0LK5L"
+            alt="نماد اعتماد الکترونیکی"
+            width={80}
+            height={87}
+            className="h-[87px] w-[80px] rounded bg-white p-1"
+            loading="lazy"
+          />
+        </a>
       </div>
     </footer>
   );
