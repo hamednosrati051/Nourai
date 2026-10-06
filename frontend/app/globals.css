@@ -251,9 +251,10 @@
 
 /* Floating pill header + floating side nav shells. */
 @utility pill-header {
-  @apply pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-full border px-2.5 py-2
+  @apply pointer-events-auto flex w-full items-center justify-center gap-2 border-b px-3 py-2
     border-neutral-200 bg-[#fffdf9]/90 shadow-lg shadow-neutral-200/50 backdrop-blur-xl
-    dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40 sm:gap-3 sm:px-4;
+    dark:border-white/10 dark:bg-navy-800/85 dark:shadow-black/40
+    sm:w-auto sm:max-w-[calc(100vw-2rem)] sm:gap-3 sm:rounded-full sm:border sm:px-4;
 }
 @utility floating-nav {
   @apply pointer-events-auto flex rounded-3xl border backdrop-blur-xl

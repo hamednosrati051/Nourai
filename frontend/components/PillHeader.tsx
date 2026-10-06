@@ -12,7 +12,7 @@ export function PillHeader() {
   const authed = !!user;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex justify-center px-4 sm:top-5">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center sm:top-5 sm:px-4">
       <header className="pill-header">
         <Link href="/" className="flex items-center gap-2" aria-label={`${BRAND.fa} — صفحه اصلی`}>
           <span
