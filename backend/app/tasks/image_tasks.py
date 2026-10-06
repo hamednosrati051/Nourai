@@ -272,17 +272,31 @@ def _run_provider(session, job: GenerationJob) -> Asset:
     if not result.ok or not result.image_bytes:
         raise RuntimeError(result.error_code or "provider failed")
 
-    key = asset_key(job.user_id, ASSET_GENERATED_IMAGE, "jpg")
-    storage.put_bytes(key, result.image_bytes, result.mime_type)
+    # Convert to WebP for smaller storage (~60% smaller than JPEG).
+    image_bytes = result.image_bytes
+    mime_type = result.mime_type
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(result.image_bytes))
+        out = io.BytesIO()
+        img.save(out, format="WEBP", quality=85, method=6)
+        image_bytes = out.getvalue()
+        mime_type = "image/webp"
+    except Exception:  # noqa: BLE001
+        pass  # keep original on conversion failure
+
+    key = asset_key(job.user_id, ASSET_GENERATED_IMAGE, "webp" if mime_type == "image/webp" else "jpg")
+    storage.put_bytes(key, image_bytes, mime_type)
 
     asset = Asset(
         user_id=job.user_id,
         job_id=job.id,
         kind=ASSET_GENERATED_IMAGE,
         storage_key=key,
-        mime_type=result.mime_type,
-        size_bytes=len(result.image_bytes),
-        sha256=hashlib.sha256(result.image_bytes).hexdigest(),
+        mime_type=mime_type,
+        size_bytes=len(image_bytes),
+        sha256=hashlib.sha256(image_bytes).hexdigest(),
         width=result.width,
         height=result.height,
         processing_metadata_json={
