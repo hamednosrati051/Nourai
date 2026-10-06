@@ -99,6 +99,27 @@ export function useUserChats(id: string | null, page = 1) {
   });
 }
 
+export interface UserChatMessage {
+  id: string;
+  role: string;
+  content: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  status: string;
+  created_at: string | null;
+}
+
+export function useUserChatMessages(userId: string | null, chatId: string | null, page = 1) {
+  return useQuery({
+    queryKey: ['admin', 'users', userId, 'chats', chatId, 'messages', page],
+    queryFn: () =>
+      apiGet<Paginated<UserChatMessage>>(
+        `/admin/users/${userId}/chats/${chatId}/messages${buildQuery({ page, page_size: 50 })}`,
+      ),
+    enabled: !!userId && !!chatId,
+  });
+}
+
 const USER_ASSET_KIND_MAP = {
   generated: 'generated_image',
   chat_input: 'chat_input_image',

@@ -12,18 +12,20 @@ import {
   useUpdateUserStatus,
   useUserActivity,
   useUserAssets,
+  useUserChatMessages,
   useUserChats,
   useUserWalletTransactions,
   useWalletAdjustment,
+  type UserChat,
 } from '@/features/admin/hooks';
 import { formatToman, tomanToIrr } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
+import { Modal } from '@/components/Modal';
 import { Pagination } from '@/components/Pagination';
 import { ResponsiveTable } from '@/components/DataTable';
-import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import type { ActivityKind, AssetItem } from '@/types/api';
@@ -66,6 +68,8 @@ export default function AdminUserDetailPage() {
   const [tab, setTab] = useState<Tab>('activity');
   const [activityPage, setActivityPage] = useState(1);
   const [chatsPage, setChatsPage] = useState(1);
+  const [chatMsgPage, setChatMsgPage] = useState(1);
+  const [selectedChat, setSelectedChat] = useState<UserChat | null>(null);
   const [walletPage, setWalletPage] = useState(1);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
@@ -73,6 +77,7 @@ export default function AdminUserDetailPage() {
   const user = useAdminUser(id);
   const activity = useUserActivity(id, activityPage);
   const chats = useUserChats(id, chatsPage);
+  const chatMessages = useUserChatMessages(id, selectedChat?.id ?? null, chatMsgPage);
   const walletTx = useUserWalletTransactions(id, walletPage);
   const generatedAssets = useUserAssets(id, 'generated', tab === 'generated');
   const chatInputAssets = useUserAssets(id, 'chat_input', tab === 'chat_input');
@@ -236,16 +241,22 @@ export default function AdminUserDetailPage() {
             <>
               <ul className="flex flex-col gap-2">
                 {chats.data.items.map((c) => (
-                  <li key={c.id} className="card !p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-bold" dir="auto">{c.title || 'بدون عنوان'}</p>
-                      <time className="text-xs text-neutral-500 dark:text-slate-400">{c.created_at ? formatDateTime(c.created_at) : ''}</time>
-                    </div>
-                    {c.preview && <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400" dir="auto">{c.preview}…</p>}
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-slate-400">
-                      {c.model && <span className="badge badge-info">{c.model}</span>}
-                      <span>{formatNumber(c.message_count)} پیام</span>
-                    </div>
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChat(c)}
+                      className="card !p-4 w-full text-right transition hover:border-brand-400"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-bold" dir="auto">{c.title || 'بدون عنوان'}</p>
+                        <time className="text-xs text-neutral-500 dark:text-slate-400">{c.created_at ? formatDateTime(c.created_at) : ''}</time>
+                      </div>
+                      {c.preview && <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400" dir="auto">{c.preview}…</p>}
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-slate-400">
+                        {c.model && <span className="badge badge-info">{c.model}</span>}
+                        <span>{formatNumber(c.message_count)} پیام</span>
+                      </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -254,6 +265,43 @@ export default function AdminUserDetailPage() {
           )}
         </section>
       )}
+
+      {/* Chat messages modal */}
+      <Modal
+        open={!!selectedChat}
+        title={selectedChat?.title || 'گفتگو'}
+        onClose={() => { setSelectedChat(null); setChatMsgPage(1); }}
+        maxWidth="max-w-2xl"
+      >
+        {chatMessages.isLoading && <LoadingSpinner />}
+        {chatMessages.isError && <ErrorState message="بارگذاری پیام‌ها ناموفق بود." onRetry={() => chatMessages.refetch()} />}
+        {chatMessages.data && (
+          <>
+            <ul className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
+              {chatMessages.data.items.map((m) => (
+                <li
+                  key={m.id}
+                  className={`rounded-lg p-3 text-sm ${m.role === 'user' ? 'self-end bg-brand-100 dark:bg-brand-900/30' : 'self-start bg-neutral-100 dark:bg-white/5'} max-w-[90%]`}
+                  dir="auto"
+                >
+                  <p className="mb-1 text-xs font-bold text-neutral-500 dark:text-slate-400">
+                    {m.role === 'user' ? 'کاربر' : 'نورا'}
+                  </p>
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                  {(m.input_tokens || m.output_tokens) && (
+                    <p className="mt-1 text-[11px] text-neutral-400">
+                      {m.input_tokens ? `${formatNumber(m.input_tokens)} ورودی` : ''}
+                      {m.input_tokens && m.output_tokens ? ' · ' : ''}
+                      {m.output_tokens ? `${formatNumber(m.output_tokens)} خروجی` : ''}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <Pagination page={chatMsgPage} totalPages={chatMessages.data.meta.total_pages} onPageChange={setChatMsgPage} />
+          </>
+        )}
+      </Modal>
 
       {/* Generated images */}
       {tab === 'generated' && <AssetGrid query={generatedAssets} emptyTitle="تصویر تولیدشده‌ای نیست" />}

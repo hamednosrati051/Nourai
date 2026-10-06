@@ -212,6 +212,38 @@ def user_activity(user_id: str):
     return paginated_response(items, page, page_size, total)
 
 
+@bp.get("/admin/users/<user_id>/chats/<chat_id>/messages")
+@admin_required
+def user_chat_messages(user_id: str, chat_id: str):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return error_response("NOT_FOUND", status=404)
+    conv = db.session.get(Conversation, chat_id)
+    if conv is None or conv.user_id != user_id:
+        return error_response("NOT_FOUND", status=404)
+    page, page_size = pagination_params()
+    query = (
+        db.session.query(Message)
+        .filter_by(conversation_id=chat_id)
+        .order_by(Message.created_at.asc())
+    )
+    total = query.count()
+    msgs = query.offset((page - 1) * page_size).limit(page_size).all()
+    items = [
+        {
+            "id": m.id,
+            "role": m.role,
+            "content": m.content_text,
+            "input_tokens": m.input_tokens,
+            "output_tokens": m.output_tokens,
+            "status": m.status,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in msgs
+    ]
+    return paginated_response(items, page, page_size, total)
+
+
 @bp.get("/admin/users/<user_id>/chats")
 @admin_required
 def user_chats(user_id: str):
