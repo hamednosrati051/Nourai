@@ -310,7 +310,7 @@ export default function AdminPricingPage() {
         <ResponsiveTable
           ariaLabel="فهرست تعرفه‌ها"
           keyOf={(r) => r.id}
-          rows={[...rules.data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())}
+          rows={[...rules.data].sort((a, b) => Number(b.is_active) - Number(a.is_active) || new Date(b.created_at).getTime() - new Date(a.created_at).getTime())}
           cardHeader={(r) => `${r.model_name ?? r.model_id} — نسخه ${formatNumber(r.version)}`}
           columns={[
             { header: 'مدل', render: (r) => r.model_name ?? <span dir="ltr">{r.model_id}</span> },
