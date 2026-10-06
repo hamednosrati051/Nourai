@@ -41,6 +41,7 @@ from app.models import (
     AuditLog,
     BlogPost,
     CurrencySettings,
+    SiteSettings,
     GalleryEntry,
     GenerationJob,
     ModerationSettings,
@@ -1118,6 +1119,42 @@ def update_currency():
     _audit("currency_settings.updated", "currency_settings", settings.id, changes)
     db.session.commit()
     return success_response(settings.snapshot())
+
+
+# ---------------------------------------------------------------------------
+# Site settings (contact page)
+# ---------------------------------------------------------------------------
+def _get_site_settings() -> SiteSettings:
+    settings = db.session.query(SiteSettings).first()
+    if settings is None:
+        settings = SiteSettings()
+        db.session.add(settings)
+        db.session.flush()
+    return settings
+
+
+@bp.get("/admin/settings/site")
+@admin_required
+def get_site_settings():
+    return success_response(_get_site_settings().to_dict())
+
+
+@bp.put("/admin/settings/site")
+@admin_required
+def update_site_settings():
+    data = request.get_json(silent=True) or {}
+    settings = _get_site_settings()
+    fields = ("contact_phone", "contact_email", "contact_address",
+              "contact_telegram", "contact_instagram", "contact_description")
+    changes = {}
+    for f in fields:
+        if f in data:
+            val = (data[f] or "").strip() or None
+            if getattr(settings, f) != val:
+                changes[f] = val
+                setattr(settings, f, val)
+    db.session.commit()
+    return success_response(settings.to_dict())
 
 
 # ---------------------------------------------------------------------------

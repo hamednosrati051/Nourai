@@ -121,3 +121,19 @@ def my_plan():
     return success_response(
         {"subscription": subscription_to_dict(db.session, sub)}
     )
+
+
+@bp.get("/me/subscriptions")
+@login_required
+def my_subscriptions():
+    """Full subscription history: active, expired and cancelled, newest first."""
+    from app.models import UserPlanSubscription
+    rows = (
+        db.session.query(UserPlanSubscription)
+        .filter(UserPlanSubscription.user_id == g.current_user_id)
+        .order_by(UserPlanSubscription.started_at.desc())
+        .all()
+    )
+    return success_response(
+        {"items": [subscription_to_dict(db.session, r) for r in rows]}
+    )

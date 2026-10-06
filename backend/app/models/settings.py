@@ -85,3 +85,27 @@ class CurrencySettings(Base):
             "usd_to_irr": self.usd_to_irr,
             "image_cost_margin_pct": self.image_cost_margin_pct,
         }
+
+
+class SiteSettings(Base):
+    """Singleton row: public site info (contact page, etc.), admin-managed."""
+
+    __tablename__ = "site_settings"
+
+    # Contact page fields.
+    contact_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contact_address: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    contact_telegram: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contact_instagram: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contact_description: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+
+    def to_dict(self) -> dict:
+        return {
+            "contact_phone": self.contact_phone,
+            "contact_email": self.contact_email,
+            "contact_address": self.contact_address,
+            "contact_telegram": self.contact_telegram,
+            "contact_instagram": self.contact_instagram,
+            "contact_description": self.contact_description,
+        }

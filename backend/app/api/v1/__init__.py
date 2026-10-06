@@ -14,6 +14,7 @@ from app.api.v1 import (
     models,
     payments,
     plans,
+    site,
     tts,
     usage,
     wallet,
@@ -23,7 +24,7 @@ bp = Blueprint("api_v1", __name__, url_prefix="/api/v1")
 
 for module in (
     auth, admin_auth, wallet, payments, plans, models, chat, audio, image, gallery,
-    usage, assets, tts, blog, admin,
+    usage, assets, tts, blog, site, admin,
 ):
     bp.register_blueprint(module.bp)
 
