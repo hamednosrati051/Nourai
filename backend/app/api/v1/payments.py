@@ -122,6 +122,8 @@ def create_payment():
     db.session.commit()
     payload = _payment_payload(payment)
     payload["payment_url"] = start.payment_url
+    # Frontend expects `redirect_url` (see types/api.ts Payment).
+    payload["redirect_url"] = start.payment_url
     return success_response(payload, status=201)
 
 
