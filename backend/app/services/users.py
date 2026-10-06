@@ -58,6 +58,8 @@ def user_summary(session, user: User) -> dict:
         "is_active": user.is_active,
         "mobile_verified_at": _iso(user.mobile_verified_at),
         "last_login_at": _iso(user.last_login_at),
+        "last_login_ip": user.last_login_ip,
+        "last_login_user_agent": user.last_login_user_agent,
         "balance_irr": wallet.balance_irr if wallet else 0,
         "total_spent_irr": _total_spent_irr(session, user.id),
         "created_at": _iso(user.created_at),

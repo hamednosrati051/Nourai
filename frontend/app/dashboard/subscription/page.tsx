@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Crown } from 'lucide-react';
+import { ArrowRight, Crown } from 'lucide-react';
 import { useSubscriptionHistory } from '@/features/plans/hooks';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
@@ -29,6 +29,14 @@ export default function SubscriptionPage() {
       <FloatingNav />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-20 pt-28 sm:px-6 md:pe-24">
+        <Link
+          href="/dashboard"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-neutral-600 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-100"
+        >
+          <ArrowRight className="h-4 w-4" />
+          بازگشت به داشبورد
+        </Link>
+
         <div className="mb-8">
           <p className="badge badge-warning mb-3">اشتراک</p>
           <h1 className="text-3xl font-black">اشتراک من</h1>

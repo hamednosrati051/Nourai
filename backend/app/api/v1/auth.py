@@ -170,6 +170,8 @@ def otp_verify():
         return error_response("USER_DISABLED", status=403)
     user.mobile_verified_at = user.mobile_verified_at or now
     user.last_login_at = now
+    user.last_login_ip = ip
+    user.last_login_user_agent = request.headers.get("User-Agent", "")[:512] or None
     get_wallet_for_update(db.session, user.id)  # ensure wallet exists
     audit(
         db.session, actor_type="user", actor_id=user.id, action="user.login",

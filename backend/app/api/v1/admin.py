@@ -1145,7 +1145,8 @@ def update_site_settings():
     data = request.get_json(silent=True) or {}
     settings = _get_site_settings()
     fields = ("contact_phone", "contact_email", "contact_address",
-              "contact_telegram", "contact_instagram", "contact_description")
+              "contact_telegram", "contact_instagram", "contact_eitaa",
+              "contact_bale", "contact_description")
     changes = {}
     for f in fields:
         if f in data:

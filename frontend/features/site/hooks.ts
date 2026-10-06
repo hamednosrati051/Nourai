@@ -9,6 +9,8 @@ export interface ContactInfo {
   contact_address: string | null;
   contact_telegram: string | null;
   contact_instagram: string | null;
+  contact_eitaa: string | null;
+  contact_bale: string | null;
   contact_description: string | null;
 }
 

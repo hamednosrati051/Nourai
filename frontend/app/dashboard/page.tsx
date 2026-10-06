@@ -209,6 +209,13 @@ export default function DashboardPage() {
                 color="#34d399"
               />
             )}
+          </div>
+        </section>
+
+        {/* Account section */}
+        <section aria-labelledby="account-heading" className="mt-8">
+          <h2 id="account-heading" className="mb-3 text-lg font-bold">حساب کاربری</h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <ServiceCard
               href="/dashboard/subscription"
               icon={Crown}

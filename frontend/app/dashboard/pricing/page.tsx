@@ -1,12 +1,20 @@
 'use client';
 
-import { FileText, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2 } from 'lucide-react';
 import { PillHeader } from '@/components/PillHeader';
 import { FloatingNav } from '@/components/FloatingNav';
 
 /**
- * Service tariffs in toman. These are the public display prices;
- * actual billing follows the admin pricing rules per model.
+ * Service tariffs in toman, derived from the admin pricing rules
+ * (USD tariffs × 2,660,000 IRR/USD rate).
+ *
+ * - Text: avalai-text $0.0000003/in + $0.0000008/out per token;
+ *   ~1500 tokens per 1000 Persian words → ≈ ۴۴۰ تومان
+ * - STT: shenava-stt $0.001 per request → ۲۶۶ تومان
+ * - TTS: piper-tts $0.0037594 per request → ۱٬۰۰۰ تومان
+ * - Generate: qwen-image $0.035 per image → ۹٬۳۱۰ تومان
+ * - Edit: qwen-image-edit $0.045 per image → ۱۱٬۹۷۰ تومان
  */
 const TARIFFS = [
   {
@@ -20,16 +28,16 @@ const TARIFFS = [
   {
     icon: Mic,
     title: 'تبدیل صوت به متن',
-    unit: 'هر دقیقه',
-    price: '۱٬۴۸۲ تومان',
-    description: 'پیاده‌سازی صوت فارسی به متن',
+    unit: 'هر درخواست',
+    price: '۲۶۶ تومان',
+    description: 'پیاده‌سازی صوت فارسی به متن (شنوا)',
     color: '#f472b6',
   },
   {
     icon: Volume2,
     title: 'تبدیل متن به صوت',
-    unit: 'هر دقیقه صدا',
-    price: '۳٬۷۰۵ تومان',
+    unit: 'هر درخواست',
+    price: '۱٬۰۰۰ تومان',
     description: 'تبدیل متن به گفتار فارسی',
     color: '#34d399',
   },
@@ -37,25 +45,17 @@ const TARIFFS = [
     icon: ImageIcon,
     title: 'تولید تصویر',
     unit: 'هر تصویر',
-    price: '۱۷٬۲۹۰ تومان',
+    price: '۹٬۳۱۰ تومان',
     description: 'ساخت تصویر از توضیح متنی',
     color: '#a78bfa',
   },
   {
     icon: ScanEye,
-    title: 'تحلیل تصویر',
+    title: 'ویرایش تصویر',
     unit: 'هر تصویر',
-    price: '۹٬۸۸۰ تومان',
-    description: 'ویرایش و تحلیل تصویر',
+    price: '۱۱٬۹۷۰ تومان',
+    description: 'ویرایش و تغییر تصویر',
     color: '#fbbf24',
-  },
-  {
-    icon: FileText,
-    title: 'تاریخچه و نگارخانه',
-    unit: 'رایگان',
-    price: '۰ تومان',
-    description: 'مشاهده سوابق و تصاویر تأییدشده',
-    color: '#94a3b8',
   },
 ];
 
@@ -66,6 +66,14 @@ export default function PricingPage() {
       <FloatingNav />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-20 pt-28 sm:px-6 md:pe-24">
+        <Link
+          href="/dashboard"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-neutral-600 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-100"
+        >
+          <ArrowRight className="h-4 w-4" />
+          بازگشت به داشبورد
+        </Link>
+
         <div className="mb-8">
           <p className="badge badge-warning mb-3">تعرفه‌ها</p>
           <h1 className="text-3xl font-black">تعرفه خدمات</h1>
@@ -101,7 +109,7 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-neutral-500">
-          قیمت‌ها ممکن است با تغییر تعرفه مدل‌ها به‌روزرسانی شوند. مبلغ نهایی هر درخواست در تاریخچه مصرف ثبت می‌شود.
+          قیمت‌ها بر اساس تعرفه‌های فعلی محاسبه شده‌اند و ممکن است تغییر کنند. مبلغ نهایی هر درخواست در تاریخچه مصرف ثبت می‌شود.
         </p>
       </main>
     </div>

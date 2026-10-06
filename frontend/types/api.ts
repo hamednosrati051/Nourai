@@ -325,6 +325,8 @@ export interface AdminUserRow {
   total_spent_irr: number;
   created_at: string;
   last_login_at?: string | null;
+  last_login_ip?: string | null;
+  last_login_user_agent?: string | null;
 }
 
 export interface AdminUserDetail extends AdminUserRow {

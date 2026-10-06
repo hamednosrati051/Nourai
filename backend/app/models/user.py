@@ -16,6 +16,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     mobile_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_login_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_login_user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # Bumped when the user is disabled (or sessions are revoked); JWTs issued
     # before this instant are rejected.
     session_invalidated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

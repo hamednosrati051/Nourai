@@ -16,6 +16,8 @@ const formSchema = z.object({
   contact_address: z.string().max(512).optional().or(z.literal('')),
   contact_telegram: z.string().max(128).optional().or(z.literal('')),
   contact_instagram: z.string().max(128).optional().or(z.literal('')),
+  contact_eitaa: z.string().max(128).optional().or(z.literal('')),
+  contact_bale: z.string().max(128).optional().or(z.literal('')),
   contact_description: z.string().max(2048).optional().or(z.literal('')),
 });
 type FormValues = z.infer<typeof formSchema>;
@@ -41,6 +43,8 @@ export default function AdminSiteSettingsPage() {
         contact_address: settings.data.contact_address ?? '',
         contact_telegram: settings.data.contact_telegram ?? '',
         contact_instagram: settings.data.contact_instagram ?? '',
+        contact_eitaa: settings.data.contact_eitaa ?? '',
+        contact_bale: settings.data.contact_bale ?? '',
         contact_description: settings.data.contact_description ?? '',
       });
     }
@@ -94,6 +98,16 @@ export default function AdminSiteSettingsPage() {
           <div>
             <label htmlFor="ss-instagram" className="label">اینستاگرام (آیدی)</label>
             <input id="ss-instagram" className="input" dir="ltr" placeholder="@nourai" {...register('contact_instagram')} />
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="ss-eitaa" className="label">ایتا (آیدی یا لینک)</label>
+            <input id="ss-eitaa" className="input" dir="ltr" placeholder="@nourai" {...register('contact_eitaa')} />
+          </div>
+          <div>
+            <label htmlFor="ss-bale" className="label">بله (آیدی یا لینک)</label>
+            <input id="ss-bale" className="input" dir="ltr" placeholder="@nourai" {...register('contact_bale')} />
           </div>
         </div>
         <div>

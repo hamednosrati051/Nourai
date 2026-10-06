@@ -98,6 +98,8 @@ class SiteSettings(Base):
     contact_address: Mapped[str | None] = mapped_column(String(512), nullable=True)
     contact_telegram: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contact_instagram: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contact_eitaa: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contact_bale: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contact_description: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     def to_dict(self) -> dict:
@@ -107,5 +109,7 @@ class SiteSettings(Base):
             "contact_address": self.contact_address,
             "contact_telegram": self.contact_telegram,
             "contact_instagram": self.contact_instagram,
+            "contact_eitaa": self.contact_eitaa,
+            "contact_bale": self.contact_bale,
             "contact_description": self.contact_description,
         }

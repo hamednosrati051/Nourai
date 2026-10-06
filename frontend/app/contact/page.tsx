@@ -1,6 +1,7 @@
 'use client';
 
-import { Mail, MapPin, MessageCircle, Phone, Send } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Mail, MapPin, MessageCircle, Phone, Send } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useContactInfo } from '@/features/site/hooks';
 import { PillHeader } from '@/components/PillHeader';
@@ -20,6 +21,14 @@ export default function ContactPage() {
       <FloatingNav />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-20 pt-28 sm:px-6 md:pe-24">
+        <Link
+          href="/dashboard"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-bold text-neutral-600 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-100"
+        >
+          <ArrowRight className="h-4 w-4" />
+          بازگشت به داشبورد
+        </Link>
+
         <div className="mb-8">
           <p className="badge badge-warning mb-3">تماس با ما</p>
           <h1 className="text-3xl font-black">
@@ -122,9 +131,48 @@ export default function ContactPage() {
                   </div>
                 </li>
               )}
+              {data.contact_eitaa && (
+                <li className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
+                    <Send className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs text-neutral-500">ایتا</p>
+                    <a
+                      href={data.contact_eitaa.startsWith('http') ? data.contact_eitaa : `https://eitaa.com/${data.contact_eitaa.replace(/^@/, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold"
+                      dir="ltr"
+                    >
+                      {data.contact_eitaa}
+                    </a>
+                  </div>
+                </li>
+              )}
+              {data.contact_bale && (
+                <li className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-500">
+                    <Send className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-xs text-neutral-500">بله</p>
+                    <a
+                      href={data.contact_bale.startsWith('http') ? data.contact_bale : `https://ble.ir/${data.contact_bale.replace(/^@/, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold"
+                      dir="ltr"
+                    >
+                      {data.contact_bale}
+                    </a>
+                  </div>
+                </li>
+              )}
             </ul>
             {!data.contact_phone && !data.contact_email && !data.contact_address &&
-              !data.contact_telegram && !data.contact_instagram && !data.contact_description && (
+              !data.contact_telegram && !data.contact_instagram && !data.contact_eitaa &&
+              !data.contact_bale && !data.contact_description && (
                 <p className="text-sm text-neutral-500">
                   اطلاعات تماس به‌زودی ثبت می‌شود.
                 </p>

@@ -45,7 +45,7 @@ const ASSET_LABELS: Record<AssetItem['kind'], string> = {
   output_audio: 'صوت خروجی',
 };
 
-type Tab = 'activity' | 'generated' | 'chat_input' | 'edit_input' | 'wallet';
+type Tab = 'activity' | 'generated' | 'chat_input' | 'edit_input' | 'wallet' | 'session';
 
 const statusSchema = z.object({
   reason: z.string().trim().min(3, 'دلیل تغییر وضعیت را بنویسید (حداقل ۳ حرف).'),
@@ -129,6 +129,7 @@ export default function AdminUserDetailPage() {
     { value: 'chat_input', label: 'تصاویر ورودی چت' },
     { value: 'edit_input', label: 'تصاویر ورودی ویرایش' },
     { value: 'wallet', label: 'تراکنش‌های کیف پول' },
+    { value: 'session', label: 'آخرین نشست' },
   ];
 
   return (
@@ -264,6 +265,31 @@ export default function AdminUserDetailPage() {
               <Pagination page={walletPage} totalPages={walletTx.data.meta.total_pages} onPageChange={setWalletPage} />
             </>
           )}
+        </section>
+      )}
+
+      {/* Last session */}
+      {tab === 'session' && (
+        <section aria-label="آخرین نشست کاربر">
+          <div className="card">
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-neutral-500">آخرین ورود</dt>
+                <dd className="font-bold">{u.last_login_at ? formatDateTime(u.last_login_at) : '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-neutral-500">آی‌پی</dt>
+                <dd className="font-bold tabular-nums" dir="ltr">{u.last_login_ip ?? '—'}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-neutral-500">دستگاه / مرورگر</dt>
+                <dd className="break-all text-sm" dir="ltr">{u.last_login_user_agent ?? '—'}</dd>
+              </div>
+            </dl>
+            {!u.last_login_at && (
+              <p className="mt-3 text-sm text-neutral-500">هنوز ورودی ثبت نشده است.</p>
+            )}
+          </div>
         </section>
       )}
 
