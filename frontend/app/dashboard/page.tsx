@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, FileText, Image as ImageIcon, MessageSquare, Mic, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Crown, FileText, Image as ImageIcon, MessageSquare, Mic, Phone, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -209,6 +209,30 @@ export default function DashboardPage() {
                 color="#34d399"
               />
             )}
+            <ServiceCard
+              href="/dashboard/subscription"
+              icon={Crown}
+              title="اشتراک من"
+              description="اشتراک فعال و سابقه اشتراک‌های قبلی"
+              color="#fbbf24"
+              ctaLabel="مشاهده"
+            />
+            <ServiceCard
+              href="/dashboard/pricing"
+              icon={CircleDollarSign}
+              title="تعرفه خدمات"
+              description="هزینه هر سرویس به تومان"
+              color="#34d399"
+              ctaLabel="مشاهده"
+            />
+            <ServiceCard
+              href="/contact"
+              icon={Phone}
+              title="تماس با ما"
+              description="راه‌های ارتباطی با تیم نورا"
+              color="#38bdf8"
+              ctaLabel="مشاهده"
+            />
           </div>
         </section>
       </main>

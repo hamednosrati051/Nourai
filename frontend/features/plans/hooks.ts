@@ -97,3 +97,25 @@ export function useMyPlan(enabled = true) {
     staleTime: 60_000,
   });
 }
+
+export interface SubscriptionHistoryItem extends MySubscription {
+  started_at: string;
+  expires_at: string;
+}
+
+export interface SubscriptionHistoryResponse {
+  items: SubscriptionHistoryItem[];
+}
+
+/** Full subscription history: active, expired, cancelled — newest first. */
+export function useSubscriptionHistory(enabled = true) {
+  return useQuery({
+    queryKey: ['me', 'subscriptions'],
+    queryFn: async (): Promise<SubscriptionHistoryItem[]> => {
+      const data = await apiGet<SubscriptionHistoryResponse>('/me/subscriptions');
+      return data?.items ?? [];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}

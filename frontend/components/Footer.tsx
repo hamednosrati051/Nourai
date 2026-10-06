@@ -10,6 +10,9 @@ export function Footer() {
           © {new Date().getFullYear()} {BRAND.fa} — پلتفرم هوش مصنوعی
         </p>
         <nav aria-label="پیوندهای قانونی" className="flex items-center gap-4 text-sm">
+          <Link href="/contact" className="inline-link text-neutral-600 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-100">
+            تماس با ما
+          </Link>
           <Link href="/terms" className="inline-link text-neutral-600 hover:text-neutral-900 dark:text-slate-400 dark:hover:text-slate-100">
             قوانین استفاده
           </Link>
