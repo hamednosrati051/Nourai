@@ -53,7 +53,7 @@ export default function SubscriptionPage() {
             <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400">
               برای استفاده از سهمیه‌ها، یکی از اشتراک‌ها را انتخاب کنید.
             </p>
-            <Link href="/pricing" className="btn-primary btn-sm mt-4 inline-flex">
+            <Link href="/#plans" className="btn-primary btn-sm mt-4 inline-flex">
               مشاهده اشتراک‌ها
             </Link>
           </div>
@@ -106,7 +106,7 @@ export default function SubscriptionPage() {
         )}
 
         <div className="mt-6 text-center">
-          <Link href="/pricing" className="btn-secondary btn-sm">
+          <Link href="/#plans" className="btn-secondary btn-sm">
             مشاهده و خرید اشتراک
           </Link>
         </div>

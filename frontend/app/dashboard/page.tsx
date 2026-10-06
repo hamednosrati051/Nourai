@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, CircleDollarSign, Crown, FileText, Image as ImageIcon, MessageSquare, Mic, Phone, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Crown, FileText, Image as ImageIcon, MessageSquare, Mic, Phone, ShoppingCart, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -216,6 +216,14 @@ export default function DashboardPage() {
               description="اشتراک فعال و سابقه اشتراک‌های قبلی"
               color="#fbbf24"
               ctaLabel="مشاهده"
+            />
+            <ServiceCard
+              href="/#plans"
+              icon={ShoppingCart}
+              title="خرید اشتراک"
+              description="انتخاب و خرید اشتراک جدید"
+              color="#f472b6"
+              ctaLabel="خرید"
             />
             <ServiceCard
               href="/dashboard/pricing"
