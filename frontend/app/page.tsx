@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { NouraHero } from '@/components/NouraHero';
 import { Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
@@ -91,22 +92,10 @@ export default function HomePage() {
 
           {/* Noura: animated avatar linking to the voice assistant */}
           <div className="mt-10">
-            <Link
+            <NouraHero
               href={authed ? '/dashboard/voice' : '/auth/login'}
-              aria-label="نورا — دستیار صوتی"
-              className="group inline-flex flex-col items-center gap-2"
-            >
-              <video
-                src="/images/nourai-mascot.mp4"
-                poster="/images/nourai-mascot.jpg"
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="h-28 w-28 rounded-full object-cover shadow-xl shadow-brand-500/20 transition-transform duration-200 group-hover:scale-105"
-              />
-              <span className="text-2xl font-black">نورا</span>
-            </Link>
+              size="h-28 w-28"
+            />
           </div>
 
         </section>

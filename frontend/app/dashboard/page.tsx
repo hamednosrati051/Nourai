@@ -12,6 +12,7 @@ import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { BRAND } from '@/lib/config';
 import { ServiceCard } from '@/components/ServiceCard';
+import { NouraHero } from '@/components/NouraHero';
 import { FloatingNav } from '@/components/FloatingNav';
 import { PillHeader } from '@/components/PillHeader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -70,25 +71,12 @@ export default function DashboardPage() {
 
         {/* Noura hero: animated avatar linking to the voice assistant */}
         {hasCap('speech_to_text') && (
-          <Link
-            href="/dashboard/voice"
-            aria-label="نورا — دستیار صوتی"
-            className="group mb-8 flex flex-col items-center gap-2 p-2 text-center"
-          >
-            <video
-              src="/images/nourai-mascot.mp4"
-              poster="/images/nourai-mascot.jpg"
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="h-24 w-24 rounded-full object-cover shadow-xl transition group-hover:scale-105"
+          <div className="mb-8 flex justify-center">
+            <NouraHero
+              href="/dashboard/voice"
+              subtitle="دستیار صوتی‌ات — بزن و حرف بزن"
             />
-            <p className="text-2xl font-black">نورا</p>
-            <p className="-mt-1 text-sm text-neutral-500 dark:text-slate-400">
-              دستیار صوتی‌ات — بزن و حرف بزن
-            </p>
-          </Link>
+          </div>
         )}
 
         {/* Active plan banner */}
