@@ -1093,6 +1093,11 @@ def _resolve_credentials(provider_key: str | None, model=None) -> tuple[str, str
     """
     if model is not None:
         cfg = getattr(model, "config_json", None) or {}
+        if isinstance(cfg, str):
+            try:
+                cfg = json.loads(cfg)
+            except Exception:  # noqa: BLE001
+                cfg = {}
         creds = cfg.get("__provider__") or {}
         base_url = (creds.get("base_url") or "").strip()
         api_key = (creds.get("api_key") or "").strip()
