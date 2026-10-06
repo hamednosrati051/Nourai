@@ -147,7 +147,7 @@ export default function DashboardPage() {
                     type="button"
                     onClick={() => logout.mutate()}
                     disabled={logout.isPending}
-                    className="btn-ghost"
+                    className="btn-danger"
                   >
                     {logout.isPending ? '…' : 'خروج از حساب'}
                   </button>
