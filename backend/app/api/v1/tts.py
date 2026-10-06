@@ -2,14 +2,16 @@
 
 The TTS provider is model-driven: ``get_tts_provider`` reads ``provider_type``
 from the admin model row (``fake`` | ``openai_compat``), same pattern as the
-text and STT selectors. Billing is a fixed per-request tariff defined on the
-TTS model in the admin pricing panel.
+text and STT selectors. Billing is per-second of output audio (``audio_second``
+rule on the TTS model); the request holds an estimate from text length and
+the worker settles on the actual output duration.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import math
 
 from flask import Blueprint, g, request
 from pydantic import BaseModel, ValidationError
@@ -35,10 +37,8 @@ from app.billing.ledger import (
 )
 from app.services.plans import PlanLimitService
 from app.billing.pricing import (
-    UNIT_FIXED_REQUEST,
     PricingRuleUnavailable,
     PricingService,
-    snapshot_rule,
 )
 from app.config import config
 from app.extensions import db
@@ -123,10 +123,13 @@ def create_tts_job():
         return error_response("IDEMPOTENCY_KEY_REQUIRED", status=428)
 
     pricing = PricingService(db.session)
+    # Estimate speech duration from text length for the hold (~800 chars/min
+    # for Persian). The worker settles on the actual output duration.
+    est_seconds = max(1, math.ceil(len(text) / 13))
     try:
-        rule = pricing.get_active_rule(tts_model.id, UNIT_FIXED_REQUEST)
-        estimated_irr, _breakdown = pricing.calculate(rule, 1)
-        snapshots = [snapshot_rule(rule, pricing.usd_to_irr)]
+        estimate = pricing.estimate_audio(tts_model.id, est_seconds)
+        estimated_irr = estimate["total_irr"]
+        snapshots = estimate["pricing_snapshots"]
     except PricingRuleUnavailable:
         return error_response("PRICING_RULE_UNAVAILABLE", status=500)
 
@@ -139,6 +142,7 @@ def create_tts_job():
         parameters_json={
             "tts_model_id": tts_model.id,
             "text_chars": len(text),
+            "est_seconds": est_seconds,
             "voice": data.voice,
         },
     )

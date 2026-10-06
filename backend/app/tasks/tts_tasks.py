@@ -1,8 +1,9 @@
 """Standalone text-to-speech worker: text -> TTS provider -> output audio asset.
 
 The provider is resolved from the TTS model row (model-driven, same pattern
-as the text/STT selectors). Billing was held at request time as a fixed
-per-request tariff; success settles it, failure releases it.
+as the text/STT selectors). Billing was held at request time from the
+estimated duration; success settles on the actual output audio duration,
+failure releases the hold.
 """
 from __future__ import annotations
 
@@ -82,8 +83,19 @@ def process_tts_job(self, job_id: str) -> dict:
         if aborted_during_processing(session, job):
             return {"ok": False, "error": "CANCELLED"}
 
-        final_amount = usage.reserved_amount_irr or 0 if usage else 0
+        # --- settle on actual output duration -------------------------------
+        from app.billing.pricing import PricingService
+
+        actual_seconds = int(output_asset.duration_seconds or 0) or int(
+            (job.parameters_json or {}).get("est_seconds") or 1
+        )
+        pricing = PricingService(session)
+        tts_model_id = (job.parameters_json or {}).get("tts_model_id") or job.model_id
+        estimate = pricing.estimate_audio(tts_model_id, actual_seconds)
+        final_amount = estimate["total_irr"]
         if usage is not None:
+            usage.audio_seconds = actual_seconds
+            usage.pricing_snapshot_json = estimate["pricing_snapshots"]
             if quota_covered:
                 usage.charged_amount_irr = 0
                 usage.status = "succeeded"
