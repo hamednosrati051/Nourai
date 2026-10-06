@@ -1,12 +1,22 @@
 """Zibal payment gateway adapter.
 
-Implements create -> redirect -> callback -> server-side verify.
-The exact endpoint paths, request/response fields, response codes and the
-amount unit expected by Zibal MUST come from the official Zibal API docs for
-the version in use — they are marked TODO below and must be filled in with
-the project owner's merchant information. Nothing is guessed here.
+Implements create -> redirect -> callback -> server-side verify against the
+official Zibal IPG API (https://help.zibal.ir/IPG/API/).
 
-Key safety properties (implemented regardless of the mapping):
+API mapping (from the official docs):
+- Create:  POST {base_url}/request
+            body: {"merchant", "amount" (rial), "callbackUrl",
+                   "description", "orderId", "mobile" (optional)}
+            ok:   {"result": 100, "trackId": <int>, ...}
+            pay:  https://gateway.zibal.ir/start/{trackId}
+- Verify:  POST {base_url}/verify
+            body: {"merchant", "trackId"}
+            ok:   {"result": 100, ...}            (paid)
+                  {"result": 201, ...}            (already verified -> paid)
+- Callback: Zibal redirects the browser with GET params
+            ?success=1&trackId=...&orderId=...&status=...
+
+Key safety properties:
 - the callback only *starts* verification; success is recorded only after a
   direct server-side verify with matching track_id AND amount;
 - verify is idempotent: repeated callbacks/verifies never create a second
@@ -26,20 +36,25 @@ from app.providers.base import PaymentGateway, PaymentStart, PaymentVerify, Prov
 
 log = logging.getLogger(__name__)
 
-# TODO(Zibal integration): fill in from the official Zibal docs —
-# request endpoints, field names, response codes and the amount unit.
-_CREATE_PATH_TODO = "/TODO-from-official-docs"
-_VERIFY_PATH_TODO = "/TODO-from-official-docs"
+_CREATE_PATH = "/request"
+_VERIFY_PATH = "/verify"
+# Payment page host (per docs; the start path lives on the gateway host,
+# not necessarily on a custom api base path).
+_START_URL_TEMPLATE = "https://gateway.zibal.ir/start/{track_id}"
 _REQUEST_TIMEOUT_SECONDS = 15
 _MAX_RETRIES = 2
 _BACKOFF_SECONDS = (1, 3)
+
+# Zibal result codes (per official docs).
+_RESULT_OK = 100
+_RESULT_ALREADY_VERIFIED = 201
 
 
 class ZibalNotConfigured(ProviderError):
     def __init__(self):
         super().__init__(
             code="PROVIDER_ERROR",
-            message="Zibal request mapping is not configured (see TODO in providers/zibal.py)",
+            message="Zibal merchant / api base url is not configured",
         )
 
 
@@ -56,26 +71,77 @@ class ZibalPaymentGateway(PaymentGateway):
 
     # -- amount unit ------------------------------------------------------
     def to_gateway_amount(self, amount_irr: int) -> int:
-        """Convert canonical IRR to the amount unit Zibal expects.
+        """Zibal expects the amount in rial; our canonical unit is IRR
+        (rial), so no conversion is needed."""
+        if not isinstance(amount_irr, int) or amount_irr <= 0:
+            raise ValueError("amount_irr must be a positive integer")
+        return amount_irr
 
-        TODO(Zibal integration): confirm the expected unit (e.g. toman vs
-        rial) in the official docs and implement the conversion here via
-        app.billing.currency. Never convert inline elsewhere.
-        """
-        raise ZibalNotConfigured()
-
-    # -- request building (TODO per official docs) -------------------------
+    # -- request building ---------------------------------------------------
     def _build_create_request(self, amount_irr: int, callback_url: str, metadata: dict):
-        raise ZibalNotConfigured()
+        url = f"{self.api_base_url}{_CREATE_PATH}"
+        body = {
+            "merchant": self.merchant,
+            "amount": self.to_gateway_amount(amount_irr),
+            "callbackUrl": callback_url,
+            "description": f"Noura wallet top-up ({metadata.get('payment_id', '')})",
+            "orderId": str(metadata.get("payment_id") or metadata.get("user_id") or ""),
+        }
+        return url, body
 
     def _build_verify_request(self, track_id: str):
-        raise ZibalNotConfigured()
+        url = f"{self.api_base_url}{_VERIFY_PATH}"
+        body = {"merchant": self.merchant, "trackId": int(track_id)}
+        return url, body
 
     def _normalise_create_response(self, response: httpx.Response) -> PaymentStart:
-        raise ZibalNotConfigured()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise ProviderError("PROVIDER_ERROR", f"zibal bad response: {exc}") from exc
+        result = data.get("result")
+        track_id = data.get("trackId")
+        if response.status_code != 200 or result != _RESULT_OK or not track_id:
+            raise ProviderError(
+                "PROVIDER_ERROR",
+                f"zibal request failed: result={result} message={data.get('message')}",
+            )
+        track_id = str(track_id)
+        return PaymentStart(
+            track_id=track_id,
+            payment_url=_START_URL_TEMPLATE.format(track_id=track_id),
+            raw={"result": result},
+        )
 
     def _normalise_verify_response(self, response: httpx.Response, amount_irr: int) -> PaymentVerify:
-        raise ZibalNotConfigured()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise ProviderError("PROVIDER_ERROR", f"zibal bad response: {exc}") from exc
+        result = data.get("result")
+        track_id = data.get("trackId")
+        paid = result in (_RESULT_OK, _RESULT_ALREADY_VERIFIED)
+        gateway_amount = data.get("amount")
+        try:
+            gateway_amount = int(gateway_amount) if gateway_amount is not None else None
+        except (TypeError, ValueError):
+            gateway_amount = None
+        # Amount must match what we asked for; a mismatch is treated as unpaid.
+        if paid and gateway_amount is not None and gateway_amount != amount_irr:
+            log.warning(
+                "zibal verify amount mismatch: expected %s got %s",
+                amount_irr, gateway_amount,
+            )
+            paid = False
+        return PaymentVerify(
+            ok=response.status_code == 200,
+            paid=paid,
+            track_id=str(track_id) if track_id is not None else None,
+            gateway_reference=str(data.get("refNumber") or "") or None,
+            amount_in_gateway_unit=gateway_amount,
+            error_code=str(result) if not paid else None,
+            error_message=str(data.get("message") or "") or None,
+        )
 
     # -- transport ----------------------------------------------------------
     def _post(self, url: str, body: dict) -> httpx.Response:
