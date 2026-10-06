@@ -1798,6 +1798,16 @@ class BlogPostSchema(BaseModel):
     is_published: bool = False
 
 
+class BlogPostPatchSchema(BaseModel):
+    """Partial update: every field optional; only provided fields change."""
+    slug: str | None = None
+    title: str | None = None
+    description: str | None = None
+    cover_image_url: str | None = None
+    content: list[str] | None = None
+    is_published: bool | None = None
+
+
 @bp.post("/admin/blog")
 @admin_required
 def create_blog_post():
@@ -1830,23 +1840,30 @@ def update_blog_post(post_id: str):
     post = db.session.get(BlogPost, post_id)
     if post is None:
         return error_response("NOT_FOUND", status=404)
-    data, err = _parse(BlogPostSchema, request.get_json(silent=True) or {})
+    data, err = _parse(BlogPostPatchSchema, request.get_json(silent=True) or {})
     if err:
         return err
-    slug = data.slug.strip()
-    if not slug or not data.title.strip():
-        return validation_error()
-    dup = db.session.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.id != post_id).first()
-    if dup:
-        return error_response("DUPLICATE", "این نامک قبلاً استفاده شده است.", 422)
-    post.slug = slug
-    post.title = data.title.strip()
-    post.description = (data.description or "").strip()
+    if data.slug is not None:
+        slug = data.slug.strip()
+        if not slug:
+            return validation_error()
+        dup = db.session.query(BlogPost).filter(BlogPost.slug == slug, BlogPost.id != post_id).first()
+        if dup:
+            return error_response("DUPLICATE", "این نامک قبلاً استفاده شده است.", 422)
+        post.slug = slug
+    if data.title is not None:
+        if not data.title.strip():
+            return validation_error()
+        post.title = data.title.strip()
+    if data.description is not None:
+        post.description = data.description.strip()
     if data.cover_image_url is not None:
         post.cover_image_url = data.cover_image_url.strip() or None
-    post.content_json = [str(c) for c in (data.content or [])]
-    post.is_published = data.is_published
-    _audit("blog.updated", "blog_post", post.id, {"slug": slug})
+    if data.content is not None:
+        post.content_json = [str(c) for c in data.content]
+    if data.is_published is not None:
+        post.is_published = data.is_published
+    _audit("blog.updated", "blog_post", post.id, {"slug": post.slug})
     db.session.commit()
     return success_response(_blog_payload(post))
 
@@ -1881,4 +1898,4 @@ def upload_blog_cover():
     ext = "jpg" if kind == "jpeg" else kind
     key = f"blog/covers/{new_uuid()}.{ext}"
     storage.put_bytes(key, raw, f"image/{kind}")
-    return success_response({"key": key, "url": f"/api/v1/assets/blog-cover?key={key}"})
+    return success_response({"key": key, "url": f"/api/v1/blog/cover?key={key}"})
