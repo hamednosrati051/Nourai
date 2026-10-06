@@ -665,6 +665,22 @@ def reject_gallery(asset_id: str):
     return success_response({"id": entry.id, "status": entry.status})
 
 
+@bp.post("/admin/gallery/<asset_id>/requeue")
+@admin_required
+def requeue_gallery(asset_id: str):
+    """Move a rejected (or approved) entry back to pending for re-review."""
+    asset, entry = _gallery_entry_for_asset(asset_id)
+    if asset is None or entry is None:
+        return error_response("NOT_FOUND", status=404)
+    entry.status = GALLERY_PENDING
+    entry.reviewed_by_admin_id = None
+    entry.reviewed_at = None
+    entry.rejection_reason = None
+    _audit("gallery.requeued", "gallery_entry", entry.id, {"asset_id": asset.id})
+    db.session.commit()
+    return success_response({"id": entry.id, "status": entry.status})
+
+
 @bp.delete("/admin/gallery/<asset_id>")
 @admin_required
 def remove_gallery(asset_id: str):

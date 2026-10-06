@@ -205,6 +205,14 @@ export function useRejectGalleryItem() {
   });
 }
 
+export function useRequeueGalleryItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: string) => apiPost<GalleryQueueItem>(`/admin/gallery/${assetId}/requeue`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] }),
+  });
+}
+
 export function useRemoveGalleryItem() {
   const queryClient = useQueryClient();
   return useMutation({

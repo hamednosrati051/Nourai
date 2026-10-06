@@ -7,6 +7,7 @@ import {
   useApproveGalleryItem,
   useRejectGalleryItem,
   useRemoveGalleryItem,
+  useRequeueGalleryItem,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
@@ -31,6 +32,7 @@ export default function AdminGalleryPage() {
   const approve = useApproveGalleryItem();
   const reject = useRejectGalleryItem();
   const remove = useRemoveGalleryItem();
+  const requeue = useRequeueGalleryItem();
 
   const onApprove = (item: GalleryQueueItem) => {
     approve.mutate(item.asset_id, {
@@ -158,6 +160,16 @@ export default function AdminGalleryPage() {
                     className="btn-secondary btn-sm flex-1"
                   >
                     خارج کردن از گالری
+                  </button>
+                )}
+                {tab === 'rejected' && (
+                  <button
+                    type="button"
+                    onClick={() => requeue.mutate(item.asset_id)}
+                    disabled={requeue.isPending}
+                    className="btn-secondary btn-sm flex-1"
+                  >
+                    برگرداندن به در انتظار
                   </button>
                 )}
               </div>
