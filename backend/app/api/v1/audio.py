@@ -193,9 +193,11 @@ def create_audio_job():
     # Reserve on 2x the actual audio duration (capped at the max); the worker
     # settles on the real duration afterwards and returns the excess.
     actual_seconds = estimate_audio_duration_seconds(raw, mime)
+    # Hold the measured duration: it's read from the actual file, so there's
+    # no uncertainty to add margin for.
     billable_seconds = min(
         config.audio_max_duration_seconds,
-        max(1, math.ceil(actual_seconds * 2)),
+        max(1, math.ceil(actual_seconds)),
     )
     pricing = PricingService(db.session)
     try:
