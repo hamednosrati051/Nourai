@@ -28,6 +28,7 @@ export default function TtsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
+  const [voice, setVoice] = useState('amir');
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
@@ -60,7 +61,7 @@ export default function TtsPage() {
       return;
     }
     createJob.mutate(
-      { text: value },
+      { text: value, voice },
       {
         onSuccess: (job) => {
           setTrackedJobId(job.id);
@@ -110,6 +111,22 @@ export default function TtsPage() {
         <p id="tts-count" className="mt-1 text-left text-xs text-neutral-500">
           {text.length} / {TTS_MAX_CHARS}
         </p>
+        <div className="mt-3">
+          <label htmlFor="tts-voice" className="label">
+            صدای گوینده
+          </label>
+          <select
+            id="tts-voice"
+            className="input"
+            value={voice}
+            onChange={(e) => setVoice(e.target.value)}
+          >
+            <option value="amir">امیر (مرد)</option>
+            <option value="ganji">گنجی (مرد)</option>
+            <option value="gyro">ژیرو (مرد)</option>
+            <option value="reza_ibrahim">رضا ابراهیم (مرد)</option>
+          </select>
+        </div>
         <button
           type="button"
           onClick={submit}

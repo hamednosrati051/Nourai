@@ -56,6 +56,7 @@ TTS_MAX_CHARS = 2000
 class TtsJobSchema(BaseModel):
     text: str
     tts_model_id: str | None = None
+    voice: str | None = None
 
 
 def _resolve_tts_model(model_id: str | None) -> AiModel | None:
@@ -136,6 +137,7 @@ def create_tts_job():
         parameters_json={
             "tts_model_id": tts_model.id,
             "text_chars": len(text),
+            "voice": data.voice,
         },
     )
     db.session.add(job)

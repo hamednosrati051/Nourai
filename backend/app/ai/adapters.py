@@ -14,6 +14,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 import urllib.error
 import urllib.request
 import uuid
@@ -97,6 +98,100 @@ class FakeTtsProvider(TextToSpeechProvider):
             audio_bytes=payload,
             mime_type="audio/mpeg",
             provider_request_id=f"fake-tts-{uuid.uuid4().hex[:12]}",
+            duration_seconds=max(1, len(text) // 15),
+        )
+
+
+class PiperTtsProvider(TextToSpeechProvider):
+    """Local Piper neural TTS — no API calls, no cost.
+
+    Voice models are ONNX files on disk. Configuration comes from the
+    AiModel row's ``config_json``::
+
+        {
+            "piper_voices_dir": "/opt/nourai/piper-voices",
+            "piper_voices": {
+                "amir":  {"file": "fa_IR-amir-medium.onnx",  "label": "امیر (مرد)"},
+                "sara":  {"file": "fa_IR-sara-medium.onnx",  "label": "سارا (زن)"}
+            },
+            "default_voice": "amir"
+        }
+
+    The requested voice comes from ``options["voice"]`` (the TTS job's
+    ``voice`` parameter); falls back to ``default_voice``. Output is a
+    WAV byte stream.
+    """
+
+    _voice_cache: dict = {}
+
+    def __init__(self, voices_dir: str, voices: dict, default_voice: str | None = None):
+        self.voices_dir = voices_dir
+        self.voices = voices or {}
+        self.default_voice = default_voice or (next(iter(self.voices), None))
+
+    @classmethod
+    def from_model(cls, model) -> "PiperTtsProvider":
+        cfg = {}
+        try:
+            raw = getattr(model, "config_json", None)
+            cfg = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        except Exception:  # noqa: BLE001
+            cfg = {}
+        cfg = cfg.get("__provider__", cfg)
+        return cls(
+            voices_dir=cfg.get("piper_voices_dir") or "/opt/nourai/piper-voices",
+            voices=cfg.get("piper_voices") or {},
+            default_voice=cfg.get("default_voice"),
+        )
+
+    def _load_voice(self, voice_name: str):
+        key = f"{self.voices_dir}:{voice_name}"
+        if key in PiperTtsProvider._voice_cache:
+            return PiperTtsProvider._voice_cache[key]
+        spec = self.voices.get(voice_name)
+        if not spec:
+            raise ValueError(f"unknown piper voice: {voice_name}")
+        model_path = os.path.join(self.voices_dir, spec["file"])
+        if not os.path.isfile(model_path):
+            raise ValueError(f"piper voice model not found: {model_path}")
+        try:
+            from piper import PiperVoice
+        except ImportError as exc:
+            raise RuntimeError("piper-tts is not installed") from exc
+        voice = PiperVoice.load(model_path)
+        PiperTtsProvider._voice_cache[key] = voice
+        return voice
+
+    def synthesize(self, model: str, text: str, options: dict) -> AudioResult:
+        voice_name = options.get("voice") or self.default_voice
+        if not voice_name or voice_name not in self.voices:
+            return AudioResult(
+                ok=False, error_code="PROVIDER_ERROR",
+                error_message=f"unknown piper voice: {voice_name}",
+            )
+        try:
+            voice = self._load_voice(voice_name)
+            chunks = list(voice.synthesize(text))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("piper tts failed voice=%s: %s", voice_name, exc)
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=str(exc)[:200])
+        if not chunks:
+            return AudioResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty piper output")
+        import wave
+        import io
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(chunks[0].sample_rate)
+            for chunk in chunks:
+                wav.writeframes(chunk.audio_int16_bytes)
+        return AudioResult(
+            ok=True,
+            audio_bytes=buf.getvalue(),
+            mime_type="audio/wav",
             duration_seconds=max(1, len(text) // 15),
         )
 
@@ -911,6 +1006,12 @@ def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeec
     name = ((getattr(model, "provider_type", None) or config.ai_audio_provider) or "fake").lower()
     if name == "fake":
         return FakeTtsProvider()
+    if name == "piper":
+        # Local Piper TTS: no credentials needed; voices come from the
+        # model row's config_json (see PiperTtsProvider).
+        if model is None:
+            raise ValueError("piper provider requires a model row with config_json")
+        return PiperTtsProvider.from_model(model)
     if name in ("openai_compat", "async_generation"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:

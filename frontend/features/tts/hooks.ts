@@ -9,8 +9,8 @@ export const TTS_MAX_CHARS = 2000;
 export function useCreateTtsJob() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ text }: { text: string }) =>
-      apiPost<TtsJob>('/tts/jobs', { text }, undefined, {
+    mutationFn: ({ text, voice }: { text: string; voice?: string }) =>
+      apiPost<TtsJob>('/tts/jobs', { text, voice: voice || undefined }, undefined, {
         'Idempotency-Key': randomUUID(),
       }),
     onSuccess: () => {

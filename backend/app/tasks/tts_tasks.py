@@ -109,7 +109,7 @@ def _run_synthesis(session, job: GenerationJob) -> Asset:
         raise RuntimeError("empty text")
 
     tts = get_tts_provider(tts_model.provider_key, tts_model)
-    audio_res = tts.synthesize(tts_model.provider_model_name, text, {})
+    audio_res = tts.synthesize(tts_model.provider_model_name, text, {"voice": params.get("voice")})
     if not audio_res.ok or not audio_res.audio_bytes:
         raise RuntimeError(audio_res.error_code or "tts failed")
 
