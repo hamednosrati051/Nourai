@@ -79,7 +79,7 @@ export function ResponsiveTable<T>({
                 .map((col) => (
                   <div key={col.header} className="flex items-start justify-between gap-3">
                     <dt className="shrink-0 text-neutral-500 dark:text-slate-400">{col.header}</dt>
-                    <dd className="text-left text-neutral-800 dark:text-slate-200">
+                    <dd className="text-start text-neutral-800 dark:text-slate-200">
                       {col.cardRender ? col.cardRender(row) : col.render(row)}
                     </dd>
                   </div>

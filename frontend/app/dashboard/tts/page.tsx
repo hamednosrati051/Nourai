@@ -121,7 +121,7 @@ export default function TtsPage() {
           onChange={(e) => setText(e.target.value)}
           aria-describedby="tts-count"
         />
-        <p id="tts-count" className="mt-1 text-left text-xs text-neutral-500">
+        <p id="tts-count" className="mt-1 text-start text-xs text-neutral-500">
           {text.length} / {TTS_MAX_CHARS}
         </p>
         {showVoicePicker && (

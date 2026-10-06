@@ -151,7 +151,7 @@ export default function ChatPage() {
                         }
                       }}
                       aria-label={`حذف ${c.title || 'گفت‌وگو'}`}
-                      className="shrink-0 rounded-lg p-2 text-neutral-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-900/20"
+                      className="shrink-0 rounded-lg p-2 text-neutral-400 transition-opacity hover:bg-red-50 hover:text-red-600 md:opacity-0 md:group-hover:opacity-100 dark:hover:bg-red-900/20"
                     >
                       <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </button>

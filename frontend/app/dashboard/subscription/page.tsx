@@ -87,13 +87,13 @@ export default function SubscriptionPage() {
                   </span>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-xs text-neutral-500">شروع</dt>
-                    <dd className="font-bold">{formatDateTime(sub.started_at)}</dd>
+                    <dd className="break-words font-bold">{formatDateTime(sub.started_at)}</dd>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <dt className="text-xs text-neutral-500">پایان</dt>
-                    <dd className="font-bold">{formatDateTime(sub.expires_at)}</dd>
+                    <dd className="break-words font-bold">{formatDateTime(sub.expires_at)}</dd>
                   </div>
                   {sub.plan && (
                     <div>

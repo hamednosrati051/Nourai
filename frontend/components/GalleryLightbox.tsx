@@ -131,7 +131,7 @@ export function GalleryLightbox({
 
       {/* Image area */}
       <div
-        className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-12 pb-4"
+        className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 pb-4 sm:px-12"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}

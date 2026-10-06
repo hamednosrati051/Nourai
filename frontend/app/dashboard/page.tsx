@@ -83,10 +83,10 @@ export default function DashboardPage() {
         {myPlan.data?.plan && (
           <div
             role="status"
-            className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 dark:bg-emerald-500/10"
+            className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 dark:bg-emerald-500/10"
           >
             <CircleCheck aria-hidden="true" className="h-8 w-8 shrink-0 text-emerald-500" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="font-extrabold text-emerald-700 dark:text-emerald-300">
                 اشتراک فعال شما: {myPlan.data.plan.name}
                 <span className="mr-2 text-xs font-normal text-neutral-500 dark:text-slate-400">
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           <section aria-labelledby="wallet-heading" className="mb-8">
             <h2 id="wallet-heading" className="mb-3 text-lg font-bold">کیف پول</h2>
             <div className="service-card !border-brand-500/30">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="text-sm text-neutral-500 dark:text-slate-400">موجودی فعلی</p>
                   <p className="text-3xl font-black tabular-nums">
