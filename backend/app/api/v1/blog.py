@@ -60,3 +60,19 @@ def get_blog_cover():
     ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
              "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/jpeg")
     return Response(data, mimetype=ctype, headers={"Cache-Control": "public, max-age=86400"})
+
+
+@bp.get("/blog/image")
+def get_blog_image():
+    """Serve an inline blog body image from storage."""
+    key = request.args.get("key", "")
+    if not key.startswith("blog/images/") or ".." in key:
+        return error_response("NOT_FOUND", status=404)
+    try:
+        data = storage.get_bytes(key)
+    except Exception:
+        return error_response("NOT_FOUND", status=404)
+    ext = key.rsplit(".", 1)[-1].lower()
+    ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+             "webp": "image/webp", "gif": "image/gif"}.get(ext, "image/jpeg")
+    return Response(data, mimetype=ctype, headers={"Cache-Control": "public, max-age=86400"})

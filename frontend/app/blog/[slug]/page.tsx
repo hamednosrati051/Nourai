@@ -102,11 +102,25 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
           <p className="text-lg font-medium leading-9 text-neutral-600 dark:text-slate-300">
             {post.description}
           </p>
-          {post.content.map((para, i) => (
-            <p key={i} className="leading-9 text-neutral-700 dark:text-slate-300">
-              {para}
-            </p>
-          ))}
+          {post.content.map((para, i) => {
+            const imgMatch = para.match(/^!\[.*?]\((.*?)\)$/);
+            if (imgMatch) {
+              return (
+                <img
+                  key={i}
+                  src={imgMatch[1]}
+                  alt=""
+                  className="mx-auto max-h-96 rounded-lg object-contain"
+                  loading="lazy"
+                />
+              );
+            }
+            return (
+              <p key={i} className="leading-9 text-neutral-700 dark:text-slate-300">
+                {para}
+              </p>
+            );
+          })}
         </article>
 
         <div className="card mt-12 bg-gradient-to-br from-brand-50 to-violet-50 text-center dark:from-brand-950/40 dark:to-violet-950/20">

@@ -575,3 +575,14 @@ export function useUploadBlogCover() {
     },
   });
 }
+
+export function useUploadBlogImage() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const { apiPostForm } = await import('@/lib/api');
+      return apiPostForm<{ key: string; url: string }>('/admin/blog/upload-image', form);
+    },
+  });
+}

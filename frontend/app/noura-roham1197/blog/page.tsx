@@ -1,13 +1,14 @@
 'use client';
 
-import { Newspaper, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Newspaper, Pencil, Plus, Trash2, ImagePlus } from 'lucide-react';
+import { useRef, useState } from 'react';
 import {
   useAdminBlogPosts,
   useCreateBlogPost,
   useDeleteBlogPost,
   useUpdateBlogPost,
   useUploadBlogCover,
+  useUploadBlogImage,
   type AdminBlogPost,
 } from '@/features/admin/hooks';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -27,6 +28,8 @@ export default function BlogAdminPage() {
   const updatePost = useUpdateBlogPost();
   const deletePost = useDeleteBlogPost();
   const uploadCover = useUploadBlogCover();
+  const uploadImage = useUploadBlogImage();
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<AdminBlogPost | null>(null);
@@ -63,6 +66,28 @@ export default function BlogAdminPage() {
         toast('کاور آپلود شد.', 'success');
       },
       onError: (err) => errMsg(err, 'آپلود کاور ناموفق بود.'),
+    });
+  };
+
+  const onInlineImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    uploadImage.mutate(file, {
+      onSuccess: (res) => {
+        const tag = `\n\n![image](${res.url})\n\n`;
+        const el = contentRef.current;
+        if (el) {
+          const start = el.selectionStart ?? form.content.length;
+          const end = el.selectionEnd ?? form.content.length;
+          const next = form.content.slice(0, start) + tag + form.content.slice(end);
+          setForm({ ...form, content: next });
+        } else {
+          setForm({ ...form, content: form.content + tag });
+        }
+        toast('عکس درج شد.', 'success');
+      },
+      onError: (err) => errMsg(err, 'آپلود عکس ناموفق بود.'),
     });
   };
 
@@ -220,13 +245,27 @@ export default function BlogAdminPage() {
                 {uploadCover.isPending && <p className="mt-1 text-xs">در حال آپلود…</p>}
               </div>
               <div>
-                <label className="label">متن (هر پاراگراف با یک خط خالی جدا شود)</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="label">متن (هر پاراگراف با یک خط خالی جدا شود)</label>
+                  <label className="flex cursor-pointer items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700">
+                    <ImagePlus size={14} />
+                    درج عکس
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={onInlineImageSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <textarea
+                  ref={contentRef}
                   className="input min-h-48"
                   value={form.content}
                   onChange={(e) => setForm({ ...form, content: e.target.value })}
                   rows={10}
                 />
+                {uploadImage.isPending && <p className="mt-1 text-xs">در حال آپلود عکس…</p>}
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm font-bold">
                 <input

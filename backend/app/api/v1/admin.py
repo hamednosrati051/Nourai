@@ -1899,3 +1899,23 @@ def upload_blog_cover():
     key = f"blog/covers/{new_uuid()}.{ext}"
     storage.put_bytes(key, raw, f"image/{kind}")
     return success_response({"key": key, "url": f"/api/v1/blog/cover?key={key}"})
+
+
+@bp.post("/admin/blog/upload-image")
+@admin_required
+def upload_blog_image():
+    """Upload an inline image for a blog post body. Returns the public URL."""
+    upload = request.files.get("file") or request.files.get("image")
+    if upload is None:
+        return validation_error()
+    raw = upload.read()
+    if not raw or len(raw) > 5 * 1024 * 1024:
+        return validation_error()
+    import imghdr
+    kind = imghdr.what(None, h=raw)
+    if kind not in ("jpeg", "png", "webp", "gif"):
+        return error_response("VALIDATION_ERROR", "فرمت تصویر پشتیبانی نمی‌شود.", 422)
+    ext = "jpg" if kind == "jpeg" else kind
+    key = f"blog/images/{new_uuid()}.{ext}"
+    storage.put_bytes(key, raw, f"image/{kind}")
+    return success_response({"key": key, "url": f"/api/v1/blog/image?key={key}"})
