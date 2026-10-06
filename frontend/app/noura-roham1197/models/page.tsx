@@ -239,7 +239,7 @@ export default function AdminModelsPage() {
         <ResponsiveTable
           ariaLabel="فهرست مدل‌ها"
           keyOf={(m) => m.id}
-          rows={models.data}
+          rows={[...models.data].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())}
           cardHeader={(m) => m.display_name}
           columns={[
             { header: 'نام نمایشی', render: (m) => <span className="font-semibold">{m.display_name}</span> },
