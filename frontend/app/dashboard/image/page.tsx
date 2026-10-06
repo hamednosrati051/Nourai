@@ -325,9 +325,6 @@ export default function ImagePage() {
                           </span>
                         )}
                       </button>
-                      <p className="mt-1 line-clamp-1 px-1 text-xs text-neutral-600 dark:text-slate-400">
-                        {job.prompt}
-                      </p>
                     </li>
                   ))}
                 </ul>
@@ -371,9 +368,12 @@ export default function ImagePage() {
                   alt={viewingJob.prompt}
                   className="max-h-[70vh] w-full rounded-xl object-contain bg-neutral-100 dark:bg-navy-800"
                 />
-                <p className="line-clamp-2 text-sm text-neutral-600 dark:text-slate-400">
-                  {viewingJob.prompt}
-                </p>
+                <div className="rounded-xl bg-neutral-100 px-4 py-3 dark:bg-navy-800">
+                  <h3 className="mb-1 text-right text-base font-bold">متن کاربر:</h3>
+                  <p dir="auto" className="text-center text-sm leading-7 text-neutral-700 dark:text-slate-300">
+                    {viewingJob.prompt}
+                  </p>
+                </div>
                 <a
                   href={viewingJob.result_url}
                   download

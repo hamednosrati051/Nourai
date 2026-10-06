@@ -162,14 +162,14 @@ export function GalleryLightbox({
           ›
         </button>
         </div>
-        {/* User prompt */}
+        {/* User prompt — full text, Binavira-style: heading + complete prompt */}
         {item.prompt && (
-          <p
-            dir="auto"
-            className="mt-3 max-h-24 max-w-2xl overflow-y-auto rounded-lg bg-white/10 px-4 py-2 text-center text-sm leading-7 text-white/90"
-          >
-            {item.prompt}
-          </p>
+          <div className="mt-3 w-full max-w-2xl rounded-xl bg-white/10 px-5 py-3">
+            <h3 className="mb-1 text-right text-base font-bold text-white">متن کاربر:</h3>
+            <p dir="auto" className="text-center text-sm leading-7 text-white/90">
+              {item.prompt}
+            </p>
+          </div>
         )}
       </div>
     </div>
