@@ -79,8 +79,8 @@
 @layer base {
   :root {
     color-scheme: light;
-    --surface: #ffffff;
-    --surface-soft: #f8fafc;
+    --surface: #faf7f2;
+    --surface-soft: #f3efe7;
     --ring: var(--color-brand-600);
   }
 
@@ -96,7 +96,7 @@
   }
 
   body {
-    @apply bg-white text-neutral-900 antialiased;
+    @apply bg-[#faf7f2] text-neutral-900 antialiased;
     @apply dark:bg-navy-900 dark:text-slate-100;
     font-family: var(--font-sans);
     line-height: 1.75;
@@ -199,7 +199,7 @@
 }
 
 @utility card {
-  @apply rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm
+  @apply rounded-3xl border border-neutral-200 bg-[#fffdf9] p-5 shadow-sm
     dark:border-white/10 dark:bg-navy-800 dark:shadow-none;
 }
 
@@ -229,7 +229,7 @@
 /* ---- App-style service card (color-coded, glowing icon, bottom accent) ---- */
 @utility service-card {
   @apply relative flex flex-col gap-3 overflow-hidden rounded-3xl border p-6
-    border-neutral-200 bg-white shadow-sm
+    border-neutral-200 bg-[#fffdf9] shadow-sm
     dark:border-white/10 dark:bg-navy-800
     transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
 }
