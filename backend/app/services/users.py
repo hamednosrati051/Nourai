@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 
 from app.auth.otp import mask_mobile
-from app.models import AuditLog, Payment, UsageEvent, User, WalletTransaction
+from app.models import AiModel, AuditLog, Payment, UsageEvent, User, WalletTransaction
 from app.models.wallet import WalletAccount
 from app.services.audit import audit
 
@@ -126,12 +126,13 @@ def activity_timeline(session, user_id: str, limit: int = 100) -> list[dict]:
         .limit(limit)
         .all()
     ):
+        model = session.get(AiModel, usage.model_id) if usage.model_id else None
         events.append({
             "kind": "usage",
             "action": f"usage.{usage.status}",
             "at": _iso(usage.created_at),
             "detail": {
-                "model_id": usage.model_id,
+                "model": model.slug if model else None,
                 "charged_amount_irr": usage.charged_amount_irr,
             },
         })
