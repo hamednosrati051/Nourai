@@ -668,14 +668,21 @@ def reject_gallery(asset_id: str):
 @bp.delete("/admin/gallery/<asset_id>")
 @admin_required
 def remove_gallery(asset_id: str):
-    """Remove from the public gallery only; the user's private asset stays."""
+    """Remove from the public gallery only; the user's private asset stays.
+
+    The entry goes back to pending (not deleted) so it stays visible
+    in the admin queue for re-approval.
+    """
     entry = db.session.query(GalleryEntry).filter_by(asset_id=asset_id).one_or_none()
     if entry is None:
         return error_response("NOT_FOUND", status=404)
-    db.session.delete(entry)
+    entry.status = GALLERY_PENDING
+    entry.reviewed_by_admin_id = None
+    entry.reviewed_at = None
+    entry.rejection_reason = None
     _audit("gallery.removed", "gallery_entry", entry.id, {"asset_id": asset_id})
     db.session.commit()
-    return success_response({"removed": True})
+    return success_response({"removed": True, "status": entry.status})
 
 
 # ---------------------------------------------------------------------------
