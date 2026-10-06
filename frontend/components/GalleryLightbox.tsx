@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import type { GalleryItem } from '@/types/api';
 import { BRAND } from '@/lib/config';
+import { PromptBox } from './PromptBox';
 
 const SWIPE_THRESHOLD_PX = 50;
 
@@ -164,11 +165,8 @@ export function GalleryLightbox({
         </div>
         {/* User prompt — full text, Binavira-style: heading + complete prompt */}
         {item.prompt && (
-          <div className="mt-3 w-full max-w-2xl rounded-xl bg-white/10 px-5 py-3">
-            <h3 className="mb-1 text-right text-base font-bold text-white">متن کاربر:</h3>
-            <p dir="auto" className="text-center text-sm leading-7 text-white/90">
-              {item.prompt}
-            </p>
+          <div className="mt-3 w-full max-w-2xl">
+            <PromptBox prompt={item.prompt} dark />
           </div>
         )}
       </div>

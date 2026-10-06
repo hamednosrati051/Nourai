@@ -16,6 +16,7 @@ import { NouraAvatar } from '@/components/NouraAvatar';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
 import { Modal } from '@/components/Modal';
+import { PromptBox } from '@/components/PromptBox';
 import { useToast } from '@/components/Toast';
 import { formatBytes, formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
@@ -369,10 +370,7 @@ export default function ImagePage() {
                   className="max-h-[70vh] w-full rounded-xl object-contain bg-neutral-100 dark:bg-navy-800"
                 />
                 <div className="rounded-xl bg-neutral-100 px-4 py-3 dark:bg-navy-800">
-                  <h3 className="mb-1 text-right text-base font-bold">متن کاربر:</h3>
-                  <p dir="auto" className="text-center text-sm leading-7 text-neutral-700 dark:text-slate-300">
-                    {viewingJob.prompt}
-                  </p>
+                  <PromptBox prompt={viewingJob.prompt} />
                 </div>
                 <a
                   href={viewingJob.result_url}
