@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint
 
-from app.api.v1.response import success_response
+from app.api.deps import success_response
 from app.models import SiteSettings
 from app.extensions import db
 
