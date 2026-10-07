@@ -166,7 +166,7 @@ export function GalleryLightbox({
         {/* User prompt — full text, Binavira-style: heading + complete prompt */}
         {item.prompt && (
           <div className="mt-3 w-full max-w-2xl">
-            <PromptBox prompt={item.prompt} dark />
+            <PromptBox prompt={item.prompt} dark large />
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ const COLLAPSE_THRESHOLD = 300;
  * User prompt display: heading with copy button, smart collapse for long
  * prompts with smooth expand. Better than a plain text dump.
  */
-export function PromptBox({ prompt, dark = false }: { prompt: string; dark?: boolean }) {
+export function PromptBox({ prompt, dark = false, large = false }: { prompt: string; dark?: boolean; large?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const isLong = prompt.length > COLLAPSE_THRESHOLD;
@@ -50,7 +50,7 @@ export function PromptBox({ prompt, dark = false }: { prompt: string; dark?: boo
       <div className="relative">
         <p
           dir="auto"
-          className={`text-center text-sm leading-7 ${textColor} transition-all ${
+          className={`text-center ${large ? 'text-base leading-8' : 'text-sm leading-7'} ${textColor} transition-all ${
             collapsed ? 'max-h-24 overflow-hidden' : ''
           }`}
         >

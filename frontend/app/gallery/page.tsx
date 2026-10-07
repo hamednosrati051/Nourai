@@ -69,20 +69,14 @@ export default function GalleryPage() {
                   aria-label={`نمایش بزرگ تصویر ${i + 1}`}
                   className="block w-full cursor-zoom-in"
                 >
-                  {/* Reserved aspect ratio from API dimensions prevents layout shift. */}
-                  <div
-                    className="relative w-full"
-                    style={{
-                      aspectRatio:
-                        item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1',
-                    }}
-                  >
+                  {/* Uniform square thumbnails for a tidy grid. */}
+                  <div className="relative aspect-square w-full">
                     <img
                       src={item.thumbnail_url ?? item.image_url}
                       alt={item.alt_text ?? `تصویر نگارخانه ${BRAND.fa}`}
                       loading="lazy"
                       decoding="async"
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                     />
                   </div>
                 </button>
