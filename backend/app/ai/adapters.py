@@ -764,6 +764,107 @@ class OpenAICompatImageProvider(ImageAiProvider):
         return self._result_from_data(data, "edit")
 
 
+class ChatImageEditGeminiProvider(ImageAiProvider):
+    """Image editing via OpenAI-compatible ``/chat/completions`` (Gemini-style).
+
+    Some providers (e.g. AvalAI) do not support Gemini/Nano-Banana image
+    models on the ``/images/edits`` endpoint (``unsupported_model``). Those
+    models edit images through the chat endpoint instead: the input image
+    is sent base64-encoded inside a multimodal user message, and the
+    edited image comes back in
+    ``choices[0].message.images[0].image_url.url``.
+    Selected per model via ``provider_type=chat_image_edit_gemini``.
+    Edit-only: ``generate()`` is not supported by this adapter.
+    """
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 180):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def generate(self, model: str, prompt: str, options: dict) -> ImageResult:
+        return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                           error_message="chat_image_edit_gemini is edit-only")
+
+    def edit(self, model: str, prompt: str, input_image_key: str, options: dict) -> ImageResult:
+        from app.services.storage import storage  # lazy: avoids import cycles
+        import base64
+
+        try:
+            image_bytes = storage.get_bytes(input_image_key)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("chat-image-edit-gemini: failed to read input %s: %s",
+                        input_image_key, exc)
+            return ImageResult(ok=False, error_code="STORAGE_ERROR",
+                               error_message="could not read input image")
+        if not image_bytes:
+            return ImageResult(ok=False, error_code="EMPTY_IMAGE",
+                               error_message="input image is empty")
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        payload = {
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url",
+                     "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                ],
+            }],
+        }
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions", data=body, method="POST",
+            headers={"Authorization": f"Bearer {self.api_key}",
+                     "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("chat-image-edit-gemini %s http %s: %s",
+                        self.provider_key, exc.code, detail)
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=f"provider http {exc.code}")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("chat-image-edit-gemini %s failed: %s", self.provider_key, exc)
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message=str(exc)[:200])
+        # AvalAI returns the image at choices[0].message.images[0].image_url.url
+        try:
+            images = data["choices"][0]["message"].get("images") or []
+            url = (images[0].get("image_url") or {}).get("url") if images else None
+        except Exception:  # noqa: BLE001
+            url = None
+        if not url:
+            log.warning("chat-image-edit-gemini: empty image in response")
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty image result")
+        if "," in url:  # strip data: URL prefix if present
+            url = url.split(",", 1)[1]
+        try:
+            out_bytes = base64.b64decode(url)
+        except Exception:  # noqa: BLE001
+            log.warning("chat-image-edit-gemini: invalid base64 in response")
+            return ImageResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="invalid image data")
+        width, height = _probe_dimensions(out_bytes)
+        return ImageResult(
+            ok=True, image_bytes=out_bytes, mime_type="image/png",
+            width=width, height=height,
+            provider_request_id=str(data.get("id")) if data.get("id") else None,
+        )
+
+
 class _ProviderError(Exception):
     """Raised when the provider API itself rejects the call (auth/credit)."""
 
@@ -1211,16 +1312,17 @@ def get_tts_provider(provider_key: str | None = None, model=None) -> TextToSpeec
 # Image provider selection (model-driven).
 #
 # ``get_image_provider`` reads ``provider_type`` from the AiModel row
-# (``fake`` | ``openai_compat`` | ``async_generation``), the same pattern
-# as the text/STT/TTS selectors. Provider credentials come from the admin
-# model form (env is fallback).
+# (``fake`` | ``openai_compat`` | ``async_generation`` |
+# ``chat_image_edit_gemini``), the same pattern as the text/STT/TTS
+# selectors. Provider credentials come from the admin model form
+# (env is fallback).
 # ---------------------------------------------------------------------------
 def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiProvider:
     """Select the image provider from the model row."""
     name = ((getattr(model, "provider_type", None)) or "fake").lower()
     if name == "fake":
         return FakeImageProvider()
-    if name in ("openai_compat", "async_generation"):
+    if name in ("openai_compat", "async_generation", "chat_image_edit_gemini"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
@@ -1233,6 +1335,8 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
             OpenAICompatImageProvider
             if name == "openai_compat"
             else AsyncGenerationImageProvider
+            if name == "async_generation"
+            else ChatImageEditGeminiProvider
         )
         return cls(
             base_url=base_url, api_key=api_key,

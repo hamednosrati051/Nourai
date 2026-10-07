@@ -45,13 +45,14 @@ const CAPABILITIES: ModelCapability[] = [
 const PROVIDER_TYPE_LABELS: Record<string, string> = {
   openai_compat: 'OpenAI Compatible',
   async_generation: 'Async Generation',
+  chat_image_edit_gemini: 'Chat Image Edit (Gemini)',
 };
 const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
   capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image', 'generate_image', 'edit_image']),
-  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const]),
+  provider_type: z.enum(['openai_compat' as const, 'async_generation' as const, 'chat_image_edit_gemini' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
@@ -117,7 +118,7 @@ export default function AdminModelsPage() {
     reset({
       display_name: m.display_name,
       capability: m.capability,
-      provider_type: (m.provider_type as 'openai_compat' | 'async_generation') ?? 'openai_compat',
+      provider_type: (m.provider_type as 'openai_compat' | 'async_generation' | 'chat_image_edit_gemini') ?? 'openai_compat',
       provider_model_name: m.provider_model_name,
       base_url: m.base_url || '',
       api_key: '',

@@ -815,6 +815,7 @@ _PROVIDER_CREDS_KEY = "__provider__"
 PROVIDER_TYPES = {
     "openai_compat": "OpenAI Compatible",
     "async_generation": "Async Generation",
+    "chat_image_edit_gemini": "Chat Image Edit (Gemini)",
 }
 
 
