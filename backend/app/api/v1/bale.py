@@ -526,8 +526,14 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
         final = pricing.estimate_audio(model.id, actual_seconds)["total_irr"]
     except PricingRuleUnavailable:
         final = estimate["total_irr"]
-    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=final, idempotency_key=key, description="bale_tts")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+               final_amount_irr=final, idempotency_key=key, description="bale_tts")
+    except DuplicateIdempotencyKey:
+        # Bale retried the webhook; the user was already charged for the first
+        # attempt. Skip duplicate billing but still send the audio.
+        log.info("bale tts duplicate idempotency key, skipping rebill: %s", key)
+        db.session.rollback()
     _record_usage(user.id, model.id, "tts", final,
                   {"audio_seconds": actual_seconds, "chars": len(text)})
     db.session.commit()
