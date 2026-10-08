@@ -12,7 +12,7 @@ from app.models.base import Base
 class User(Base):
     __tablename__ = "users"
 
-    mobile_normalized: Mapped[str] = mapped_column(String(16), unique=True, nullable=False, index=True)
+    mobile_normalized: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     mobile_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
