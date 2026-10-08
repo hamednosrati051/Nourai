@@ -1092,6 +1092,7 @@ def webhook():
             return success_response({"ok": True})
 
         if text == BTN_STT:
+            _set_user_mode(bale_user_id, "awaiting_stt_voice")
             send_message(chat_id, "🎙️ ویست رو بفرست تا به متن تبدیلش کنم 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
@@ -1155,6 +1156,7 @@ def webhook():
             if va_mode == "awaiting_va_voice":
                 _handle_voice_assistant(chat_id, user, voice["file_id"])
             else:
+                # awaiting_stt_voice or no mode -> simple STT
                 _handle_voice(chat_id, user, voice["file_id"])
             return success_response({"ok": True})
 
