@@ -88,11 +88,40 @@ export default function AdminUsersPage() {
             keyOf={(u) => u.id}
             rows={users.data.items}
             onRowClick={(u) => router.push(`/noura-roham1197/users/${u.id}`)}
-            cardHeader={(u) => <span dir="ltr">{u.mobile_masked}</span>}
+            cardHeader={(u) => (
+              <span dir="ltr">
+                {u.mobile_masked && u.mobile_masked !== '***' ? u.mobile_masked : '🤖 بات'}
+                {u.channels && Object.keys(u.channels).map((p) => (
+                  <span key={p} className="badge-info mr-1">{p === 'bale' ? 'بله' : p}</span>
+                ))}
+              </span>
+            )}
             columns={[
               {
                 header: 'موبایل',
-                render: (u) => <span dir="ltr" className="tabular-nums">{u.mobile_masked}</span>,
+                render: (u) => (
+                  <span dir="ltr" className="tabular-nums">
+                    {u.mobile_masked && u.mobile_masked !== '***' ? u.mobile_masked : '🤖 بات'}
+                    {u.channels && Object.keys(u.channels).map((p) => (
+                      <span key={p} className="badge-info mr-1">{p === 'bale' ? 'بله' : p}</span>
+                    ))}
+                  </span>
+                ),
+              },
+              {
+                header: 'آیدی',
+                render: (u) => {
+                  const botIds = u.channels
+                    ? Object.entries(u.channels)
+                        .filter(([, info]) => info.platform_user_id)
+                        .map(([p, info]) => `${p === 'bale' ? 'بله' : p}: ${info.platform_user_id}`)
+                    : [];
+                  return botIds.length > 0 ? (
+                    <span dir="ltr" className="tabular-nums text-sm">{botIds.join('، ')}</span>
+                  ) : (
+                    <span className="text-neutral-400">—</span>
+                  );
+                },
               },
               {
                 header: 'وضعیت',

@@ -150,8 +150,18 @@ export default function AdminUserDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="text-lg font-bold" dir="ltr">
-              {u.mobile}
+              {u.mobile_masked && u.mobile_masked !== '***' ? u.mobile_masked : '🤖 کاربر بات'}
             </p>
+            {u.channels && Object.keys(u.channels).length > 0 && (
+              <p className="flex flex-wrap gap-1">
+                {Object.entries(u.channels).map(([platform, info]) => (
+                  <span key={platform} className="badge-info">
+                    {platform === 'bale' ? '📱 بله' : platform === 'eitaa' ? '📱 ایتا' : platform === 'telegram' ? '📱 تلگرام' : platform}
+                    {info.usage_count ? ` (${info.usage_count})` : ''}
+                  </span>
+                ))}
+              </p>
+            )}
             <p className="text-sm text-neutral-500 dark:text-slate-400">
               عضویت: {formatDateTime(u.created_at)}
               {u.last_login_at && <> — آخرین ورود: {formatDateTime(u.last_login_at)}</>}

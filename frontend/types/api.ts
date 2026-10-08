@@ -327,16 +327,17 @@ export interface AdminUserRow {
   last_login_at?: string | null;
   last_login_ip?: string | null;
   last_login_user_agent?: string | null;
-}
-
-export interface AdminUserDetail extends AdminUserRow {
-  mobile: string;
   channels?: Record<string, {
     linked?: boolean;
+    platform_user_id?: number;
     platform_username?: string | null;
     linked_at?: string | null;
     usage_count?: number;
   }>;
+}
+
+export interface AdminUserDetail extends AdminUserRow {
+  mobile: string;
 }
 
 export type ActivityKind =

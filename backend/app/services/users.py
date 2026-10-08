@@ -25,6 +25,7 @@ def get_user_channels(session, user_id: str) -> dict:
     for link in session.query(MessengerUser).filter_by(user_id=user_id).all():
         channels[link.platform] = {
             "linked": True,
+            "platform_user_id": link.platform_user_id,
             "platform_username": link.platform_username,
             "linked_at": link.created_at.isoformat() if link.created_at else None,
         }
