@@ -674,7 +674,15 @@ def reply_support(msg_id: str):
     m.admin_reply = reply[:2000]
     m.is_read = True
     db.session.commit()
-    # TODO: send reply back to user via Bale (needs bot token + chat_id mapping)
+    # Send reply back to user via Bale
+    try:
+        from app.api.v1.bale import send_message
+        send_message(
+            int(m.platform_user_id),
+            f"🛟 پاسخ پشتیبانی:\n\n{reply[:1800]}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("failed to send support reply via bale: %s", exc)
     return success_response({"ok": True})
 
 
