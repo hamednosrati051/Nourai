@@ -42,7 +42,7 @@ from app.config import config
 from app.extensions import db
 from app.models import AiModel, MessengerUser, Payment, UsageEvent, User, WalletAccount
 from app.models.catalog import CAP_GENERATE_IMAGE, CAP_STT, CAP_TEXT, CAP_TTS
-from app.models.messenger import PLATFORM_BALE
+from app.models.messenger import PLATFORM_BALE, SupportMessage
 from app.providers import get_payment_gateway
 from app.providers.base import ProviderError
 from app.providers.zibal import ZibalNotConfigured
@@ -1122,14 +1122,28 @@ def webhook():
             return success_response({"ok": True})
 
         if text == BTN_SUPPORT:
+            _set_user_mode(bale_user_id, "awaiting_support")
             send_message(chat_id,
                          "🛟 پشتیبانی نورا\n\n"
-                         "اگه مشکلی داشتی یا سوالی بود، اینجا پیام بده بررسی می‌کنیم.",
+                         "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
         # If waiting for an image prompt, treat this message as the prompt.
         mode, _data = _get_user_mode(bale_user_id)
+        if mode == "awaiting_support":
+            msg = SupportMessage(
+                platform="bale",
+                platform_user_id=bale_user_id,
+                user_id=user.id,
+                message=text[:2000],
+            )
+            db.session.add(msg)
+            db.session.commit()
+            send_message(chat_id, "✅ پیامت ثبت شد. به‌زودی بررسی می‌کنیم.",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
         if mode == "awaiting_chat":
             _handle_text(chat_id, user, text)
             return success_response({"ok": True})

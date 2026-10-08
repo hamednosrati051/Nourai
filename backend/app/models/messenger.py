@@ -50,3 +50,16 @@ class MessengerUserState(Base):
     __table_args__ = (
         UniqueConstraint("platform", "platform_user_id", name="uq_messenger_state_user"),
     )
+
+
+class SupportMessage(Base):
+    """Support ticket message from a messenger-platform user."""
+
+    __tablename__ = "support_messages"
+
+    platform: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    platform_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    message: Mapped[str] = mapped_column(String(2000), nullable=False)
+    is_read: Mapped[bool] = mapped_column(nullable=False, default=False, index=True)
+    admin_reply: Mapped[str | None] = mapped_column(String(2000), nullable=True)
