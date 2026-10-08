@@ -53,6 +53,28 @@ BALE_API = "https://tapi.bale.ai"
 # Preset top-up amounts in IRR (10k / 50k / 100k Toman).
 CHARGE_PRESETS = [100_000, 500_000, 1_000_000]
 
+# Persistent reply-keyboard menu (like Binavira).
+MENU_KEYBOARD = {
+    "keyboard": [
+        [{"text": "💬 گفتگو"}, {"text": "🎨 تولید تصویر"}],
+        [{"text": "🎙️ تبدیل صوت به متن"}, {"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}, {"text": "🛟 پشتیبانی"}],
+    ],
+    "resize_keyboard": True,
+}
+
+# Button labels -> actions.
+BTN_CHAT = "💬 گفتگو"
+BTN_IMAGE = "🎨 تولید تصویر"
+BTN_STT = "🎙️ تبدیل صوت به متن"
+BTN_WALLET = "💰 اعتبار من"
+BTN_CHARGE = "➕ افزایش اعتبار"
+BTN_SUPPORT = "🛟 پشتیبانی"
+
+# In-memory per-user mode: {bale_user_id: "awaiting_image_prompt"}.
+# Ephemeral (resets on restart) — acceptable for the bot MVP.
+_user_modes: dict[int, str] = {}
+
 
 # ---------------------------------------------------------------------------
 # Bale API client
@@ -586,11 +608,8 @@ def webhook():
             send_message(
                 chat_id,
                 "👋 سلام! به بات نورا خوش اومدی.\n\n"
-                "💬 متن بفرست → چت با هوش مصنوعی\n"
-                "🎨 /image + توضیح → تولید تصویر\n"
-                "🎙️ ویس بفرست → تبدیل به متن\n"
-                "💰 /wallet → موجودی\n"
-                "💳 /charge → شارژ کیف پول",
+                "از دکمه‌های پایین استفاده کن 👇",
+                reply_markup=MENU_KEYBOARD,
             )
             return success_response({"ok": True})
 
@@ -609,8 +628,44 @@ def webhook():
             send_message(chat_id, f"💰 موجودی کیف پولت: {_toman(balance)} تومان")
             return success_response({"ok": True})
 
-        if text.startswith("/charge"):
+        if text.startswith("/charge") or text == BTN_CHARGE:
             _handle_charge(chat_id, user)
+            return success_response({"ok": True})
+
+        # --- Menu buttons ------------------------------------------------
+        if text == BTN_CHAT:
+            send_message(chat_id, "💬 سوالت رو بفرست تا جواب بدم 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_IMAGE:
+            _user_modes[bale_user_id] = "awaiting_image_prompt"
+            send_message(chat_id, "🎨 توضیح عکست رو بفرست 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_STT:
+            send_message(chat_id, "🎙️ ویست رو بفرست تا به متن تبدیلش کنم 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_WALLET:
+            balance = _wallet_balance(user.id)
+            send_message(chat_id, f"💰 موجودی کیف پولت: {_toman(balance)} تومان",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_SUPPORT:
+            send_message(chat_id,
+                         "🛟 پشتیبانی نورا\n\n"
+                         "اگه مشکلی داشتی یا سوالی بود، اینجا پیام بده بررسی می‌کنیم.",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # If waiting for an image prompt, treat this message as the prompt.
+        if _user_modes.get(bale_user_id) == "awaiting_image_prompt":
+            _user_modes.pop(bale_user_id, None)
+            _handle_image(chat_id, user, text)
             return success_response({"ok": True})
 
         if text.startswith("/image"):
