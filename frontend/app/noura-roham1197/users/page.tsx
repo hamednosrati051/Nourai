@@ -114,7 +114,11 @@ export default function AdminUsersPage() {
                   const botIds = u.channels
                     ? Object.entries(u.channels)
                         .filter(([, info]) => info.platform_user_id)
-                        .map(([p, info]) => `${p === 'bale' ? 'بله' : p}: ${info.platform_user_id}`)
+                        .map(([p, info]) => {
+                          const label = p === 'bale' ? 'بله' : p;
+                          const username = info.platform_username ? `@${info.platform_username} ` : '';
+                          return `${label}: ${username}${info.platform_user_id}`;
+                        })
                     : [];
                   return botIds.length > 0 ? (
                     <span dir="ltr" className="tabular-nums text-sm">{botIds.join('، ')}</span>
