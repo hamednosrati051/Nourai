@@ -11,6 +11,7 @@ import {
   Home,
   Hourglass,
   Image as ImageIcon,
+  MessageCircle,
   Newspaper,
   Phone,
   Receipt,
@@ -27,6 +28,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 const NAV_ITEMS: NavItem[] = [
   { href: '/noura-roham1197', label: 'داشبورد', icon: Home },
   { href: '/noura-roham1197/users', label: 'کاربران', icon: Users },
+  { href: '/noura-roham1197/support', label: 'پشتیبانی', icon: MessageCircle },
   { href: '/noura-roham1197/payments', label: 'پرداخت‌ها', icon: Receipt },
   { href: '/noura-roham1197/gallery', label: 'نگارخانه', icon: ImageIcon },
   { href: '/noura-roham1197/models', label: 'مدل‌ها', icon: Bot },

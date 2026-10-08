@@ -624,6 +624,61 @@ def _job_payload(job: GenerationJob) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Support messages
+# ---------------------------------------------------------------------------
+@bp.get("/admin/support")
+@admin_required
+def list_support():
+    from app.models.messenger import SupportMessage
+    query = db.session.query(SupportMessage).order_by(SupportMessage.created_at.desc())
+    unread_only = request.args.get("unread_only") == "true"
+    if unread_only:
+        query = query.filter_by(is_read=False)
+    page, page_size = pagination_params()
+    items, meta = paginate_query(query, page, page_size)
+    return paginated_response([{
+        "id": m.id,
+        "platform": m.platform,
+        "platform_user_id": m.platform_user_id,
+        "user_id": m.user_id,
+        "message": m.message,
+        "is_read": m.is_read,
+        "admin_reply": m.admin_reply,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    } for m in items], page, page_size, meta["total"])
+
+
+@bp.post("/admin/support/<msg_id>/read")
+@admin_required
+def mark_support_read(msg_id: str):
+    from app.models.messenger import SupportMessage
+    m = db.session.get(SupportMessage, msg_id)
+    if not m:
+        return error_response("NOT_FOUND", status=404)
+    m.is_read = True
+    db.session.commit()
+    return success_response({"ok": True})
+
+
+@bp.post("/admin/support/<msg_id>/reply")
+@admin_required
+def reply_support(msg_id: str):
+    from app.models.messenger import SupportMessage
+    m = db.session.get(SupportMessage, msg_id)
+    if not m:
+        return error_response("NOT_FOUND", status=404)
+    data = request.get_json(silent=True) or {}
+    reply = (data.get("reply") or "").strip()
+    if not reply:
+        return error_response("EMPTY_REPLY", status=400)
+    m.admin_reply = reply[:2000]
+    m.is_read = True
+    db.session.commit()
+    # TODO: send reply back to user via Bale (needs bot token + chat_id mapping)
+    return success_response({"ok": True})
+
+
+# ---------------------------------------------------------------------------
 # Assets
 # ---------------------------------------------------------------------------
 @bp.get("/admin/assets")
