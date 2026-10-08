@@ -29,6 +29,7 @@ from app.ai.adapters import get_image_provider, get_stt_provider, get_text_provi
 from app.api.deps import success_response
 from app.auth.otp import normalize_mobile
 from app.billing.ledger import (
+    DuplicateIdempotencyKey,
     InsufficientBalance,
     deposit,
     get_wallet_for_update,
@@ -305,8 +306,14 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
         final = pricing.estimate_text(model.id, in_tokens, out_tokens)["total_irr"]
     except PricingRuleUnavailable:
         final = estimate["total_irr"]
-    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=final, idempotency_key=key, description="bale_text_chat")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+               final_amount_irr=final, idempotency_key=key, description="bale_text_chat")
+    except DuplicateIdempotencyKey:
+        # Bale retried the webhook; the user was already charged for the first
+        # attempt. Skip duplicate billing but still send the AI response.
+        log.info("bale text duplicate idempotency key, skipping rebill: %s", key)
+        db.session.rollback()
     _record_usage(user.id, model.id, "text", final,
                   {"input_tokens": in_tokens, "output_tokens": out_tokens})
     db.session.commit()
