@@ -363,3 +363,27 @@ def zibal_callback():
     if _settle_paid_payment(payment, verification):
         return _redirect("success", payment.id)
     return _redirect("failed", payment.id)
+
+
+@bp.get("/go/<track_id>")
+def payment_redirect(track_id: str):
+    """Redirect page for Zibal payments.
+
+    Zibal requires a non-empty Referer header when the user lands on the
+    gateway. Linking directly to gateway.zibal.ir from a bot leaves the
+    Referer empty, so we bounce through our own domain first.
+    """
+    from flask import Response
+    zibal_url = f"https://gateway.zibal.ir/start/{track_id}"
+    html = f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head><meta charset="utf-8"><title>در حال انتقال به درگاه پرداخت...</title>
+<meta http-equiv="refresh" content="0;url={zibal_url}">
+</head>
+<body>
+<p>در حال انتقال به درگاه پرداخت...</p>
+<p><a href="{zibal_url}">اگر منتقل نشدید اینجا کلیک کنید</a></p>
+<script>window.location.replace("{zibal_url}");</script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")

@@ -942,6 +942,8 @@ def _handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_i
     payment.status = "pending"
     db.session.commit()
     answer_callback(callback_id)
+    # Route through our own domain so Zibal sees a non-empty Referer.
+    pay_url = f"https://inourai.ir/api/v1/payments/go/{start.track_id}"
     send_message(
         chat_id,
         f"💳 برای افزایش اعتبار {_toman(amount_irr)} تومانی روی دکمه زیر کلیک کنید:\n\n"
@@ -949,7 +951,7 @@ def _handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_i
         f"⚠️ اعتبار افزایش‌یافته مربوط به حساب کاربری شما جهت استفاده از بات نورا در پیام‌رسان بله بوده و فقط از طریق بات بله قابل استفاده می‌باشد.",
         reply_markup={
             "inline_keyboard": [
-                [{"text": "💳 پرداخت آنلاین", "url": start.payment_url}]
+                [{"text": "💳 پرداخت آنلاین", "url": pay_url}]
             ]
         },
     )
