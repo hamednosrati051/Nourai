@@ -587,6 +587,7 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
 
 def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     """Voice assistant: voice -> STT -> AI chat -> TTS -> voice reply."""
+    log.info("bale va: starting for chat %s", chat_id)
     # Step 1: STT
     stt_model = (
         db.session.query(AiModel)
@@ -675,6 +676,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     db.session.commit()
 
     user_text = stt_result.text
+    log.info("bale va: stt done for chat %s, text len %d", chat_id, len(user_text or ""))
     send_message(chat_id, f"🎧 شنیدم: {user_text}\n\n🤔 دارم فکر می‌کنم...")
 
     # --- Text chat ---
@@ -734,6 +736,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     db.session.commit()
 
     reply_text = text_result.text
+    log.info("bale va: text done for chat %s, reply len %d", chat_id, len(reply_text or ""))
 
     # --- TTS ---
     try:
