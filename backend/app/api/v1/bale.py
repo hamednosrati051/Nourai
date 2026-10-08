@@ -1080,6 +1080,7 @@ def webhook():
 
         # --- Menu buttons ------------------------------------------------
         if text == BTN_CHAT:
+            _set_user_mode(bale_user_id, "awaiting_chat")
             send_message(chat_id, "💬 سوالت رو بفرست تا جواب بدم 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
@@ -1128,18 +1129,19 @@ def webhook():
 
         # If waiting for an image prompt, treat this message as the prompt.
         mode, _data = _get_user_mode(bale_user_id)
+        if mode == "awaiting_chat":
+            _handle_text(chat_id, user, text)
+            return success_response({"ok": True})
+
         if mode == "awaiting_image_prompt":
-            _clear_user_mode(bale_user_id)
             _handle_image(chat_id, user, text)
             return success_response({"ok": True})
 
         if mode == "awaiting_tts_text":
-            _clear_user_mode(bale_user_id)
             _handle_tts(chat_id, user, text)
             return success_response({"ok": True})
 
         if mode == "awaiting_edit_prompt":
-            _clear_user_mode(bale_user_id)
             _handle_image_edit(chat_id, user, _data.get("file_id", ""), text)
             return success_response({"ok": True})
 
@@ -1151,7 +1153,6 @@ def webhook():
         if voice.get("file_id"):
             va_mode, _va_data = _get_user_mode(bale_user_id)
             if va_mode == "awaiting_va_voice":
-                _clear_user_mode(bale_user_id)
                 _handle_voice_assistant(chat_id, user, voice["file_id"])
             else:
                 _handle_voice(chat_id, user, voice["file_id"])
