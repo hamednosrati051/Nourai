@@ -417,8 +417,12 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
         send_message(chat_id, "خطا در تولید تصویر. بعداً تلاش کنید.")
         return
 
-    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image")
+    except DuplicateIdempotencyKey:
+        log.info("bale image duplicate key, skipping rebill: %s", key)
+        db.session.rollback()
     _record_usage(user.id, model.id, "image", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
     send_message(chat_id, "🎨 عکست آماده شد!")
@@ -864,8 +868,12 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
         send_message(chat_id, "خطا در ویرایش تصویر.")
         return
 
-    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image_edit")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image_edit")
+    except DuplicateIdempotencyKey:
+        log.info("bale image edit duplicate key, skipping rebill: %s", key)
+        db.session.rollback()
     _record_usage(user.id, model.id, "image_edit", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
     send_message(chat_id, "✏️ ویرایش شد!")
