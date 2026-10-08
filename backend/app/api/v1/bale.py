@@ -491,8 +491,12 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
         send_message(chat_id, "خطا در تبدیل صوت.")
         return
 
-    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_stt")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_stt")
+    except DuplicateIdempotencyKey:
+        log.info("bale stt duplicate idempotency key, skipping rebill: %s", key)
+        db.session.rollback()
     _record_usage(user.id, model.id, "stt", estimate["total_irr"],
                   {"audio_seconds": est_seconds})
     db.session.commit()
