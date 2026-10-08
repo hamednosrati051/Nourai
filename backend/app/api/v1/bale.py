@@ -83,9 +83,50 @@ BTN_WALLET = "💰 اعتبار من"
 BTN_CHARGE = "➕ افزایش اعتبار"
 BTN_SUPPORT = "🛟 پشتیبانی"
 
-# In-memory per-user mode: {bale_user_id: (mode, data)}.
-# Ephemeral (resets on restart) — acceptable for the bot MVP.
-_user_modes: dict[int, tuple[str, dict]] = {}
+# Persistent per-user mode via messenger_user_states table (generic across
+# platforms). Survives API restarts, unlike the previous in-memory dict.
+def _get_user_mode(platform_user_id: int) -> tuple[str | None, dict]:
+    """Return (mode, data) for a Bale user, or (None, {}) if no state."""
+    from app.models.messenger import MessengerUserState, PLATFORM_BALE
+    state = (
+        db.session.query(MessengerUserState)
+        .filter_by(platform=PLATFORM_BALE, platform_user_id=platform_user_id)
+        .one_or_none()
+    )
+    if state is None:
+        return None, {}
+    return state.mode, state.data or {}
+
+
+def _set_user_mode(platform_user_id: int, mode: str, data: dict | None = None) -> None:
+    """Set (or replace) the conversation mode for a Bale user."""
+    from app.models.messenger import MessengerUserState, PLATFORM_BALE
+    state = (
+        db.session.query(MessengerUserState)
+        .filter_by(platform=PLATFORM_BALE, platform_user_id=platform_user_id)
+        .one_or_none()
+    )
+    if state is None:
+        state = MessengerUserState(
+            platform=PLATFORM_BALE,
+            platform_user_id=platform_user_id,
+            mode=mode,
+            data=data or {},
+        )
+        db.session.add(state)
+    else:
+        state.mode = mode
+        state.data = data or {}
+    db.session.commit()
+
+
+def _clear_user_mode(platform_user_id: int) -> None:
+    """Clear the conversation mode for a Bale user."""
+    from app.models.messenger import MessengerUserState, PLATFORM_BALE
+    db.session.query(MessengerUserState).filter_by(
+        platform=PLATFORM_BALE, platform_user_id=platform_user_id
+    ).delete()
+    db.session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1025,7 +1066,7 @@ def webhook():
             return success_response({"ok": True})
 
         if text == BTN_IMAGE:
-            _user_modes[bale_user_id] = ("awaiting_image_prompt", {})
+            _set_user_mode(bale_user_id, "awaiting_image_prompt")
             send_message(chat_id, "🎨 توضیح عکست رو بفرست 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
@@ -1036,19 +1077,19 @@ def webhook():
             return success_response({"ok": True})
 
         if text == BTN_TTS:
-            _user_modes[bale_user_id] = ("awaiting_tts_text", {})
+            _set_user_mode(bale_user_id, "awaiting_tts_text")
             send_message(chat_id, "🔊 متنی که می‌خوای به صوت تبدیل بشه رو بفرست 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
         if text == BTN_VA:
-            _user_modes[bale_user_id] = ("awaiting_va_voice", {})
+            _set_user_mode(bale_user_id, "awaiting_va_voice")
             send_message(chat_id, "🎧 ویست رو بفرست تا گوش بدم و با صدا جواب بدم 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
         if text == BTN_EDIT:
-            _user_modes[bale_user_id] = ("awaiting_edit_photo", {})
+            _set_user_mode(bale_user_id, "awaiting_edit_photo")
             send_message(chat_id, "✏️ عکسی که می‌خوای ویرایش بشه رو بفرست 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
@@ -1067,19 +1108,19 @@ def webhook():
             return success_response({"ok": True})
 
         # If waiting for an image prompt, treat this message as the prompt.
-        mode, _data = _user_modes.get(bale_user_id, (None, {}))
+        mode, _data = _get_user_mode(bale_user_id)
         if mode == "awaiting_image_prompt":
-            _user_modes.pop(bale_user_id, None)
+            _clear_user_mode(bale_user_id)
             _handle_image(chat_id, user, text)
             return success_response({"ok": True})
 
         if mode == "awaiting_tts_text":
-            _user_modes.pop(bale_user_id, None)
+            _clear_user_mode(bale_user_id)
             _handle_tts(chat_id, user, text)
             return success_response({"ok": True})
 
         if mode == "awaiting_edit_prompt":
-            _user_modes.pop(bale_user_id, None)
+            _clear_user_mode(bale_user_id)
             _handle_image_edit(chat_id, user, _data.get("file_id", ""), text)
             return success_response({"ok": True})
 
