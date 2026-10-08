@@ -23,7 +23,7 @@ export default function SupportPage() {
   const load = async () => {
     const res = await fetch(`/api/v1/admin/support?unread_only=${unreadOnly}`, { credentials: 'include' });
     const data = await res.json();
-    if (data.ok) setItems(data.data || []);
+    if (data.ok) setItems(data.data?.items || []);
   };
 
   useEffect(() => { load(); }, [unreadOnly]);
