@@ -53,27 +53,36 @@ BALE_API = "https://tapi.bale.ai"
 # Preset top-up amounts in IRR (10k / 50k / 100k Toman).
 CHARGE_PRESETS = [100_000, 500_000, 1_000_000]
 
-# Persistent reply-keyboard menu (like Binavira).
+# Persistent reply-keyboard menu (like Binavira — one button per row).
 MENU_KEYBOARD = {
     "keyboard": [
-        [{"text": "💬 گفتگو"}, {"text": "🎨 تولید تصویر"}],
-        [{"text": "🎙️ تبدیل صوت به متن"}, {"text": "💰 اعتبار من"}],
-        [{"text": "➕ افزایش اعتبار"}, {"text": "🛟 پشتیبانی"}],
+        [{"text": "💬 گفتگو"}],
+        [{"text": "🎧 دستیار صوتی"}],
+        [{"text": "🎨 تولید تصویر"}],
+        [{"text": "✏️ ویرایش تصویر"}],
+        [{"text": "🎙️ صوت به متن"}],
+        [{"text": "🔊 متن به صوت"}],
+        [{"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}],
+        [{"text": "🛟 پشتیبانی"}],
     ],
     "resize_keyboard": True,
 }
 
 # Button labels -> actions.
 BTN_CHAT = "💬 گفتگو"
+BTN_VA = "🎧 دستیار صوتی"
 BTN_IMAGE = "🎨 تولید تصویر"
-BTN_STT = "🎙️ تبدیل صوت به متن"
+BTN_EDIT = "✏️ ویرایش تصویر"
+BTN_STT = "🎙️ صوت به متن"
+BTN_TTS = "🔊 متن به صوت"
 BTN_WALLET = "💰 اعتبار من"
 BTN_CHARGE = "➕ افزایش اعتبار"
 BTN_SUPPORT = "🛟 پشتیبانی"
 
-# In-memory per-user mode: {bale_user_id: "awaiting_image_prompt"}.
+# In-memory per-user mode: {bale_user_id: (mode, data)}.
 # Ephemeral (resets on restart) — acceptable for the bot MVP.
-_user_modes: dict[int, str] = {}
+_user_modes: dict[int, tuple[str, dict]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +128,13 @@ def send_photo(chat_id: int, photo: bytes, caption: str | None = None) -> None:
     _bale_api("sendPhoto",
               {"chat_id": str(chat_id), "caption": caption or ""},
               files={"photo": ("image.jpg", photo, "image/jpeg")})
+
+
+def send_voice(chat_id: int, audio_bytes: bytes, mime_type: str = "audio/ogg") -> None:
+    ext = "ogg" if "ogg" in mime_type else "mp3"
+    _bale_api("sendVoice",
+              {"chat_id": str(chat_id)},
+              files={"voice": (f"voice.{ext}", audio_bytes, mime_type)})
 
 
 def download_bale_file(file_id: str) -> bytes | None:
@@ -433,6 +449,354 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
     send_message(chat_id, f"🎙️ متن ویس:\n\n{result.text or 'متنی تشخیص داده نشد.'}")
 
 
+def _handle_tts(chat_id: int, user: User, text: str) -> None:
+    """Text -> speech: synthesize and send voice."""
+    from app.ai.adapters import get_tts_provider
+    text = (text or "").strip()
+    if not text:
+        send_message(chat_id, "متنی نفرستادی.")
+        return
+    if len(text) > 2000:
+        send_message(chat_id, "متن خیلی طولانیه (حداکثر ۲۰۰۰ حرف).")
+        return
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_TTS, is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if model is None:
+        send_message(chat_id, "مدل صوتی فعالی پیدا نشد.")
+        return
+    try:
+        provider = get_tts_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("bale tts provider error: %s", exc)
+        send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.")
+        return
+
+    # Hold from text-length estimate (~800 chars/min), settle on actual.
+    est_seconds = max(1, len(text) * 2)
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_audio(model.id, est_seconds)
+    except PricingRuleUnavailable:
+        send_message(chat_id, "تعرفه مدل تنظیم نشده.")
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"bale-tts-{uuid.uuid4().hex}"
+    try:
+        reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_tts")
+    except InsufficientBalance:
+        send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
+        return
+    db.session.commit()
+
+    send_message(chat_id, "🔊 دارم صدا رو می‌سازم...")
+    try:
+        result = provider.synthesize(model.provider_model_name, text, {})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale tts call failed: %s", exc)
+        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_tts_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در تولید صوت.")
+        return
+
+    if not result.ok or not result.audio_bytes:
+        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_tts_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در تولید صوت.")
+        return
+
+    actual_seconds = result.duration_seconds or est_seconds
+    try:
+        final = pricing.estimate_audio(model.id, actual_seconds)["total_irr"]
+    except PricingRuleUnavailable:
+        final = estimate["total_irr"]
+    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+           final_amount_irr=final, idempotency_key=key, reason="bale_tts")
+    _record_usage(user.id, model.id, "tts", final,
+                  {"audio_seconds": actual_seconds, "chars": len(text)})
+    db.session.commit()
+    send_voice(chat_id, result.audio_bytes, result.mime_type or "audio/ogg")
+
+
+def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
+    """Voice assistant: voice -> STT -> AI chat -> TTS -> voice reply."""
+    # Step 1: STT
+    stt_model = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_STT, is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    text_model = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_TEXT, is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    tts_model = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_TTS, is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if not stt_model or not text_model or not tts_model:
+        send_message(chat_id, "سرویس دستیار صوتی کامل نیست. بعداً تلاش کنید.")
+        return
+
+    audio_bytes = download_bale_file(file_id)
+    if not audio_bytes:
+        send_message(chat_id, "دانلود ویس ناموفق بود.")
+        return
+
+    from app.ai.adapters import get_stt_provider, get_text_provider, get_tts_provider
+    from app.services.storage import storage
+    audio_key = f"bale-va/{uuid.uuid4().hex}.ogg"
+    try:
+        storage.put_bytes(audio_key, audio_bytes, "audio/ogg")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale va storage failed: %s", exc)
+        send_message(chat_id, "خطا در پردازش ویس.")
+        return
+
+    pricing = PricingService(db.session)
+    wallet = get_wallet_for_update(db.session, user.id)
+
+    # --- STT ---
+    try:
+        stt_provider = get_stt_provider(stt_model.provider_key, stt_model)
+    except ValueError:
+        send_message(chat_id, "خطای سرویس صوتی.")
+        return
+    est_seconds = max(1, len(audio_bytes) // 2000)
+    try:
+        stt_est = pricing.estimate_audio(stt_model.id, est_seconds)
+    except PricingRuleUnavailable:
+        send_message(chat_id, "تعرفه صوتی تنظیم نشده.")
+        return
+    key_stt = f"bale-va-stt-{uuid.uuid4().hex}"
+    try:
+        reserve(db.session, wallet=wallet, amount_irr=stt_est["total_irr"],
+                idempotency_key=key_stt, reason="bale_va_stt")
+    except InsufficientBalance:
+        send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
+        return
+    db.session.commit()
+
+    try:
+        stt_result = stt_provider.transcribe(stt_model.provider_model_name, audio_key, {"language": "fa"})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale va stt failed: %s", exc)
+        release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
+                idempotency_key=key_stt, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در تبدیل صوت.")
+        return
+    if not stt_result.ok or not stt_result.text:
+        release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
+                idempotency_key=key_stt, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, "متنی از ویست تشخیص داده نشد.")
+        return
+    settle(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
+           final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, reason="bale_va_stt")
+    _record_usage(user.id, stt_model.id, "stt", stt_est["total_irr"],
+                  {"audio_seconds": est_seconds, "via": "voice_assistant"})
+    db.session.commit()
+
+    user_text = stt_result.text
+    send_message(chat_id, f"🎧 شنیدم: {user_text}\n\n🤔 دارم فکر می‌کنم...")
+
+    # --- Text chat ---
+    try:
+        text_provider = get_text_provider(text_model.provider_key, text_model)
+    except ValueError:
+        send_message(chat_id, "خطای سرویس متنی.")
+        return
+    messages = [
+        {"role": "system", "content": "You are Nourai (نورا), a helpful Persian voice assistant. Keep replies concise and spoken-friendly."},
+        {"role": "user", "content": user_text},
+    ]
+    input_tokens = max(1, sum(len(m["content"]) for m in messages) // 4)
+    try:
+        text_est = pricing.estimate_text(text_model.id, input_tokens, 512)
+    except PricingRuleUnavailable:
+        send_message(chat_id, "تعرفه متنی تنظیم نشده.")
+        return
+    key_text = f"bale-va-text-{uuid.uuid4().hex}"
+    try:
+        reserve(db.session, wallet=wallet, amount_irr=text_est["total_irr"],
+                idempotency_key=key_text, reason="bale_va_text")
+    except InsufficientBalance:
+        send_message(chat_id, "💰 موجودیت کافی نیست.")
+        return
+    db.session.commit()
+    try:
+        text_result = text_provider.generate(text_model.provider_model_name, messages, {"max_tokens": 512})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale va text failed: %s", exc)
+        release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
+                idempotency_key=key_text, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در تولید پاسخ.")
+        return
+    if not text_result.ok or not text_result.text:
+        release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
+                idempotency_key=key_text, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در تولید پاسخ.")
+        return
+    out_tokens = text_result.output_tokens or 512
+    in_tokens = text_result.input_tokens or input_tokens
+    try:
+        text_final = pricing.estimate_text(text_model.id, in_tokens, out_tokens)["total_irr"]
+    except PricingRuleUnavailable:
+        text_final = text_est["total_irr"]
+    settle(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
+           final_amount_irr=text_final, idempotency_key=key_text, reason="bale_va_text")
+    _record_usage(user.id, text_model.id, "text", text_final,
+                  {"input_tokens": in_tokens, "output_tokens": out_tokens,
+                   "via": "voice_assistant"})
+    db.session.commit()
+
+    reply_text = text_result.text
+
+    # --- TTS ---
+    try:
+        tts_provider = get_tts_provider(tts_model.provider_key, tts_model)
+    except ValueError:
+        send_message(chat_id, f"💬 {reply_text}")
+        return
+    tts_est_seconds = max(1, len(reply_text) * 2)
+    try:
+        tts_est = pricing.estimate_audio(tts_model.id, tts_est_seconds)
+    except PricingRuleUnavailable:
+        send_message(chat_id, f"💬 {reply_text}")
+        return
+    key_tts = f"bale-va-tts-{uuid.uuid4().hex}"
+    try:
+        reserve(db.session, wallet=wallet, amount_irr=tts_est["total_irr"],
+                idempotency_key=key_tts, reason="bale_va_tts")
+    except InsufficientBalance:
+        send_message(chat_id, f"💬 {reply_text}\n\n(موجودی برای صوت کافی نبود)")
+        return
+    db.session.commit()
+    try:
+        tts_result = tts_provider.synthesize(tts_model.provider_model_name, reply_text, {})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale va tts failed: %s", exc)
+        release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
+                idempotency_key=key_tts, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, f"💬 {reply_text}")
+        return
+    if not tts_result.ok or not tts_result.audio_bytes:
+        release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
+                idempotency_key=key_tts, reason="bale_va_failed")
+        db.session.commit()
+        send_message(chat_id, f"💬 {reply_text}")
+        return
+    tts_actual = tts_result.duration_seconds or tts_est_seconds
+    try:
+        tts_final = pricing.estimate_audio(tts_model.id, tts_actual)["total_irr"]
+    except PricingRuleUnavailable:
+        tts_final = tts_est["total_irr"]
+    settle(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
+           final_amount_irr=tts_final, idempotency_key=key_tts, reason="bale_va_tts")
+    _record_usage(user.id, tts_model.id, "tts", tts_final,
+                  {"audio_seconds": tts_actual, "via": "voice_assistant"})
+    db.session.commit()
+    send_message(chat_id, f"💬 {reply_text}")
+    send_voice(chat_id, tts_result.audio_bytes, tts_result.mime_type or "audio/ogg")
+
+
+def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> None:
+    """Edit a user-provided image with a text prompt."""
+    from app.models.catalog import CAP_EDIT_IMAGE
+    prompt = (prompt or "").strip()
+    if not prompt:
+        send_message(chat_id, "توضیح ویرایش رو نفرستادی.")
+        return
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability=CAP_EDIT_IMAGE, is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if model is None:
+        send_message(chat_id, "مدل ویرایش تصویر فعالی پیدا نشد.")
+        return
+    image_bytes = download_bale_file(file_id)
+    if not image_bytes:
+        send_message(chat_id, "دانلود عکس ناموفق بود.")
+        return
+
+    from app.ai.adapters import get_image_provider
+    from app.services.storage import storage
+    image_key = f"bale-edit/{uuid.uuid4().hex}.jpg"
+    try:
+        storage.put_bytes(image_key, image_bytes, "image/jpeg")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale edit storage failed: %s", exc)
+        send_message(chat_id, "خطا در پردازش عکس.")
+        return
+
+    try:
+        provider = get_image_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("bale edit provider error: %s", exc)
+        send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.")
+        return
+
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_image(model.id, image_count=1)
+    except PricingRuleUnavailable:
+        send_message(chat_id, "تعرفه مدل تنظیم نشده.")
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"bale-edit-{uuid.uuid4().hex}"
+    try:
+        reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_image_edit")
+    except InsufficientBalance:
+        send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
+        return
+    db.session.commit()
+
+    send_message(chat_id, "✏️ دارم عکست رو ویرایش می‌کنم...")
+    try:
+        result = provider.edit(model.provider_model_name, prompt, image_key, {})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("bale edit call failed: %s", exc)
+        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_edit_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در ویرایش تصویر.")
+        return
+
+    if not result.ok or not result.image_bytes:
+        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                idempotency_key=key, reason="bale_edit_failed")
+        db.session.commit()
+        send_message(chat_id, "خطا در ویرایش تصویر.")
+        return
+
+    settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+           final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_image_edit")
+    _record_usage(user.id, model.id, "image_edit", estimate["total_irr"], {"image_count": 1})
+    db.session.commit()
+    send_message(chat_id, "✏️ ویرایش شد!")
+    send_photo(chat_id, result.image_bytes, caption=f"✏️ {prompt}")
+
+
 # ---------------------------------------------------------------------------
 # In-bot charging via Zibal
 # ---------------------------------------------------------------------------
@@ -639,13 +1003,31 @@ def webhook():
             return success_response({"ok": True})
 
         if text == BTN_IMAGE:
-            _user_modes[bale_user_id] = "awaiting_image_prompt"
+            _user_modes[bale_user_id] = ("awaiting_image_prompt", {})
             send_message(chat_id, "🎨 توضیح عکست رو بفرست 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
         if text == BTN_STT:
             send_message(chat_id, "🎙️ ویست رو بفرست تا به متن تبدیلش کنم 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_TTS:
+            _user_modes[bale_user_id] = ("awaiting_tts_text", {})
+            send_message(chat_id, "🔊 متنی که می‌خوای به صوت تبدیل بشه رو بفرست 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_VA:
+            _user_modes[bale_user_id] = ("awaiting_va_voice", {})
+            send_message(chat_id, "🎧 ویست رو بفرست تا گوش بدم و با صدا جواب بدم 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == BTN_EDIT:
+            _user_modes[bale_user_id] = ("awaiting_edit_photo", {})
+            send_message(chat_id, "✏️ عکسی که می‌خوای ویرایش بشه رو بفرست 👇",
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
@@ -663,9 +1045,20 @@ def webhook():
             return success_response({"ok": True})
 
         # If waiting for an image prompt, treat this message as the prompt.
-        if _user_modes.get(bale_user_id) == "awaiting_image_prompt":
+        mode, _data = _user_modes.get(bale_user_id, (None, {}))
+        if mode == "awaiting_image_prompt":
             _user_modes.pop(bale_user_id, None)
             _handle_image(chat_id, user, text)
+            return success_response({"ok": True})
+
+        if mode == "awaiting_tts_text":
+            _user_modes.pop(bale_user_id, None)
+            _handle_tts(chat_id, user, text)
+            return success_response({"ok": True})
+
+        if mode == "awaiting_edit_prompt":
+            _user_modes.pop(bale_user_id, None)
+            _handle_image_edit(chat_id, user, _data.get("file_id", ""), text)
             return success_response({"ok": True})
 
         if text.startswith("/image"):
