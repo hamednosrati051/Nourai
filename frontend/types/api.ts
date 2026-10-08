@@ -56,6 +56,7 @@ export interface WalletTransaction {
   description: string | null;
   reference_type: string | null;
   reference_id: string | null;
+  track_id?: string | null;
   created_at: string;
 }
 
