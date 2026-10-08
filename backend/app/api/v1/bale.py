@@ -957,7 +957,7 @@ def _handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_i
     )
 
 
-@bp.get("/payment-callback")
+@bp.route("/payment-callback", methods=["GET", "POST"])
 def bale_payment_callback():
     """Zibal redirects here after a bot-initiated payment.
 
