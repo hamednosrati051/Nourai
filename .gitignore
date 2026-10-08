@@ -26,3 +26,4 @@ out/
 # Uploads / local data
 uploads/
 media/
+backend/.env

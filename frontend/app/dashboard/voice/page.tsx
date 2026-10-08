@@ -97,12 +97,21 @@ export default function VoicePage() {
   const hasThread = items.length > 0 || !!trackedVisible;
 
   // Keep the latest exchange in view as the thread grows.
+  // The sticky bottom composer would cover the last item, so we add
+  // bottom padding (via scroll-margin) and scroll the window to the
+  // absolute bottom instead of relying on scrollIntoView.
   const threadEndRef = useRef<HTMLDivElement>(null);
   const prevThreadCount = useRef(0);
   useEffect(() => {
     const count = items.length + (trackedVisible ? 1 : 0);
     if (count > prevThreadCount.current) {
-      threadEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      // Wait for the new DOM to paint, then scroll to the very bottom.
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth',
+        });
+      });
     }
     prevThreadCount.current = count;
   }, [items.length, trackedVisible]);
@@ -154,7 +163,7 @@ export default function VoicePage() {
       />
 
       {/* Thread */}
-      <div className="flex flex-1 flex-col gap-5 py-4" aria-live="polite">
+      <div className="flex flex-1 flex-col gap-5 py-4 pb-40" aria-live="polite">
         {jobs.isLoading && <LoadingSpinner label="در حال بارگذاری گفتگو…" />}
         {jobs.isError && <ErrorState message="بارگذاری گفتگو ناموفق بود." onRetry={() => jobs.refetch()} />}
 
