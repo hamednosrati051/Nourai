@@ -42,7 +42,9 @@ from app.extensions import db
 from app.models import AiModel, MessengerUser, Payment, UsageEvent, User, WalletAccount
 from app.models.catalog import CAP_GENERATE_IMAGE, CAP_STT, CAP_TEXT
 from app.models.messenger import PLATFORM_BALE
-from app.providers.zibal import ZibalNotConfigured, get_payment_gateway
+from app.providers import get_payment_gateway
+from app.providers.base import ProviderError
+from app.providers.zibal import ZibalNotConfigured
 
 log = logging.getLogger(__name__)
 
