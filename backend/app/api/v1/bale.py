@@ -963,15 +963,37 @@ def bale_payment_callback():
 
     Verifies with the gateway, credits the wallet, and notifies via Bale.
     """
-    from flask import redirect
+    from flask import Response
     track_id = request.args.get("track_id") or request.args.get("trackId")
+
+    def _done_page(success: bool, amount: int = 0):
+        bot_url = "https://ble.ir/nourai_bot"
+        if success:
+            title = "پرداخت موفق ✅"
+            msg = f"{_toman(amount)} تومان به کیف پولت اضافه شد!"
+        else:
+            title = "پرداخت ناموفق ❌"
+            msg = "پرداخت انجام نشد. لطفاً دوباره تلاش کن."
+        html = f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<style>body{{font-family:system-ui;text-align:center;padding:40px 20px;background:#f5f5f5}}
+.card{{background:#fff;border-radius:16px;padding:32px;max-width:400px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.1)}}
+h1{{font-size:22px;margin-bottom:12px}}p{{color:#555;margin-bottom:24px}}
+.btn{{display:inline-block;background:#0084ff;color:#fff;padding:14px 40px;border-radius:12px;text-decoration:none;font-size:18px;font-weight:bold}}</style>
+</head>
+<body><div class="card"><h1>{title}</h1><p>{msg}</p>
+<a class="btn" href="{bot_url}">🤖 بازگشت به بات نورا</a></div></body></html>"""
+        return Response(html, mimetype="text/html")
+
     if not track_id:
-        return redirect("https://ble.ir/nourai_bot", code=302)
+        return _done_page(False)
     payment = db.session.query(Payment).filter_by(track_id=track_id).one_or_none()
     if payment is None:
-        return redirect("https://ble.ir/nourai_bot", code=302)
+        return _done_page(False)
     if payment.status == "paid":
-        return redirect("https://ble.ir/nourai_bot", code=302)
+        return _done_page(True, payment.amount_irr)
 
     # Verify with gateway.
     try:
@@ -979,12 +1001,12 @@ def bale_payment_callback():
         verification = gateway.verify_payment(track_id, payment.amount_irr)
     except Exception as exc:  # noqa: BLE001
         log.warning("bale payment verify failed: %s", exc)
-        return redirect("https://ble.ir/nourai_bot", code=302)
+        return _done_page(False)
 
     if not verification.paid:
         payment.status = "failed"
         db.session.commit()
-        return redirect("https://ble.ir/nourai_bot", code=302)
+        return _done_page(False)
 
     # Credit the wallet (idempotent).
     wallet = get_wallet_for_update(db.session, payment.user_id)
@@ -1009,7 +1031,7 @@ def bale_payment_callback():
     if link:
         send_message(int(link.platform_user_id),
                      f"✅ {_toman(payment.amount_irr)} تومان به کیف پولت اضافه شد!")
-    return redirect("https://ble.ir/nourai_bot", code=302)
+    return _done_page(True, payment.amount_irr)
 
 
 # ---------------------------------------------------------------------------
