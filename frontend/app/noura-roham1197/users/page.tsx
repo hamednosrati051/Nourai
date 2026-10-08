@@ -45,7 +45,7 @@ export default function AdminUsersPage() {
             <input
               id="user-search"
               type="search"
-              placeholder="جست‌وجو با شماره موبایل…"
+              placeholder="جست‌وجو با موبایل، آیدی یا یوزرنیم…"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="input"

@@ -167,19 +167,45 @@ def _tehran_day_start_utc():
 @bp.get("/admin/users")
 @admin_required
 def list_users():
+    from app.models.messenger import MessengerUser
+    from sqlalchemy import or_
     search = (request.args.get("search") or "").strip()
     query = db.session.query(User)
     if search:
+        # Try mobile first
         try:
             normalized = normalize_mobile(search)
             query = query.filter(User.mobile_normalized == normalized)
         except ValueError:
-            # Fall back to prefix search on the raw digits.
             digits = "".join(c for c in search if c.isdigit())
             if digits:
-                query = query.filter(User.mobile_normalized.startswith(digits))
+                # Could be mobile prefix OR user ID starting with digits
+                # Also check Bale username
+                username_match = (
+                    db.session.query(MessengerUser.user_id)
+                    .filter(MessengerUser.platform_username.ilike(f"%{search}%"))
+                    .subquery()
+                )
+                query = query.filter(
+                    or_(
+                        User.mobile_normalized.startswith(digits),
+                        User.id.startswith(search),
+                        User.id.in_(username_match),
+                    )
+                )
             else:
-                query = query.filter(User.id == search)
+                # Text search: user ID or Bale username
+                username_match = (
+                    db.session.query(MessengerUser.user_id)
+                    .filter(MessengerUser.platform_username.ilike(f"%{search}%"))
+                    .subquery()
+                )
+                query = query.filter(
+                    or_(
+                        User.id == search,
+                        User.id.in_(username_match),
+                    )
+                )
     is_active = request.args.get("is_active")
     if is_active in ("true", "false"):
         query = query.filter_by(is_active=is_active == "true")
