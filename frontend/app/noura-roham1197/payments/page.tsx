@@ -140,7 +140,16 @@ export default function AdminPaymentsPage() {
               { header: 'مبلغ', render: (p) => <span className="tabular-nums">{formatToman(p.amount_irr)}</span> },
               {
                 header: 'کاربر',
-                render: (p) => <span dir="ltr" className="tabular-nums">{p.user_mobile_masked ?? '—'}</span>,
+                render: (p) => p.user_mobile_masked ? (
+                  <span dir="ltr" className="tabular-nums">{p.user_mobile_masked}</span>
+                ) : p.bot_user ? (
+                  <span className="text-sm">
+                    <span className="tabular-nums" dir="ltr">{p.bot_user.platform_user_id}</span>
+                    {p.bot_user.platform_username && (
+                      <span className="block text-xs text-neutral-500" dir="ltr">@{p.bot_user.platform_username}</span>
+                    )}
+                  </span>
+                ) : '—',
               },
               {
                 header: 'وضعیت',

@@ -517,10 +517,21 @@ def get_payment(payment_id: str):
 
 def _payment_payload(payment: Payment) -> dict:
     user = db.session.get(User, payment.user_id)
+    # Bot user info (Bale/Eitaa) if linked
+    bot_info = None
+    if user:
+        link = db.session.query(MessengerUser).filter_by(user_id=user.id).first()
+        if link:
+            bot_info = {
+                "platform": link.platform,
+                "platform_user_id": link.platform_user_id,
+                "platform_username": link.platform_username,
+            }
     return {
         "id": payment.id,
         "user_id": payment.user_id,
-        "user_mobile_masked": mask_mobile(user.mobile_normalized) if user else None,
+        "user_mobile_masked": mask_mobile(user.mobile_normalized) if user and user.mobile_normalized else None,
+        "bot_user": bot_info,
         "gateway": payment.gateway,
         "amount_irr": payment.amount_irr,
         "status": payment.status,
