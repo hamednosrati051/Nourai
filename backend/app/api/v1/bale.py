@@ -34,7 +34,7 @@ from app.billing.ledger import InsufficientBalance, get_wallet_for_update, relea
 from app.billing.pricing import PricingRuleUnavailable, PricingService
 from app.config import config
 from app.extensions import db
-from app.models import AiModel, BaleUser, User
+from app.models import AiModel, BaleUser, UsageEvent, User
 from app.models.catalog import CAP_GENERATE_IMAGE, CAP_STT, CAP_TEXT
 from app.services.users import get_user_by_mobile
 
@@ -183,6 +183,24 @@ def _require_link(chat_id: int, bale_user_id: int, from_user: dict) -> User | No
 # Billing helpers
 # ---------------------------------------------------------------------------
 
+CHANNEL = "bale"  # source tag for usage events; telegram/eitaa use their own
+
+
+def _record_usage(user_id: str, model_id: str, kind: str,
+                  charged_irr: int, extra: dict | None = None) -> None:
+    """Record a usage event tagged with the channel (bale/telegram/eitaa)."""
+    meta = {"channel": CHANNEL, "kind": kind}
+    if extra:
+        meta.update(extra)
+    db.session.add(UsageEvent(
+        user_id=user_id,
+        model_id=model_id,
+        status="succeeded",
+        charged_amount_irr=charged_irr,
+        metadata_json=meta,
+    ))
+
+
 def _toman(amount_irr: int) -> str:
     return f"{amount_irr // 10:,}".replace(",", "٬")
 
@@ -263,6 +281,8 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
         final = estimate["total_irr"]
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
            final_amount_irr=final, idempotency_key=key, reason="bale_text_chat")
+    _record_usage(user.id, model.id, "text", final,
+                  {"input_tokens": in_tokens, "output_tokens": out_tokens})
     db.session.commit()
     send_message(chat_id, result.text or "پاسخی تولید نشد.")
 
@@ -325,6 +345,7 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
 
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
            final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_image")
+    _record_usage(user.id, model.id, "image", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
     send_message(chat_id, "🎨 عکست آماده شد!")
     send_photo(chat_id, result.image_bytes, caption=f"🎨 {prompt}")
@@ -400,6 +421,8 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
 
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
            final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_stt")
+    _record_usage(user.id, model.id, "stt", estimate["total_irr"],
+                  {"audio_seconds": est_seconds})
     db.session.commit()
     send_message(chat_id, f"🎙️ متن ویس:\n\n{result.text or 'متنی تشخیص داده نشد.'}")
 
