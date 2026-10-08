@@ -276,7 +276,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
     key = f"bale-text-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_text_chat")
+                idempotency_key=key, description="bale_text_chat")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -287,14 +287,14 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale text provider call failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_text_failed")
+                idempotency_key=key, description="bale_text_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ. بعداً تلاش کنید.")
         return
 
     if not result.ok:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_text_failed")
+                idempotency_key=key, description="bale_text_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ. بعداً تلاش کنید.")
         return
@@ -306,7 +306,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
     except PricingRuleUnavailable:
         final = estimate["total_irr"]
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=final, idempotency_key=key, reason="bale_text_chat")
+           final_amount_irr=final, idempotency_key=key, description="bale_text_chat")
     _record_usage(user.id, model.id, "text", final,
                   {"input_tokens": in_tokens, "output_tokens": out_tokens})
     db.session.commit()
@@ -345,7 +345,7 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     key = f"bale-image-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_image")
+                idempotency_key=key, description="bale_image")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -357,20 +357,20 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale image provider call failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_image_failed")
+                idempotency_key=key, description="bale_image_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید تصویر. بعداً تلاش کنید.")
         return
 
     if not result.ok or not result.image_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_image_failed")
+                idempotency_key=key, description="bale_image_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید تصویر. بعداً تلاش کنید.")
         return
 
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_image")
+           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image")
     _record_usage(user.id, model.id, "image", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
     send_message(chat_id, "🎨 عکست آماده شد!")
@@ -420,7 +420,7 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
     key = f"bale-stt-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_stt")
+                idempotency_key=key, description="bale_stt")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -431,20 +431,20 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale stt call failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_stt_failed")
+                idempotency_key=key, description="bale_stt_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تبدیل صوت.")
         return
 
     if not result.ok:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_stt_failed")
+                idempotency_key=key, description="bale_stt_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تبدیل صوت.")
         return
 
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_stt")
+           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_stt")
     _record_usage(user.id, model.id, "stt", estimate["total_irr"],
                   {"audio_seconds": est_seconds})
     db.session.commit()
@@ -490,7 +490,7 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
     key = f"bale-tts-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_tts")
+                idempotency_key=key, description="bale_tts")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -502,14 +502,14 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale tts call failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_tts_failed")
+                idempotency_key=key, description="bale_tts_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید صوت.")
         return
 
     if not result.ok or not result.audio_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_tts_failed")
+                idempotency_key=key, description="bale_tts_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید صوت.")
         return
@@ -520,7 +520,7 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
     except PricingRuleUnavailable:
         final = estimate["total_irr"]
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=final, idempotency_key=key, reason="bale_tts")
+           final_amount_irr=final, idempotency_key=key, description="bale_tts")
     _record_usage(user.id, model.id, "tts", final,
                   {"audio_seconds": actual_seconds, "chars": len(text)})
     db.session.commit()
@@ -585,7 +585,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     key_stt = f"bale-va-stt-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=stt_est["total_irr"],
-                idempotency_key=key_stt, reason="bale_va_stt")
+                idempotency_key=key_stt, description="bale_va_stt")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -596,18 +596,18 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va stt failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
-                idempotency_key=key_stt, reason="bale_va_failed")
+                idempotency_key=key_stt, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تبدیل صوت.")
         return
     if not stt_result.ok or not stt_result.text:
         release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
-                idempotency_key=key_stt, reason="bale_va_failed")
+                idempotency_key=key_stt, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "متنی از ویست تشخیص داده نشد.")
         return
     settle(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
-           final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, reason="bale_va_stt")
+           final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, description="bale_va_stt")
     _record_usage(user.id, stt_model.id, "stt", stt_est["total_irr"],
                   {"audio_seconds": est_seconds, "via": "voice_assistant"})
     db.session.commit()
@@ -634,7 +634,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     key_text = f"bale-va-text-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, reason="bale_va_text")
+                idempotency_key=key_text, description="bale_va_text")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست.")
         return
@@ -644,13 +644,13 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va text failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, reason="bale_va_failed")
+                idempotency_key=key_text, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ.")
         return
     if not text_result.ok or not text_result.text:
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, reason="bale_va_failed")
+                idempotency_key=key_text, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ.")
         return
@@ -661,7 +661,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except PricingRuleUnavailable:
         text_final = text_est["total_irr"]
     settle(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-           final_amount_irr=text_final, idempotency_key=key_text, reason="bale_va_text")
+           final_amount_irr=text_final, idempotency_key=key_text, description="bale_va_text")
     _record_usage(user.id, text_model.id, "text", text_final,
                   {"input_tokens": in_tokens, "output_tokens": out_tokens,
                    "via": "voice_assistant"})
@@ -684,7 +684,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     key_tts = f"bale-va-tts-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, reason="bale_va_tts")
+                idempotency_key=key_tts, description="bale_va_tts")
     except InsufficientBalance:
         send_message(chat_id, f"💬 {reply_text}\n\n(موجودی برای صوت کافی نبود)")
         return
@@ -694,13 +694,13 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va tts failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, reason="bale_va_failed")
+                idempotency_key=key_tts, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, f"💬 {reply_text}")
         return
     if not tts_result.ok or not tts_result.audio_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, reason="bale_va_failed")
+                idempotency_key=key_tts, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, f"💬 {reply_text}")
         return
@@ -710,7 +710,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except PricingRuleUnavailable:
         tts_final = tts_est["total_irr"]
     settle(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-           final_amount_irr=tts_final, idempotency_key=key_tts, reason="bale_va_tts")
+           final_amount_irr=tts_final, idempotency_key=key_tts, description="bale_va_tts")
     _record_usage(user.id, tts_model.id, "tts", tts_final,
                   {"audio_seconds": tts_actual, "via": "voice_assistant"})
     db.session.commit()
@@ -767,7 +767,7 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
     key = f"bale-edit-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_image_edit")
+                idempotency_key=key, description="bale_image_edit")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
         return
@@ -779,20 +779,20 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
     except Exception as exc:  # noqa: BLE001
         log.warning("bale edit call failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_edit_failed")
+                idempotency_key=key, description="bale_edit_failed")
         db.session.commit()
         send_message(chat_id, "خطا در ویرایش تصویر.")
         return
 
     if not result.ok or not result.image_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, reason="bale_edit_failed")
+                idempotency_key=key, description="bale_edit_failed")
         db.session.commit()
         send_message(chat_id, "خطا در ویرایش تصویر.")
         return
 
     settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-           final_amount_irr=estimate["total_irr"], idempotency_key=key, reason="bale_image_edit")
+           final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image_edit")
     _record_usage(user.id, model.id, "image_edit", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
     send_message(chat_id, "✏️ ویرایش شد!")
