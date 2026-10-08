@@ -301,7 +301,7 @@ def recheck_payment(payment_id: str):
     return success_response(_payment_payload(payment))
 
 
-@bp.get("/payments/callback/zibal")
+@bp.route("/payments/callback/zibal", methods=["GET", "POST"])
 def zibal_callback():
     """Zibal redirects the user's browser here. This only triggers a
     server-side verify; the query params themselves are never trusted.
@@ -315,6 +315,10 @@ def zibal_callback():
         or request.args.get("trackId")
         or request.args.get("TrackId")
         or request.args.get("fake_track_id")  # dev/test fake gateway only
+        or request.form.get("track_id")
+        or request.form.get("trackId")
+        or (request.get_json(silent=True) or {}).get("track_id")
+        or (request.get_json(silent=True) or {}).get("trackId")
     )
     frontend = config.frontend_origin.rstrip("/")
 
