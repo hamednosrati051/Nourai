@@ -1149,7 +1149,7 @@ def webhook():
 
         voice = message.get("voice") or {}
         if voice.get("file_id"):
-            va_mode = _get_user_mode(bale_user_id)
+            va_mode, _va_data = _get_user_mode(bale_user_id)
             if va_mode == "awaiting_va_voice":
                 _clear_user_mode(bale_user_id)
                 _handle_voice_assistant(chat_id, user, voice["file_id"])
