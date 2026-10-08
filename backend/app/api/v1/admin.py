@@ -442,11 +442,16 @@ def user_wallet_transactions(user_id: str):
 
 
 def _tx_payload(tx: WalletTransaction) -> dict:
+    track_id = None
+    if tx.reference_type == "payment" and tx.reference_id:
+        payment = db.session.get(Payment, tx.reference_id)
+        if payment:
+            track_id = payment.track_id
     return {
         "id": tx.id, "type": tx.type, "amount_irr": tx.amount_irr,
         "balance_after_irr": tx.balance_after_irr,
         "reference_type": tx.reference_type, "reference_id": tx.reference_id,
-        "description": tx.description,
+        "description": tx.description, "track_id": track_id,
         "created_by_admin_id": tx.created_by_admin_id,
         "created_at": tx.created_at.isoformat() if tx.created_at else None,
     }

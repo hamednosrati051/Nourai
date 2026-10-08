@@ -368,7 +368,12 @@ export default function AdminUserDetailPage() {
                       </span>
                     ),
                   },
-                  { header: 'شرح', render: (t) => t.description ?? '—' },
+                  { header: 'شرح', render: (t) => (
+                    <span>
+                      {t.description ?? '—'}
+                      {t.track_id && <span className="block text-xs text-neutral-500">زیبال: {t.track_id}</span>}
+                    </span>
+                  )},
                   { header: 'موجودی بعد', render: (t) => <span className="tabular-nums">{formatToman(t.balance_after_irr)}</span>, hideOnCard: true },
                   { header: 'تاریخ', render: (t) => formatDateTime(t.created_at) },
                 ]}
