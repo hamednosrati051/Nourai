@@ -149,7 +149,10 @@ class ZibalPaymentGateway(PaymentGateway):
         for attempt in range(_MAX_RETRIES + 1):
             try:
                 with httpx.Client(timeout=_REQUEST_TIMEOUT_SECONDS) as client:
-                    response = client.post(url, json=body)
+                    response = client.post(
+                        url, json=body,
+                        headers={"Referer": "https://inourai.ir/"},
+                    )
                 if response.status_code >= 500 and attempt < _MAX_RETRIES:
                     time.sleep(_BACKOFF_SECONDS[min(attempt, len(_BACKOFF_SECONDS) - 1)])
                     continue
