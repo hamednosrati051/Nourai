@@ -8,11 +8,43 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 
 from app.auth.otp import mask_mobile
-from app.models import AiModel, AuditLog, Payment, UsageEvent, User, WalletTransaction
+from app.models import AiModel, AuditLog, MessengerUser, Payment, UsageEvent, User, WalletTransaction
 from app.models.wallet import WalletAccount
 from app.services.audit import audit
 
 log = logging.getLogger(__name__)
+
+
+def get_user_channels(session, user_id: str) -> dict:
+    """Which messenger platforms the user is linked to / has used.
+
+    Returns e.g. {"bale": {"linked": True, "usage_count": 5}, ...}.
+    Web usage has no link row — it's the default.
+    """
+    channels: dict[str, dict] = {}
+    for link in session.query(MessengerUser).filter_by(user_id=user_id).all():
+        channels[link.platform] = {
+            "linked": True,
+            "platform_username": link.platform_username,
+            "linked_at": link.created_at.isoformat() if link.created_at else None,
+        }
+    # Usage counts per channel from usage_events.metadata_json.
+    # Web requests don't tag a channel, so they fall under "web".
+    rows = (
+        session.query(
+            func.coalesce(
+                func.json_unquote(func.json_extract(UsageEvent.metadata_json, "$.channel")),
+                "web",
+            ).label("channel"),
+            func.count().label("cnt"),
+        )
+        .filter(UsageEvent.user_id == user_id)
+        .group_by("channel")
+        .all()
+    )
+    for channel, cnt in rows:
+        channels.setdefault(channel, {})["usage_count"] = int(cnt)
+    return channels
 
 
 def get_user_by_id(session, user_id: str) -> User | None:
@@ -62,6 +94,7 @@ def user_summary(session, user: User) -> dict:
         "last_login_user_agent": user.last_login_user_agent,
         "balance_irr": wallet.balance_irr if wallet else 0,
         "total_spent_irr": _total_spent_irr(session, user.id),
+        "channels": get_user_channels(session, user.id),
         "created_at": _iso(user.created_at),
     }
 

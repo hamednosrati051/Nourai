@@ -331,6 +331,12 @@ export interface AdminUserRow {
 
 export interface AdminUserDetail extends AdminUserRow {
   mobile: string;
+  channels?: Record<string, {
+    linked?: boolean;
+    bale_username?: string | null;
+    linked_at?: string | null;
+    usage_count?: number;
+  }>;
 }
 
 export type ActivityKind =

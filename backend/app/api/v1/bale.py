@@ -34,8 +34,9 @@ from app.billing.ledger import InsufficientBalance, get_wallet_for_update, relea
 from app.billing.pricing import PricingRuleUnavailable, PricingService
 from app.config import config
 from app.extensions import db
-from app.models import AiModel, BaleUser, UsageEvent, User
+from app.models import AiModel, MessengerUser, UsageEvent, User
 from app.models.catalog import CAP_GENERATE_IMAGE, CAP_STT, CAP_TEXT
+from app.models.messenger import PLATFORM_BALE
 from app.services.users import get_user_by_mobile
 
 log = logging.getLogger(__name__)
@@ -115,7 +116,11 @@ def download_bale_file(file_id: str) -> bytes | None:
 # ---------------------------------------------------------------------------
 
 def _get_linked_user(bale_user_id: int) -> User | None:
-    link = db.session.query(BaleUser).filter_by(bale_user_id=bale_user_id).first()
+    link = (
+        db.session.query(MessengerUser)
+        .filter_by(platform=PLATFORM_BALE, platform_user_id=bale_user_id)
+        .first()
+    )
     if link is None:
         return None
     return db.session.get(User, link.user_id)
@@ -145,15 +150,20 @@ def _handle_contact(chat_id: int, bale_user_id: int, contact: dict, from_user: d
             "بعد دوباره /start رو بزنید.",
         )
         return
-    existing = db.session.query(BaleUser).filter_by(bale_user_id=bale_user_id).first()
+    existing = (
+        db.session.query(MessengerUser)
+        .filter_by(platform=PLATFORM_BALE, platform_user_id=bale_user_id)
+        .first()
+    )
     if existing:
         existing.user_id = user.id
     else:
-        db.session.add(BaleUser(
-            bale_user_id=bale_user_id,
+        db.session.add(MessengerUser(
+            platform=PLATFORM_BALE,
+            platform_user_id=bale_user_id,
             user_id=user.id,
-            bale_username=(from_user or {}).get("username"),
-            bale_first_name=(from_user or {}).get("first_name"),
+            platform_username=(from_user or {}).get("username"),
+            platform_first_name=(from_user or {}).get("first_name"),
         ))
     db.session.commit()
     send_message(

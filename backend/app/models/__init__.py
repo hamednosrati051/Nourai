@@ -1,12 +1,12 @@
 """Model exports."""
 from app.models.admin import AdminUser
 from app.models.audit import AuditLog
-from app.models.bale import BaleUser
 from app.models.base import Base, new_uuid, utcnow
 from app.models.blog import BlogPost
 from app.models.catalog import AiModel, ModelPricingRule
 from app.models.chat import Conversation, Message, MessageAsset
 from app.models.gallery import GalleryEntry
+from app.models.messenger import MessengerUser
 from app.models.moderation import ModerationSettings, PromptBlocklist
 from app.models.jobs import Asset, GenerationJob
 from app.models.payment import Payment
@@ -21,7 +21,6 @@ __all__ = [
     "AiModel",
     "Asset",
     "AuditLog",
-    "BaleUser",
     "Base",
     "BlogPost",
     "Conversation",
@@ -31,6 +30,7 @@ __all__ = [
     "GenerationJob",
     "ImageProcessingProfile",
     "Message",
+    "MessengerUser",
     "ModerationSettings",
     "MessageAsset",
     "ModelPricingRule",
