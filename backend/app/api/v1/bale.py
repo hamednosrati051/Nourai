@@ -677,7 +677,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
 
     user_text = stt_result.text
     log.info("bale va: stt done for chat %s, text len %d", chat_id, len(user_text or ""))
-    send_message(chat_id, f"🎧 شنیدم: {user_text}\n\n🤔 دارم فکر می‌کنم...")
+    send_message(chat_id, "🤔 دارم فکر می‌کنم...")
 
     # --- Text chat ---
     try:
