@@ -6,7 +6,7 @@ from app.models.blog import BlogPost
 from app.models.catalog import AiModel, ModelPricingRule
 from app.models.chat import Conversation, Message, MessageAsset
 from app.models.gallery import GalleryEntry
-from app.models.messenger import MessengerUser
+from app.models.messenger import MessengerUser, MessengerUserState, SupportMessage
 from app.models.moderation import ModerationSettings, PromptBlocklist
 from app.models.jobs import Asset, GenerationJob
 from app.models.payment import Payment
