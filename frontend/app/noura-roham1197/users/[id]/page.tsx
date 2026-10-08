@@ -89,6 +89,23 @@ export default function AdminUserDetailPage() {
   const statusForm = useForm<z.infer<typeof statusSchema>>({ resolver: zodResolver(statusSchema) });
   const adjustForm = useForm<z.infer<typeof adjustmentSchema>>({ resolver: zodResolver(adjustmentSchema) });
 
+  // Thousand-separator display for the amount input (persian style: 1,000,000).
+  const [amountDisplay, setAmountDisplay] = useState('');
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^0-9-]/g, '');
+    // Keep only a leading minus sign.
+    const cleaned = raw.replace(/(?!^)-/g, '');
+    if (cleaned === '' || cleaned === '-') {
+      setAmountDisplay(cleaned);
+      adjustForm.setValue('amountToman', NaN as unknown as number, { shouldValidate: true });
+      return;
+    }
+    const num = parseInt(cleaned, 10);
+    if (Number.isNaN(num)) return;
+    setAmountDisplay(num.toLocaleString('en-US'));
+    adjustForm.setValue('amountToman', num, { shouldValidate: true });
+  };
+
   if (user.isLoading) return <LoadingSpinner label="در حال بارگذاری کاربر…" />;
   if (user.isError || !user.data) {
     return (
@@ -123,6 +140,7 @@ export default function AdminUserDetailPage() {
         onSuccess: () => {
           setAdjustModalOpen(false);
           adjustForm.reset();
+          setAmountDisplay('');
           toast('موجودی اصلاح شد و در دفترکل ثبت شد.', 'success');
         },
         onError: (err) =>
@@ -433,12 +451,13 @@ export default function AdminUserDetailPage() {
             </label>
             <input
               id="adjust-amount"
-              type="number"
+              type="text"
               inputMode="numeric"
-              step={1}
               dir="ltr"
+              placeholder="مثال: 1,000,000"
               className={`input text-left ${adjustForm.formState.errors.amountToman ? 'input-error' : ''}`}
-              {...adjustForm.register('amountToman', { valueAsNumber: true })}
+              value={amountDisplay}
+              onChange={handleAmountChange}
             />
             {adjustForm.formState.errors.amountToman && (
               <p role="alert" className="field-error">
