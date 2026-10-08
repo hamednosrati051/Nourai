@@ -405,7 +405,7 @@ class OpenAICompatTextProvider(TextAiProvider):
     OVERHEAD_TOTAL = 2
 
     def __init__(self, base_url: str, api_key: str, provider_key: str,
-                 timeout_seconds: int = 60):
+                 timeout_seconds: int = 25):
         if not base_url or not api_key:
             raise ValueError("base_url and api_key are required")
         self.base_url = base_url.rstrip("/")
