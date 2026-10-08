@@ -664,8 +664,12 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         db.session.commit()
         send_message(chat_id, "متنی از ویست تشخیص داده نشد.")
         return
-    settle(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
-           final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, description="bale_va_stt")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
+               final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, description="bale_va_stt")
+    except DuplicateIdempotencyKey:
+        log.info("bale va stt duplicate key, skipping rebill: %s", key_stt)
+        db.session.rollback()
     _record_usage(user.id, stt_model.id, "stt", stt_est["total_irr"],
                   {"audio_seconds": est_seconds, "via": "voice_assistant"})
     db.session.commit()
@@ -718,8 +722,12 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         text_final = pricing.estimate_text(text_model.id, in_tokens, out_tokens)["total_irr"]
     except PricingRuleUnavailable:
         text_final = text_est["total_irr"]
-    settle(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-           final_amount_irr=text_final, idempotency_key=key_text, description="bale_va_text")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
+               final_amount_irr=text_final, idempotency_key=key_text, description="bale_va_text")
+    except DuplicateIdempotencyKey:
+        log.info("bale va text duplicate key, skipping rebill: %s", key_text)
+        db.session.rollback()
     _record_usage(user.id, text_model.id, "text", text_final,
                   {"input_tokens": in_tokens, "output_tokens": out_tokens,
                    "via": "voice_assistant"})
@@ -767,8 +775,12 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         tts_final = pricing.estimate_audio(tts_model.id, tts_actual)["total_irr"]
     except PricingRuleUnavailable:
         tts_final = tts_est["total_irr"]
-    settle(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-           final_amount_irr=tts_final, idempotency_key=key_tts, description="bale_va_tts")
+    try:
+        settle(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
+               final_amount_irr=tts_final, idempotency_key=key_tts, description="bale_va_tts")
+    except DuplicateIdempotencyKey:
+        log.info("bale va tts duplicate key, skipping rebill: %s", key_tts)
+        db.session.rollback()
     _record_usage(user.id, tts_model.id, "tts", tts_final,
                   {"audio_seconds": tts_actual, "via": "voice_assistant"})
     db.session.commit()
