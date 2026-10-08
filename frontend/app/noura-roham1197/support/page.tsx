@@ -19,11 +19,21 @@ export default function SupportPage() {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [error, setError] = useState('');
 
   const load = async () => {
-    const res = await fetch(`/api/v1/admin/support?unread_only=${unreadOnly}`, { credentials: 'include' });
-    const data = await res.json();
-    if (data.ok) setItems(data.data?.items || []);
+    try {
+      const res = await fetch(`/api/v1/admin/support?unread_only=${unreadOnly}`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.ok) {
+        setItems(data.data?.items || []);
+        setError('');
+      } else {
+        setError(`API error: ${data.error?.code || 'unknown'}`);
+      }
+    } catch (e) {
+      setError(`Fetch failed: ${e}`);
+    }
   };
 
   useEffect(() => { load(); }, [unreadOnly]);
@@ -95,7 +105,8 @@ export default function SupportPage() {
             </div>
           </div>
         ))}
-        {items.length === 0 && <p className="text-gray-500 text-center py-8">پیامی نیست.</p>}
+        {error && <p className="text-red-500 text-center py-2">{error}</p>}
+        {items.length === 0 && !error && <p className="text-gray-500 text-center py-8">پیامی نیست.</p>}
       </div>
     </div>
   );
