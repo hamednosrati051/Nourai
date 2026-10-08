@@ -634,8 +634,8 @@ def list_support():
     unread_only = request.args.get("unread_only") == "true"
     if unread_only:
         query = query.filter_by(is_read=False)
-    page, page_size = pagination_params()
-    items, meta = paginate_query(query, page, page_size)
+    items = query.limit(100).all()
+    total = query.count()
     return paginated_response([{
         "id": m.id,
         "platform": m.platform,
@@ -645,7 +645,7 @@ def list_support():
         "is_read": m.is_read,
         "admin_reply": m.admin_reply,
         "created_at": m.created_at.isoformat() if m.created_at else None,
-    } for m in items], page, page_size, meta["total"])
+    } for m in items], 1, 100, total)
 
 
 @bp.post("/admin/support/<msg_id>/read")
