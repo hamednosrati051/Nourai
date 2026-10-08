@@ -1172,6 +1172,19 @@ def webhook():
             _handle_image(chat_id, user, text[len("/image"):])
             return success_response({"ok": True})
 
+        # Photo handling for image editing
+        photo = message.get("photo") or []
+        if photo:
+            # Get the largest photo (last in array)
+            file_id = photo[-1].get("file_id") if isinstance(photo, list) else photo.get("file_id")
+            if file_id:
+                ph_mode, _ph_data = _get_user_mode(bale_user_id)
+                if ph_mode == "awaiting_edit_photo":
+                    _set_user_mode(bale_user_id, "awaiting_edit_prompt", {"file_id": file_id})
+                    send_message(chat_id, "✏️ حالا بگو چی رو ویرایش کنم 👇",
+                                 reply_markup=MENU_KEYBOARD)
+                    return success_response({"ok": True})
+
         voice = message.get("voice") or {}
         if voice.get("file_id"):
             va_mode, _va_data = _get_user_mode(bale_user_id)
