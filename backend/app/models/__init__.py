@@ -1,6 +1,7 @@
 """Model exports."""
 from app.models.admin import AdminUser
 from app.models.audit import AuditLog
+from app.models.bale import BaleUser
 from app.models.base import Base, new_uuid, utcnow
 from app.models.blog import BlogPost
 from app.models.catalog import AiModel, ModelPricingRule
@@ -20,6 +21,7 @@ __all__ = [
     "AiModel",
     "Asset",
     "AuditLog",
+    "BaleUser",
     "Base",
     "BlogPost",
     "Conversation",

@@ -70,6 +70,9 @@ class Config:
     zibal_api_base_url: str = field(default_factory=lambda: _get("ZIBAL_API_BASE_URL", ""))
     zibal_callback_url: str = field(default_factory=lambda: _get("ZIBAL_CALLBACK_URL", ""))
 
+    # --- bale bot ---
+    bale_bot_token: str = field(default_factory=lambda: _get("BALE_BOT_TOKEN", ""))
+
     # --- ai providers ---
     ai_text_provider: str = field(default_factory=lambda: _get("AI_TEXT_PROVIDER", "fake"))
     ai_audio_provider: str = field(default_factory=lambda: _get("AI_AUDIO_PROVIDER", "fake"))
