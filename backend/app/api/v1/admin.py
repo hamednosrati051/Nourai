@@ -481,6 +481,16 @@ def list_payments():
             )
         else:
             query = query.filter(False)
+    # Search by bot username (partial match, case-insensitive).
+    username = request.args.get("username")
+    if username:
+        uname = username.strip().lstrip("@")
+        if uname:
+            query = query.join(
+                MessengerUser, Payment.user_id == MessengerUser.user_id
+            ).filter(MessengerUser.platform_username.ilike(f"%{uname}%"))
+        else:
+            query = query.filter(False)
     # Date range filter on creation date (YYYY-MM-DD, inclusive).
     date_from = request.args.get("date_from")
     if date_from:

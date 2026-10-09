@@ -187,6 +187,7 @@ export function useWalletAdjustment() {
 export interface AdminPaymentFilters {
   status?: string;
   mobile?: string;
+  username?: string;
   date_from?: string;
   date_to?: string;
 }
@@ -201,6 +202,7 @@ export function useAdminPayments(page = 1, filters?: AdminPaymentFilters) {
           page_size: DEFAULT_PAGE_SIZE,
           status: filters?.status || undefined,
           mobile: filters?.mobile || undefined,
+          username: filters?.username || undefined,
           date_from: filters?.date_from || undefined,
           date_to: filters?.date_to || undefined,
         })}`,

@@ -26,25 +26,27 @@ export default function AdminPaymentsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [mobile, setMobile] = useState('');
+  const [username, setUsername] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   // Applied filters (search runs on button/Enter, not on every keystroke).
-  const [filters, setFilters] = useState({ status: '', mobile: '', date_from: '', date_to: '' });
+  const [filters, setFilters] = useState({ status: '', mobile: '', username: '', date_from: '', date_to: '' });
 
   const payments = useAdminPayments(page, filters);
   const cancelPayment = useCancelPayment();
 
   const applyFilters = () => {
-    setFilters({ status, mobile: mobile.trim(), date_from: dateFrom, date_to: dateTo });
+    setFilters({ status, mobile: mobile.trim(), username: username.trim(), date_from: dateFrom, date_to: dateTo });
     setPage(1);
   };
 
   const clearFilters = () => {
     setStatus('');
     setMobile('');
+    setUsername('');
     setDateFrom('');
     setDateTo('');
-    setFilters({ status: '', mobile: '', date_from: '', date_to: '' });
+    setFilters({ status: '', mobile: '', username: '', date_from: '', date_to: '' });
     setPage(1);
   };
 
@@ -85,6 +87,23 @@ export default function AdminPaymentsPage() {
               className="input sm:w-40"
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyFilters();
+              }}
+            />
+          </div>
+          <div>
+            <label htmlFor="pay-username" className="label">
+              یوزرنیم بات
+            </label>
+            <input
+              id="pay-username"
+              type="text"
+              dir="ltr"
+              placeholder="@username"
+              className="input sm:w-40"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') applyFilters();
               }}
