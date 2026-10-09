@@ -76,6 +76,12 @@ export interface Payment {
   paid_at?: string | null;
   /** Masked user mobile (admin endpoints only). */
   user_mobile_masked?: string | null;
+  /** Bot user info for messenger payments (admin endpoints only). */
+  bot_user?: {
+    platform: string;
+    platform_user_id: number;
+    platform_username?: string | null;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
