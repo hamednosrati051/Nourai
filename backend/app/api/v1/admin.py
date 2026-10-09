@@ -57,6 +57,7 @@ from app.models import (
     User,
     WalletAccount,
     WalletTransaction,
+    MessengerUser,
     new_uuid,
 )
 from app.models.catalog import CAP_IMAGE, CAPABILITIES
