@@ -675,17 +675,26 @@ def _job_payload(job: GenerationJob) -> dict:
 @bp.get("/admin/support")
 @admin_required
 def list_support():
-    from app.models.messenger import SupportMessage
+    from app.models.messenger import SupportMessage, MessengerUser
     query = db.session.query(SupportMessage).order_by(SupportMessage.created_at.desc())
     unread_only = request.args.get("unread_only") == "true"
     if unread_only:
         query = query.filter_by(is_read=False)
     items = query.limit(100).all()
     total = query.count()
+    # Map user_id -> username for display
+    user_ids = {m.user_id for m in items if m.user_id}
+    username_map = {}
+    if user_ids:
+        links = db.session.query(MessengerUser).filter(
+            MessengerUser.user_id.in_(user_ids)
+        ).all()
+        username_map = {l.user_id: l.platform_username for l in links}
     return paginated_response([{
         "id": m.id,
         "platform": m.platform,
         "platform_user_id": m.platform_user_id,
+        "platform_username": username_map.get(m.user_id),
         "user_id": m.user_id,
         "message": m.message,
         "is_read": m.is_read,

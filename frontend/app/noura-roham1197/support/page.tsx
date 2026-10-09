@@ -12,6 +12,7 @@ interface SupportMsg {
   id: string;
   platform: string;
   platform_user_id: number;
+  platform_username: string | null;
   user_id: string | null;
   message: string;
   is_read: boolean;
@@ -91,6 +92,7 @@ export default function SupportPage() {
               <div className="flex justify-between text-xs text-neutral-500 mb-2">
                 <span dir="ltr">
                   {m.platform} / {m.platform_user_id}
+                  {m.platform_username && ` / @${m.platform_username}`}
                 </span>
                 <span>
                   {m.created_at
