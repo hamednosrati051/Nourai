@@ -2,7 +2,7 @@
 
 import { Receipt } from 'lucide-react';
 import { useState } from 'react';
-import { useAdminPayments } from '@/features/admin/hooks';
+import { useAdminPayments, useCancelPayment } from '@/features/admin/hooks';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime } from '@/lib/format';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -32,6 +32,7 @@ export default function AdminPaymentsPage() {
   const [filters, setFilters] = useState({ status: '', mobile: '', date_from: '', date_to: '' });
 
   const payments = useAdminPayments(page, filters);
+  const cancelPayment = useCancelPayment();
 
   const applyFilters = () => {
     setFilters({ status, mobile: mobile.trim(), date_from: dateFrom, date_to: dateTo });
@@ -159,6 +160,26 @@ export default function AdminPaymentsPage() {
               { header: 'شناسه پیگیری', render: (p) => <span dir="ltr" className="tabular-nums">{p.track_id ?? '—'}</span>, hideOnCard: true },
               { header: 'تاریخ ثبت', render: (p) => formatDateTime(p.created_at) },
               { header: 'تاریخ پرداخت', render: (p) => formatDateTime(p.paid_at), hideOnCard: true },
+              {
+                header: 'عملیات',
+                render: (p) =>
+                  p.status === 'pending' || p.status === 'created' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost text-error"
+                      disabled={cancelPayment.isPending}
+                      onClick={() => {
+                        if (window.confirm('این پرداخت لغو شود؟')) {
+                          cancelPayment.mutate(p.id);
+                        }
+                      }}
+                    >
+                      لغو
+                    </button>
+                  ) : (
+                    '—'
+                  ),
+              },
             ]}
           />
           <Pagination page={page} totalPages={payments.data.meta.total_pages} totalItems={payments.data.meta.total_items} onPageChange={setPage} />

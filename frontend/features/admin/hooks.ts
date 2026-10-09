@@ -208,6 +208,16 @@ export function useAdminPayments(page = 1, filters?: AdminPaymentFilters) {
   });
 }
 
+export function useCancelPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiPost<Payment>(`/admin/payments/${id}/cancel`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'payments'] });
+    },
+  });
+}
+
 export function useAdminUsage(page = 1, filters?: { service?: string; userId?: string }) {
   return useQuery({
     queryKey: ['admin', 'usage', page, filters],

@@ -516,6 +516,20 @@ def get_payment(payment_id: str):
     return success_response(payload)
 
 
+@bp.post("/admin/payments/<payment_id>/cancel")
+@admin_required
+def cancel_payment(payment_id: str):
+    """Cancel a pending payment (admin only). Does not affect the payment flow."""
+    payment = db.session.get(Payment, payment_id)
+    if payment is None:
+        return error_response("NOT_FOUND", status=404)
+    if payment.status not in ("pending", "created"):
+        return error_response("INVALID_STATUS", status=400)
+    payment.status = "cancelled"
+    db.session.commit()
+    return success_response(_payment_payload(payment))
+
+
 def _payment_payload(payment: Payment) -> dict:
     user = db.session.get(User, payment.user_id)
     # Bot user info (Bale/Eitaa) if linked
