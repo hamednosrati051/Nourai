@@ -36,7 +36,7 @@ from app.api.deps import (
 from app.billing.ledger import DuplicateIdempotencyKey, deposit, get_wallet_for_update
 from app.config import config
 from app.extensions import db
-from app.models import Payment, Plan
+from app.models import Payment, Plan, User
 from app.services.plans import activate_subscription
 from app.models.payment import PAY_CREATED, PAY_FAILED, PAY_PAID, PAY_PENDING
 from app.providers import get_payment_gateway
