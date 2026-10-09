@@ -1,7 +1,7 @@
 'use client';
 
 import { Images } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useAdminGallery,
   useApproveGalleryItem,
@@ -18,6 +18,29 @@ import { formatDateTime } from '@/lib/format';
 import { ApiError, getErrorMessage } from '@/lib/api';
 import { BRAND } from '@/lib/config';
 import type { GalleryQueueItem } from '@/types/api';
+
+/** Image that loads via authenticated fetch (for admin viewing non-public assets). */
+function AuthImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    let objUrl: string | null = null;
+    fetch(src, { credentials: 'include' })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((b) => {
+        if (!active) return;
+        objUrl = URL.createObjectURL(b);
+        setUrl(objUrl);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [src]);
+  if (!url) return <div className={className} />;
+  return <img src={url} alt={alt} loading="lazy" className={className} />;
+}
 
 type Tab = 'pending' | 'approved' | 'rejected';
 
@@ -117,10 +140,9 @@ export default function AdminGalleryPage() {
                 className="relative w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-navy-800"
                 style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1' }}
               >
-                <img
+                <AuthImage
                   src={item.thumbnail_url ?? item.image_url}
                   alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
-                  loading="lazy"
                   className="absolute inset-0 h-full w-full object-cover"
                 />
               </div>
