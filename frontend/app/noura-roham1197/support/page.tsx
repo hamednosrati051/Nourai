@@ -1,7 +1,12 @@
 /** Admin support messages: list, mark read, reply. */
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiGet, apiPost } from '@/lib/api';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { EmptyState } from '@/components/EmptyState';
+import { ErrorState } from '@/components/ErrorState';
 
 interface SupportMsg {
   id: string;
@@ -14,100 +19,136 @@ interface SupportMsg {
   created_at: string | null;
 }
 
+interface SupportListResponse {
+  items: SupportMsg[];
+}
+
 export default function SupportPage() {
-  const [items, setItems] = useState<SupportMsg[]>([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
 
-  const load = async () => {
-    try {
-      const res = await fetch(`/api/v1/admin/support?unread_only=${unreadOnly}`, { credentials: 'include' });
-      const data = await res.json();
-      if (data.ok) {
-        setItems(data.data?.items || []);
-        setError('');
-      } else {
-        setError(`API error: ${data.error?.code || 'unknown'}`);
-      }
-    } catch (e) {
-      setError(`Fetch failed: ${e}`);
-    }
-  };
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin', 'support', unreadOnly],
+    queryFn: () =>
+      apiGet<SupportListResponse>(
+        `/admin/support${unreadOnly ? '?unread_only=true' : ''}`
+      ),
+  });
 
-  useEffect(() => { load(); }, [unreadOnly]);
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => apiPost(`/admin/support/${id}/read`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'support'] });
+    },
+  });
 
-  const markRead = async (id: string) => {
-    await fetch(`/api/v1/admin/support/${id}/read`, { method: 'POST', credentials: 'include' });
-    load();
-  };
+  const replyMutation = useMutation({
+    mutationFn: ({ id, reply }: { id: string; reply: string }) =>
+      apiPost(`/admin/support/${id}/reply`, { reply }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'support'] });
+      setReplying(null);
+      setReplyText('');
+    },
+  });
 
-  const sendReply = async (id: string) => {
+  const items = data?.items || [];
+
+  const sendReply = (id: string) => {
     if (!replyText.trim()) return;
-    await fetch(`/api/v1/admin/support/${id}/reply`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reply: replyText.trim() }),
-    });
-    setReplying(null);
-    setReplyText('');
-    load();
+    replyMutation.mutate({ id, reply: replyText.trim() });
   };
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">پیام‌های پشتیبانی</h1>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold">پیام‌های پشتیبانی</h1>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={unreadOnly} onChange={e => setUnreadOnly(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={unreadOnly}
+            onChange={(e) => setUnreadOnly(e.target.checked)}
+          />
           فقط خوانده‌نشده‌ها
         </label>
       </div>
-      <div className="space-y-3">
-        {items.map(m => (
-          <div key={m.id} className={`border rounded-lg p-4 ${m.is_read ? 'bg-gray-50' : 'bg-yellow-50 border-yellow-300'}`}>
-            <div className="flex justify-between text-xs text-gray-500 mb-2">
-              <span>{m.platform} / {m.platform_user_id}</span>
-              <span>{m.created_at ? new Date(m.created_at).toLocaleString('fa-IR') : ''}</span>
-            </div>
-            <p className="mb-2">{m.message}</p>
-            {m.admin_reply && (
-              <p className="text-sm text-green-700 bg-green-50 rounded p-2 mb-2">پاسخ: {m.admin_reply}</p>
-            )}
-            <div className="flex gap-2">
-              {!m.is_read && (
-                <button onClick={() => markRead(m.id)} className="text-xs bg-gray-200 rounded px-3 py-1">
-                  خوانده شد
-                </button>
+
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : isError ? (
+        <ErrorState message="خطا در بارگذاری پیام‌ها" onRetry={() => refetch()} />
+      ) : items.length === 0 ? (
+        <EmptyState title="پیامی نیست" />
+      ) : (
+        <div className="space-y-3">
+          {items.map((m) => (
+            <div
+              key={m.id}
+              className={`card ${m.is_read ? '' : 'border-warning'}`}
+            >
+              <div className="flex justify-between text-xs text-neutral-500 mb-2">
+                <span dir="ltr">
+                  {m.platform} / {m.platform_user_id}
+                </span>
+                <span>
+                  {m.created_at
+                    ? new Date(m.created_at).toLocaleString('fa-IR')
+                    : ''}
+                </span>
+              </div>
+              <p className="mb-2">{m.message}</p>
+              {m.admin_reply && (
+                <p className="text-sm bg-success/10 text-success rounded p-2 mb-2">
+                  پاسخ: {m.admin_reply}
+                </p>
               )}
-              {replying === m.id ? (
-                <div className="flex gap-2 flex-1">
-                  <input
-                    value={replyText}
-                    onChange={e => setReplyText(e.target.value)}
-                    placeholder="پاسخ..."
-                    className="flex-1 border rounded px-2 py-1 text-sm"
-                  />
-                  <button onClick={() => sendReply(m.id)} className="text-xs bg-blue-600 text-white rounded px-3 py-1">
-                    ارسال
+              <div className="flex gap-2">
+                {!m.is_read && (
+                  <button
+                    onClick={() => markReadMutation.mutate(m.id)}
+                    disabled={markReadMutation.isPending}
+                    className="btn btn-sm btn-ghost"
+                  >
+                    خوانده شد
                   </button>
-                  <button onClick={() => setReplying(null)} className="text-xs bg-gray-200 rounded px-3 py-1">
-                    لغو
+                )}
+                {replying === m.id ? (
+                  <div className="flex gap-2 flex-1">
+                    <input
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="پاسخ..."
+                      className="input input-sm flex-1"
+                    />
+                    <button
+                      onClick={() => sendReply(m.id)}
+                      disabled={replyMutation.isPending}
+                      className="btn btn-sm btn-primary"
+                    >
+                      ارسال
+                    </button>
+                    <button
+                      onClick={() => setReplying(null)}
+                      className="btn btn-sm btn-ghost"
+                    >
+                      لغو
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setReplying(m.id)}
+                    className="btn btn-sm btn-ghost"
+                  >
+                    پاسخ
                   </button>
-                </div>
-              ) : (
-                <button onClick={() => setReplying(m.id)} className="text-xs bg-blue-100 rounded px-3 py-1">
-                  پاسخ
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {error && <p className="text-red-500 text-center py-2">{error}</p>}
-        {items.length === 0 && !error && <p className="text-gray-500 text-center py-8">پیامی نیست.</p>}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
