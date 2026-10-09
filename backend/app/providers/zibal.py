@@ -87,6 +87,10 @@ class ZibalPaymentGateway(PaymentGateway):
             "description": f"Noura wallet top-up ({metadata.get('payment_id', '')})",
             "orderId": str(metadata.get("payment_id") or metadata.get("user_id") or ""),
         }
+        # Zibal shows this in the merchant panel and pre-fills it on the pay page.
+        mobile = metadata.get("mobile")
+        if mobile:
+            body["mobile"] = str(mobile)
         return url, body
 
     def _build_verify_request(self, track_id: str):

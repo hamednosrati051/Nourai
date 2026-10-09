@@ -127,10 +127,12 @@ def create_payment():
 
     try:
         gateway = get_payment_gateway()
+        user = db.session.get(User, g.current_user_id)
         start = gateway.create_payment(
             amount,
             config.zibal_callback_url,
-            {"payment_id": payment.id, "user_id": g.current_user_id},
+            {"payment_id": payment.id, "user_id": g.current_user_id,
+             "mobile": user.mobile_normalized if user else None},
         )
     except ZibalNotConfigured as exc:
         payment.status = PAY_FAILED
