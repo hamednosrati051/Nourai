@@ -965,7 +965,10 @@ def bale_payment_callback():
     website verify page (like Binavira: /payment/verify?status=success|fail).
     """
     from flask import redirect
-    track_id = request.args.get("track_id") or request.args.get("trackId")
+    track_id = (
+        request.args.get("track_id") or request.args.get("trackId")
+        or request.form.get("track_id") or request.form.get("trackId")
+    )
 
     def _verify_page(success: bool):
         status = "success" if success else "fail"
