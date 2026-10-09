@@ -54,7 +54,7 @@ bp = Blueprint("bale", __name__, url_prefix="/bale")
 BALE_API = "https://tapi.bale.ai"
 
 # Preset top-up amounts in IRR (10k / 50k / 100k Toman).
-CHARGE_PRESETS = [100_000, 1_000_000, 2_000_000, 3_000_000]
+CHARGE_PRESETS = [1_000_000, 2_000_000, 3_000_000]
 
 # Persistent reply-keyboard menu (like Binavira — one button per row).
 MENU_KEYBOARD = {
