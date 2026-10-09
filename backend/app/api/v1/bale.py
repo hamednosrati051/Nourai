@@ -53,6 +53,10 @@ bp = Blueprint("bale", __name__, url_prefix="/bale")
 
 BALE_API = "https://tapi.bale.ai"
 
+# Official channel — users must join before using the bot.
+CHANNEL_USERNAME = "@iNourAi"
+CHANNEL_URL = "https://ble.ir/iNourAi"
+
 # Preset top-up amounts in IRR (10k / 50k / 100k Toman).
 CHARGE_PRESETS = [1_000_000, 2_000_000, 3_000_000]
 
@@ -161,10 +165,42 @@ def send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> N
     _bale_api("sendMessage", payload)
 
 
-def answer_callback(callback_id: str, text: str | None = None) -> None:
+def _is_channel_member(bale_user_id: int) -> bool:
+    """Check if user is a member of the official channel."""
+    try:
+        result = _bale_api("getChatMember", {
+            "chat_id": CHANNEL_USERNAME,
+            "user_id": bale_user_id,
+        })
+        if not result.get("ok"):
+            return False
+        status = (result.get("result") or {}).get("status", "")
+        return status in ("creator", "administrator", "member")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _send_join_prompt(chat_id: int) -> None:
+    """Ask user to join the channel with join + 'I'm a member' buttons."""
+    send_message(
+        chat_id,
+        "📢 برای استفاده از بات نورا، اول توی کانال ما عضو شو:\n\n"
+        f"{CHANNEL_USERNAME}",
+        reply_markup={
+            "inline_keyboard": [
+                [{"text": "📢 عضویت در کانال", "url": CHANNEL_URL}],
+                [{"text": "✅ عضوم", "callback_data": "check_membership"}],
+            ]
+        },
+    )
+
+
+def answer_callback(callback_id: str, text: str | None = None, show_alert: bool = False) -> None:
     payload: dict[str, Any] = {"callback_query_id": callback_id}
     if text:
         payload["text"] = text
+    if show_alert:
+        payload["show_alert"] = True
     _bale_api("answerCallbackQuery", payload)
 
 
@@ -1045,6 +1081,17 @@ def webhook():
                 except ValueError:
                     amount = 0
                 _handle_charge_callback(chat_id, cb_id, user, amount)
+            elif bale_user_id and chat_id and data == "check_membership":
+                if _is_channel_member(bale_user_id):
+                    answer_callback(cb_id, "✅ عضویت تایید شد!")
+                    send_message(
+                        chat_id,
+                        "👋 سلام! به بات نورا خوش اومدی.\n\n"
+                        "از منوی زیر انتخاب کن:",
+                        reply_markup=MENU_KEYBOARD,
+                    )
+                else:
+                    answer_callback(cb_id, "❌ هنوز عضو کانال نشدی!", show_alert=True)
             else:
                 answer_callback(cb_id)
             return success_response({"ok": True})
@@ -1059,6 +1106,11 @@ def webhook():
 
         # Auto-provision on any interaction (no phone required).
         user = _get_or_create_user(bale_user_id, from_user)
+
+        # Channel membership gate — check on every message.
+        if not _is_channel_member(bale_user_id):
+            _send_join_prompt(chat_id)
+            return success_response({"ok": True})
 
         # Optional contact share → fill in mobile.
         if message.get("contact"):
