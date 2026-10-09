@@ -985,12 +985,12 @@ def bale_payment_callback():
         verification = gateway.verify_payment(track_id, payment.amount_irr)
     except Exception as exc:  # noqa: BLE001
         log.warning("bale payment verify failed: %s", exc)
-        return _done_page(False)
+        return _verify_page(False)
 
     if not verification.paid:
         payment.status = "failed"
         db.session.commit()
-        return _done_page(False)
+        return _verify_page(False)
 
     # Credit the wallet (idempotent).
     wallet = get_wallet_for_update(db.session, payment.user_id)
