@@ -961,39 +961,23 @@ def _handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_i
 def bale_payment_callback():
     """Zibal redirects here after a bot-initiated payment.
 
-    Verifies with the gateway, credits the wallet, and notifies via Bale.
+    Verifies with the gateway, credits the wallet, then redirects to the
+    website verify page (like Binavira: /payment/verify?status=success|fail).
     """
-    from flask import Response
+    from flask import redirect
     track_id = request.args.get("track_id") or request.args.get("trackId")
 
-    def _done_page(success: bool, amount: int = 0):
-        bot_url = "https://ble.ir/nourai_bot"
-        if success:
-            title = "پرداخت موفق ✅"
-            msg = f"{_toman(amount)} تومان به کیف پولت اضافه شد!"
-        else:
-            title = "پرداخت ناموفق ❌"
-            msg = "پرداخت انجام نشد. لطفاً دوباره تلاش کن."
-        html = f"""<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title}</title>
-<style>body{{font-family:system-ui;text-align:center;padding:40px 20px;background:#f5f5f5}}
-.card{{background:#fff;border-radius:16px;padding:32px;max-width:400px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.1)}}
-h1{{font-size:22px;margin-bottom:12px}}p{{color:#555;margin-bottom:24px}}
-.btn{{display:inline-block;background:#0084ff;color:#fff;padding:14px 40px;border-radius:12px;text-decoration:none;font-size:18px;font-weight:bold}}</style>
-</head>
-<body><div class="card"><h1>{title}</h1><p>{msg}</p>
-<a class="btn" href="{bot_url}">🤖 بازگشت به بات نورا</a></div></body></html>"""
-        return Response(html, mimetype="text/html")
+    def _verify_page(success: bool):
+        status = "success" if success else "fail"
+        return redirect(f"https://inourai.ir/payment/verify?status={status}", code=302)
 
     if not track_id:
-        return _done_page(False)
+        return _verify_page(False)
     payment = db.session.query(Payment).filter_by(track_id=track_id).one_or_none()
     if payment is None:
-        return _done_page(False)
+        return _verify_page(False)
     if payment.status == "paid":
-        return _done_page(True, payment.amount_irr)
+        return _verify_page(True)
 
     # Verify with gateway.
     try:
@@ -1031,7 +1015,7 @@ h1{{font-size:22px;margin-bottom:12px}}p{{color:#555;margin-bottom:24px}}
     if link:
         send_message(int(link.platform_user_id),
                      f"✅ {_toman(payment.amount_irr)} تومان به کیف پولت اضافه شد!")
-    return _done_page(True, payment.amount_irr)
+    return _verify_page(True)
 
 
 # ---------------------------------------------------------------------------
