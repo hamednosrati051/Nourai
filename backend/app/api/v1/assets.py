@@ -34,17 +34,26 @@ def download_asset(asset_id: str):
     if _is_public_gallery_asset(asset_id):
         pass  # public, skip auth
     else:
-        # All other assets require authentication and ownership.
+        # All other assets require authentication and ownership (or admin).
         claims, err = _load_token("user")
         if err:
-            return err
-        user = db.session.get(User, claims["sub"])
-        if user is None:
-            return error_response("UNAUTHORIZED", status=401)
-        if not user.is_active:
-            return error_response("USER_DISABLED", status=403)
-        if asset.user_id != user.id:
-            return error_response("FORBIDDEN", status=403)
+            # Try admin token for gallery moderation etc.
+            admin_claims, admin_err = _load_token("admin")
+            if admin_err:
+                return err
+            from app.models import AdminUser
+            admin = db.session.get(AdminUser, admin_claims["sub"])
+            if admin is None or not admin.is_active:
+                return error_response("UNAUTHORIZED", status=401)
+            # Admin: skip ownership check.
+        else:
+            user = db.session.get(User, claims["sub"])
+            if user is None:
+                return error_response("UNAUTHORIZED", status=401)
+            if not user.is_active:
+                return error_response("USER_DISABLED", status=403)
+            if asset.user_id != user.id:
+                return error_response("FORBIDDEN", status=403)
 
     # ?stream=1: stream the file bytes directly (for browser <audio>/<img>
     # tags). Presigned S3 URLs point at localhost and don't work in browsers.
