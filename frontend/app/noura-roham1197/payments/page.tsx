@@ -94,13 +94,13 @@ export default function AdminPaymentsPage() {
           </div>
           <div>
             <label htmlFor="pay-username" className="label">
-              یوزرنیم بات
+              یوزرنیم / آیدی بات
             </label>
             <input
               id="pay-username"
               type="text"
               dir="ltr"
-              placeholder="@username"
+              placeholder="@username یا آیدی"
               className="input sm:w-40"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
