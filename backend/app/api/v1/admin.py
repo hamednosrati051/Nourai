@@ -2318,7 +2318,7 @@ def approve_bale_queue(queue_id):
     if not q or q.status != BALE_QUEUE_PENDING:
         return error_response("NOT_FOUND", "یافت نشد.", 404)
     q.status = BALE_QUEUE_APPROVED
-    q.reviewed_by_admin_id = g.admin_user.id
+    q.reviewed_by_admin_id = g.current_admin_id
     q.reviewed_at = utcnow()
     q.updated_at = utcnow()
     db.session.commit()
@@ -2343,7 +2343,7 @@ def reject_bale_queue(queue_id):
     if not q or q.status != BALE_QUEUE_PENDING:
         return error_response("NOT_FOUND", "یافت نشد.", 404)
     q.status = BALE_QUEUE_REJECTED
-    q.reviewed_by_admin_id = g.admin_user.id
+    q.reviewed_by_admin_id = g.current_admin_id
     q.reviewed_at = utcnow()
     q.updated_at = utcnow()
     db.session.commit()
