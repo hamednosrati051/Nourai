@@ -2404,12 +2404,25 @@ def _publish_to_bale_channel(queue_item):
         if not post:
             raise RuntimeError("Blog post not found")
 
-        text = f"📝 {post.title}\n\n{post.description}\n\nhttps://inourai.ir/blog/{post.slug}"
-        resp = requests.post(
-            f"{base_url}/sendMessage",
-            json={"chat_id": channel, "text": text},
-            timeout=30,
-        )
+        caption = f"📝 {post.title}\n\n{post.description}\n\n🔗 https://inourai.ir/blog/{post.slug}"
+        
+        # Send with cover image if available, otherwise just text
+        if post.cover_image_url:
+            # Make absolute URL if relative
+            cover_url = post.cover_image_url
+            if cover_url.startswith("/"):
+                cover_url = f"https://inourai.ir{cover_url}"
+            resp = requests.post(
+                f"{base_url}/sendPhoto",
+                json={"chat_id": channel, "photo": cover_url, "caption": caption},
+                timeout=30,
+            )
+        else:
+            resp = requests.post(
+                f"{base_url}/sendMessage",
+                json={"chat_id": channel, "text": caption},
+                timeout=30,
+            )
         resp.raise_for_status()
         data = resp.json()
         if data.get("ok"):
