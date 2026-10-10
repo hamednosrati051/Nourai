@@ -15,6 +15,7 @@ from app.models.plans import Plan, UserPlanSubscription
 from app.models.settings import CurrencySettings, ImageProcessingProfile, SiteSettings
 from app.models.usage import UsageEvent
 from app.models.user import OtpChallenge, User
+from app.models.vision_analysis import VisionAnalysis
 from app.models.wallet import WalletAccount, WalletTransaction
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "UserPlanSubscription",
     "UsageEvent",
     "User",
+    "VisionAnalysis",
     "WalletAccount",
     "WalletTransaction",
     "new_uuid",
