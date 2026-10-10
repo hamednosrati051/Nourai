@@ -2385,7 +2385,7 @@ def _publish_to_bale_channel(queue_item):
                 if job and job.prompt_text:
                     prompt_text = job.prompt_text.strip()
             if prompt_text:
-                caption = f"{prompt_text}\n\n✨ ساخته شده با نورا | inourai.ir"
+                caption = f"متن کاربر:\n{prompt_text}\n\n✨ ساخته شده با نورا | inourai.ir"
             else:
                 caption = "🎨 تصویر جدید در گالری نورا\n\n✨ ساخته شده با نورا | inourai.ir"
 
