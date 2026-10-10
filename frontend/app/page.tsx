@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { NouraHero } from '@/components/NouraHero';
-import { Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
+import { FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -44,9 +44,16 @@ const SERVICES = [
   {
     icon: ScanSearch,
     title: 'تحلیل تصویر',
-    description: 'تصویر خود را بدهید؛ ویرایش کنید یا تحلیل هوشمند تحویل بگیرید.',
-    href: '/dashboard/image',
+    description: 'تصویر خود را بدهید و تحلیل هوشمند تحویل بگیرید.',
+    href: '/dashboard/vision',
     color: '#f59e0b',
+  },
+  {
+    icon: FlaskConical,
+    title: 'تحلیل برگه آزمایش',
+    description: 'برگه آزمایشتان را تحلیل کنید (جایگزین پزشک نیست).',
+    href: '/dashboard/lab-report',
+    color: '#22d3ee',
   },
 ];
 
