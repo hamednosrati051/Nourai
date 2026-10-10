@@ -30,7 +30,7 @@ export default function BaleQueuePage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ data: { items: QueueItem[] } }>('/api/v1/admin/bale-queue?status=pending');
+      const res = await apiGet<{ data: { items: QueueItem[] } }>('/admin/bale-queue?status=pending');
       setItems(res.data?.items || []);
     } catch (e) {
       console.error('Bale queue load error:', e);
@@ -45,7 +45,7 @@ export default function BaleQueuePage() {
   const handleApprove = async (id: string) => {
     setActionId(id);
     try {
-      await apiPost(`/api/v1/admin/bale-queue/${id}/approve`, {});
+      await apiPost(`/admin/bale-queue/${id}/approve`, {});
       toast('تایید و منتشر شد', 'success');
       load();
     } catch (e) {
@@ -58,7 +58,7 @@ export default function BaleQueuePage() {
   const handleReject = async (id: string) => {
     setActionId(id);
     try {
-      await apiPost(`/api/v1/admin/bale-queue/${id}/reject`, {});
+      await apiPost(`/admin/bale-queue/${id}/reject`, {});
       toast('رد شد', 'success');
       load();
     } catch (e) {
