@@ -23,6 +23,7 @@ const STATUS_META: Record<UsageStatus, { label: string; badge: string }> = {
   succeeded: { label: 'موفق', badge: 'badge-success' },
   failed: { label: 'ناموفق', badge: 'badge-danger' },
   refunded: { label: 'برگشت‌خورده', badge: 'badge-warning' },
+  processing: { label: 'در حال انجام', badge: 'badge-info' },
 };
 
 /** Usage history with server-side filters (service, model, date range). */

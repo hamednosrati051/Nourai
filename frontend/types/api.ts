@@ -292,7 +292,7 @@ export interface GalleryItem {
 // Usage history
 // ---------------------------------------------------------------------------
 
-export type UsageStatus = 'succeeded' | 'failed' | 'refunded';
+export type UsageStatus = 'succeeded' | 'failed' | 'refunded' | 'processing';
 
 export interface UsageEvent {
   id: string;
