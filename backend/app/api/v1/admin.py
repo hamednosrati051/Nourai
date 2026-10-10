@@ -2356,7 +2356,8 @@ def _publish_to_bale_channel(queue_item):
     from flask import current_app
 
     # Get bot token from config (not from .env directly)
-    token = current_app.config.get("BALE_BOT_TOKEN")
+    from app.config import config as app_config
+    token = (app_config.bale_bot_token or "").strip()
     if not token:
         raise RuntimeError("Bale bot token not configured")
 
