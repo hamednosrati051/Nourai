@@ -28,8 +28,22 @@ from app.billing.ledger import (
     settle,
 )
 from app.billing.pricing import PricingService, PricingRuleUnavailable
-from app.models import UsageEvent, db
+from app.extensions import db
+from app.models import AiModel, UsageEvent, VisionAnalysis
 from app.api.v1.chat import _resolve_text_model
+
+
+def _resolve_vision_model() -> AiModel | None:
+    """Find active vision model, falling back to text model."""
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="vision", is_active=True)
+        .first()
+    )
+    if model:
+        return model
+    # Fallback: use the active text model (existing behavior)
+    return _resolve_text_model(None)
 
 log = logging.getLogger(__name__)
 
@@ -42,14 +56,42 @@ DEFAULT_MAX_OUTPUT_TOKENS = 2048
 LAB_REPORT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برای تحلیل برگه‌های آزمایش هستید.
 کاربر تصویری از برگه آزمایش خود ارسال کرده است.
 
-دستورالعمل:
-1. مقادیر آزمایش را از تصویر بخوانید
-2. هر مقدار را با رنج نرمال مقایسه کنید
-3. موارد خارج از رنج را مشخص کنید (بالا/پایین)
-4. به زبان ساده و فارسی توضیح دهید هر مورد چه معنایی دارد
-5. در پایان حتماً این هشدار را بدهید: «این تحلیل صرفاً جهت اطلاع است و جایگزین نظر پزشک نیست. حتماً با پزشک خود مشورت کنید.»
+خروجی باید دقیقاً این ساختار ۴ بخشی را داشته باشد:
 
-لحن: ساده، همدلانه، بدون اصطلاحات پیچیده پزشکی."""
+### ۱. مشخصات و موضوع آزمایش
+- نام آزمایش (فارسی + انگلیسی)
+- روش انجام آزمایش (اگر در برگه ذکر شده)
+- تاریخ آزمایش و سایر مشخصات مهم از برگه
+
+---
+
+### ۲. نتیجه آزمایش
+- نتیجه شما (Result): مقدار دقیق
+- بازه مرجع آزمایشگاه (Reference Interval): با ذکر جزئیات
+- اگر جدول راهنما در برگه هست، خلاصه‌اش را بنویس
+
+---
+
+### ۳. تفسیر و نتیجه‌گیری
+- در ۲-۳ جمله واضح بگو نتیجه چه معنایی دارد
+- اگر نرمال است یا نه، صریح بگو
+
+---
+
+### ۴. نکات مهم
+1. نکات مرتبط با زمان انجام آزمایش و دقت آن
+2. اگر نتیجه غیرنرمال است، علل احتمالی را به زبان ساده بگو
+3. توصیه نهایی: حتماً نتیجه را به پزشک نشان دهید
+
+---
+
+⚠️ این تحلیل صرفاً جهت اطلاع است و جایگزین نظر پزشک نیست.
+
+قوانین:
+- فارسی و ساده بنویس
+- از همین عنوان‌های numbered استفاده کن (۱ تا ۴)
+- اگر مقداری خوانا نبود بنویس «خوانا نبود»
+- لحن همدلانه و حرفه‌ای"""
 
 
 @bp.post("/vision/analyze")
@@ -80,7 +122,7 @@ def analyze_image():
     if rate_limited(f"ai:vision:{g.current_user_id}", 30, 3600):
         return error_response("RATE_LIMITED", status=429)
 
-    model = _resolve_text_model(None)
+    model = _resolve_vision_model()
     if model is None or not model.is_active:
         return error_response("MODEL_UNAVAILABLE", status=404)
 
@@ -168,8 +210,8 @@ def analyze_image():
         db.session.commit()
         return error_response("PROVIDER_ERROR", "تحلیل تصویر ناموفق بود.", 500)
 
-    output_tokens = result.usage.get("output_tokens", max_output) if result.usage else max_output
-    actual_input = result.usage.get("input_tokens", input_tokens) if result.usage else input_tokens
+    output_tokens = result.output_tokens if result.output_tokens else max_output
+    actual_input = result.input_tokens if result.input_tokens else input_tokens
     try:
         final = pricing.estimate_text(model.id, actual_input, output_tokens)
         final_irr = final["total_irr"]
@@ -189,9 +231,45 @@ def analyze_image():
         )
     except Exception as exc:
         log.warning("vision settle failed: %s", exc)
+
+    # Save to history
+    analysis = VisionAnalysis(
+        user_id=g.current_user_id,
+        mode=mode,
+        prompt=user_prompt if mode == "general" else None,
+        result_text=result.text,
+        usage_event_id=usage.id,
+        input_tokens=actual_input,
+        output_tokens=output_tokens,
+    )
+    db.session.add(analysis)
     db.session.commit()
 
     return success_response({
         "analysis": result.text,
         "usage_event_id": usage.id,
+    })
+
+
+@bp.get("/vision/history")
+@login_required
+def vision_history():
+    mode = request.args.get("mode", "lab_report")
+    limit = min(int(request.args.get("limit", 20)), 50)
+    items = (
+        db.session.query(VisionAnalysis)
+        .filter_by(user_id=g.current_user_id, mode=mode)
+        .order_by(VisionAnalysis.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return success_response({
+        "items": [
+            {
+                "id": a.id,
+                "result_text": a.result_text,
+                "created_at": a.created_at.isoformat() + "Z" if a.created_at else None,
+            }
+            for a in items
+        ]
     })

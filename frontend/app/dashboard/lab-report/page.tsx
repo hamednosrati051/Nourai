@@ -1,9 +1,16 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { FlaskConical, Upload, Loader2, AlertTriangle } from 'lucide-react';
-import { apiPostForm } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { FlaskConical, Upload, Loader2, AlertTriangle, Copy, Check, History } from 'lucide-react';
+import { apiGet, apiPostForm } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { Modal } from '@/components/Modal';
+
+interface HistoryItem {
+  id: string;
+  result_text: string;
+  created_at: string | null;
+}
 
 export default function LabReportPage() {
   const { toast } = useToast();
@@ -11,7 +18,23 @@ export default function LabReportPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadHistory = async () => {
+    try {
+      const res = await apiGet<{ items: HistoryItem[] }>('/vision/history?mode=lab_report');
+      setHistory(res.items);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
 
   const onFile = (f: File | undefined) => {
     if (!f) return;
@@ -43,6 +66,7 @@ export default function LabReportPage() {
         'Idempotency-Key': crypto.randomUUID(),
       });
       setResult(res.analysis);
+      loadHistory();
     } catch (err: any) {
       toast(err?.message || 'تحلیل ناموفق بود', 'error');
     } finally {
@@ -50,12 +74,58 @@ export default function LabReportPage() {
     }
   };
 
+  const onCopy = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast('کپی شد', 'success');
+    } catch {
+      toast('کپی نشد', 'error');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-extrabold flex items-center gap-2">
-        <FlaskConical className="h-6 w-6" />
-        تحلیل برگه آزمایش
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold flex items-center gap-2">
+          <FlaskConical className="h-6 w-6" />
+          تحلیل برگه آزمایش
+        </h1>
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="btn-ghost btn-sm flex items-center gap-1"
+        >
+          <History className="h-4 w-4" />
+          تاریخچه
+        </button>
+      </div>
+
+      <Modal open={historyOpen} title="تاریخچه تحلیل برگه آزمایش" onClose={() => setHistoryOpen(false)} maxWidth="max-w-2xl">
+        <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
+          {history.length === 0 && (
+            <p className="text-center text-neutral-500 py-8">هنوز تحلیلی انجام نشده</p>
+          )}
+          {history.map((h) => (
+            <button
+              key={h.id}
+              onClick={() => {
+                setResult(h.result_text);
+                setHistoryOpen(false);
+              }}
+              className="text-right p-3 rounded-lg bg-neutral-100 dark:bg-white/5 hover:bg-neutral-200 dark:hover:bg-white/10 transition-colors block w-full"
+            >
+              <p className="text-sm line-clamp-1 mb-1">{h.result_text.slice(0, 80)}…</p>
+              {h.created_at && (
+                <p className="text-xs text-neutral-500">
+                  {new Date(h.created_at).toLocaleDateString('fa-IR')} — {new Date(h.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       <div className="card border-amber-300 bg-amber-50 dark:bg-amber-950/20 flex gap-3">
         <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
@@ -103,7 +173,31 @@ export default function LabReportPage() {
       </button>
 
       {result && (
-        <div className="card whitespace-pre-wrap leading-7">{result}</div>
+        <>
+          <button
+            onClick={() => {
+              setImage(null);
+              setPreview(null);
+              setResult(null);
+            }}
+            className="btn-primary"
+          >
+            تحلیل جدید
+          </button>
+          <div className="card">
+            <div className="flex justify-between items-center mb-3">
+              <span className="font-bold text-sm">نتیجه تحلیل</span>
+              <button
+                onClick={onCopy}
+                className="btn-ghost btn-sm flex items-center gap-1"
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'کپی شد' : 'کپی'}
+              </button>
+            </div>
+            <div className="whitespace-pre-wrap leading-7 select-text">{result}</div>
+          </div>
+        </>
       )}
     </div>
   );

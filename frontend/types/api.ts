@@ -97,7 +97,8 @@ export type ModelCapability =
   | 'text_to_speech'
   | 'image'
   | 'generate_image'
-  | 'edit_image';
+  | 'edit_image'
+  | 'vision';
 
 /** Capabilities that back the image page (generation + editing). */
 export const IMAGE_CAPABILITIES: ModelCapability[] = ['generate_image', 'edit_image', 'image'];

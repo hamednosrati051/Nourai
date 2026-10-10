@@ -28,6 +28,7 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   image: 'تصویر',
   generate_image: 'تولید تصویر',
   edit_image: 'ویرایش تصویر',
+  vision: 'تحلیل تصویر',
 };
 
 // Capabilities selectable in the model form. The legacy "nourai-image"
@@ -51,7 +52,7 @@ const PROVIDER_TYPES = Object.keys(PROVIDER_TYPE_LABELS);
 
 const modelSchema = z.object({
   display_name: z.string().trim().min(1, 'نام نمایشی مدل را وارد کنید.'),
-  capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image', 'generate_image', 'edit_image']),
+  capability: z.enum(['text', 'speech_to_text', 'text_to_speech', 'image', 'generate_image', 'edit_image', 'vision']),
   provider_type: z.enum(['openai_compat' as const, 'async_generation' as const, 'chat_image_edit_gemini' as const]),
   provider_model_name: z.string().trim().min(1, 'نام مدل در سمت provider را وارد کنید.'),
   base_url: z.string().trim().optional(),

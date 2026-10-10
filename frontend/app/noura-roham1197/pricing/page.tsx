@@ -33,6 +33,7 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   image: 'تصویر',
   generate_image: 'تولید تصویر',
   edit_image: 'ویرایش تصویر',
+  vision: 'تحلیل تصویر',
 };
 
 const BILLING_UNIT_LABELS: Record<string, string> = {

@@ -1,9 +1,16 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { ScanSearch, Upload, Loader2 } from 'lucide-react';
-import { apiPostForm } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { ScanSearch, Upload, Loader2, History } from 'lucide-react';
+import { apiGet, apiPostForm } from '@/lib/api';
 import { useToast } from '@/components/Toast';
+import { Modal } from '@/components/Modal';
+
+interface HistoryItem {
+  id: string;
+  result_text: string;
+  created_at: string | null;
+}
 
 export default function VisionPage() {
   const { toast } = useToast();
@@ -12,7 +19,22 @@ export default function VisionPage() {
   const [prompt, setPrompt] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadHistory = async () => {
+    try {
+      const res = await apiGet<{ items: HistoryItem[] }>('/vision/history?mode=general');
+      setHistory(res.items);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
 
   const onFile = (f: File | undefined) => {
     if (!f) return;
@@ -45,6 +67,7 @@ export default function VisionPage() {
         'Idempotency-Key': crypto.randomUUID(),
       });
       setResult(res.analysis);
+      loadHistory();
     } catch (err: any) {
       toast(err?.message || 'تحلیل ناموفق بود', 'error');
     } finally {
@@ -54,10 +77,44 @@ export default function VisionPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-extrabold flex items-center gap-2">
-        <ScanSearch className="h-6 w-6" />
-        تحلیل تصویر
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold flex items-center gap-2">
+          <ScanSearch className="h-6 w-6" />
+          تحلیل تصویر
+        </h1>
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="btn-ghost btn-sm flex items-center gap-1"
+        >
+          <History className="h-4 w-4" />
+          تاریخچه
+        </button>
+      </div>
+
+      <Modal open={historyOpen} title="تاریخچه تحلیل تصویر" onClose={() => setHistoryOpen(false)} maxWidth="max-w-2xl">
+        <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
+          {history.length === 0 && (
+            <p className="text-center text-neutral-500 py-8">هنوز تحلیلی انجام نشده</p>
+          )}
+          {history.map((h) => (
+            <button
+              key={h.id}
+              onClick={() => {
+                setResult(h.result_text);
+                setHistoryOpen(false);
+              }}
+              className="text-right p-3 rounded-lg bg-neutral-100 dark:bg-white/5 hover:bg-neutral-200 dark:hover:bg-white/10 transition-colors block w-full"
+            >
+              <p className="text-sm line-clamp-1 mb-1">{h.result_text.slice(0, 80)}…</p>
+              {h.created_at && (
+                <p className="text-xs text-neutral-500">
+                  {new Date(h.created_at).toLocaleDateString('fa-IR')} — {new Date(h.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              )}
+            </button>
+          ))}
+        </div>
+      </Modal>
 
       <div
         onClick={() => fileRef.current?.click()}
@@ -105,7 +162,38 @@ export default function VisionPage() {
       </button>
 
       {result && (
-        <div className="card whitespace-pre-wrap leading-7">{result}</div>
+        <>
+          <button
+            onClick={() => {
+              setImage(null);
+              setPreview(null);
+              setResult(null);
+              setPrompt('');
+            }}
+            className="btn-primary"
+          >
+            تحلیل جدید
+          </button>
+          <div className="card">
+            <div className="flex justify-between items-center mb-3">
+              <span className="font-bold text-sm">نتیجه تحلیل</span>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(result);
+                    toast('کپی شد', 'success');
+                  } catch {
+                    toast('کپی نشد', 'error');
+                  }
+                }}
+                className="btn-ghost btn-sm"
+              >
+                کپی
+              </button>
+            </div>
+            <div className="whitespace-pre-wrap leading-7 select-text">{result}</div>
+          </div>
+        </>
       )}
     </div>
   );

@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   FileText,
+  FlaskConical,
   Gauge,
   History,
   Home,
   Image as ImageIcon,
   MessageSquare,
   Mic,
+  ScanSearch,
   Volume2,
   Wallet,
 } from 'lucide-react';
@@ -31,7 +33,9 @@ const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard/stt', label: 'تبدیل صوت به متن', icon: FileText, capability: 'speech_to_text' },
   { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: MessageSquare, capability: 'text' },
   { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: Volume2, capability: 'text_to_speech' },
-  { href: '/dashboard/image', label: 'تولید تصویر', icon: ImageIcon, capabilities: IMAGE_CAPABILITIES },
+  { href: '/dashboard/image', label: 'تولید و ویرایش تصویر', icon: ImageIcon, capabilities: IMAGE_CAPABILITIES },
+  { href: '/dashboard/vision', label: 'تحلیل تصویر', icon: ScanSearch, capabilities: ['vision', 'text'] },
+  { href: '/dashboard/lab-report', label: 'تحلیل برگه آزمایش', icon: FlaskConical, capabilities: ['vision', 'text'] },
   { href: '/dashboard/history', label: 'تاریخچه', icon: History },
   { href: '/dashboard/wallet', label: 'کیف پول', icon: Wallet },
   { href: '/dashboard/usage', label: 'مصرف', icon: Gauge },

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, CircleDollarSign, Crown, FileText, Image as ImageIcon, MessageSquare, Mic, Phone, ShoppingCart, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Crown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -175,9 +175,27 @@ export default function DashboardPage() {
               <ServiceCard
                 href="/dashboard/image"
                 icon={ImageIcon}
-                title="تولید تصویر"
+                title="تولید و ویرایش تصویر"
                 description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
                 color="#a78bfa"
+              />
+            )}
+            {(hasCap('vision') || hasCap('text')) && (
+              <ServiceCard
+                href="/dashboard/vision"
+                icon={ScanSearch}
+                title="تحلیل تصویر"
+                description="تصویر بدهید و تحلیل هوشمند تحویل بگیرید"
+                color="#f59e0b"
+              />
+            )}
+            {(hasCap('vision') || hasCap('text')) && (
+              <ServiceCard
+                href="/dashboard/lab-report"
+                icon={FlaskConical}
+                title="تحلیل برگه آزمایش"
+                description="تحلیل برگه آزمایش (جایگزین پزشک نیست)"
+                color="#22d3ee"
               />
             )}
             {hasCap('speech_to_text') && (
