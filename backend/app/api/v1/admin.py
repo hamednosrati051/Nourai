@@ -39,6 +39,7 @@ from app.models import (
     AiModel,
     Asset,
     AuditLog,
+    BalePublishQueue,
     BlogPost,
     Conversation,
     CurrencySettings,
@@ -855,6 +856,8 @@ def approve_gallery(asset_id: str):
     entry.rejection_reason = None
     _audit("gallery.approved", "gallery_entry", entry.id, {"asset_id": asset.id})
     db.session.commit()
+    # Queue for Bale channel (requires separate approval)
+    _queue_for_bale("gallery", entry.id, None)
     return success_response({"id": entry.id, "status": entry.status})
 
 
@@ -2150,7 +2153,12 @@ def update_blog_post(post_id: str):
     if data.content is not None:
         post.content_json = [str(c) for c in data.content]
     if data.is_published is not None:
+        was_published = post.is_published
         post.is_published = data.is_published
+        # If newly published, queue for Bale channel
+        if data.is_published and not was_published:
+            db.session.flush()  # Ensure post.id is available
+            _queue_for_bale("blog", post.id, None)
     _audit("blog.updated", "blog_post", post.id, {"slug": post.slug})
     db.session.commit()
     return success_response(_blog_payload(post))
@@ -2207,3 +2215,169 @@ def upload_blog_image():
     key = f"blog/images/{new_uuid()}.{ext}"
     storage.put_bytes(key, raw, f"image/{kind}")
     return success_response({"key": key, "url": f"/api/v1/blog/image?key={key}"})
+
+
+# --- Bale Publish Queue ---
+
+def _queue_for_bale(content_type: str, content_id: str, caption: str | None):
+    """Add an item to the Bale publish queue (if not already queued)."""
+    from app.models.bale_publish import BALE_QUEUE_PENDING
+    # Avoid duplicates
+    existing = (
+        db.session.query(BalePublishQueue)
+        .filter_by(content_type=content_type, content_id=content_id)
+        .filter(BalePublishQueue.status.in_(["pending", "approved"]))
+        .first()
+    )
+    if existing:
+        return existing
+    q = BalePublishQueue(
+        id=new_uuid(),
+        content_type=content_type,
+        content_id=content_id,
+        status=BALE_QUEUE_PENDING,
+        caption=caption,
+        created_at=utcnow(),
+        updated_at=utcnow(),
+    )
+    db.session.add(q)
+    # Note: caller must commit
+    return q
+
+
+@bp.get("/admin/bale-queue")
+@admin_required
+def list_bale_queue():
+    from app.models.bale_publish import BALE_QUEUE_STATUSES
+    status = request.args.get("status", "pending")
+    if status not in BALE_QUEUE_STATUSES:
+        return validation_error()
+    query = (
+        db.session.query(BalePublishQueue)
+        .filter_by(status=status)
+        .order_by(BalePublishQueue.created_at.desc())
+    )
+    page, page_size = pagination_params()
+    items, meta = paginate_query(query, page, page_size)
+    results = []
+    for q in items:
+        item = {
+            "id": q.id,
+            "content_type": q.content_type,
+            "content_id": q.content_id,
+            "status": q.status,
+            "caption": q.caption,
+            "created_at": q.created_at.isoformat() + "Z" if q.created_at else None,
+            "reviewed_at": q.reviewed_at.isoformat() + "Z" if q.reviewed_at else None,
+            "published_at": q.published_at.isoformat() + "Z" if q.published_at else None,
+        }
+        # Enrich with content details
+        if q.content_type == "gallery":
+            entry = db.session.get(GalleryEntry, q.content_id)
+            if entry:
+                asset = db.session.get(Asset, entry.asset_id)
+                if asset:
+                    item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
+                    job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
+                    item["prompt"] = (job.prompt_text or "")[:200] if job else None
+        elif q.content_type == "blog":
+            post = db.session.get(BlogPost, q.content_id)
+            if post:
+                item["title"] = post.title
+                item["description"] = post.description
+                item["cover_image_url"] = post.cover_image_url
+                item["slug"] = post.slug
+        results.append(item)
+    return success_response({"items": results, "meta": meta})
+
+
+@bp.post("/admin/bale-queue/<queue_id>/approve")
+@admin_required
+def approve_bale_queue(queue_id):
+    from app.models.bale_publish import BALE_QUEUE_PENDING, BALE_QUEUE_APPROVED
+    q = db.session.get(BalePublishQueue, queue_id)
+    if not q or q.status != BALE_QUEUE_PENDING:
+        return error_response("NOT_FOUND", "یافت نشد.", 404)
+    q.status = BALE_QUEUE_APPROVED
+    q.reviewed_by_admin_id = g.admin_user.id
+    q.reviewed_at = utcnow()
+    q.updated_at = utcnow()
+    db.session.commit()
+    # Try to publish to Bale channel immediately
+    try:
+        _publish_to_bale_channel(q)
+        q.status = "published"
+        q.published_at = utcnow()
+        db.session.commit()
+    except Exception as e:
+        # Log but don't fail - admin can retry
+        import logging
+        logging.getLogger(__name__).exception("Bale publish failed for %s", q.id)
+    return success_response({"id": q.id, "status": q.status})
+
+
+@bp.post("/admin/bale-queue/<queue_id>/reject")
+@admin_required
+def reject_bale_queue(queue_id):
+    from app.models.bale_publish import BALE_QUEUE_PENDING, BALE_QUEUE_REJECTED
+    q = db.session.get(BalePublishQueue, queue_id)
+    if not q or q.status != BALE_QUEUE_PENDING:
+        return error_response("NOT_FOUND", "یافت نشد.", 404)
+    q.status = BALE_QUEUE_REJECTED
+    q.reviewed_by_admin_id = g.admin_user.id
+    q.reviewed_at = utcnow()
+    q.updated_at = utcnow()
+    db.session.commit()
+    return success_response({"id": q.id, "status": q.status})
+
+
+def _publish_to_bale_channel(queue_item):
+    """Send the queue item to the Bale channel."""
+    import requests
+    from flask import current_app
+
+    # Get bot token from config (not from .env directly)
+    token = current_app.config.get("BALE_BOT_TOKEN")
+    if not token:
+        raise RuntimeError("Bale bot token not configured")
+
+    channel = "@iNourAi"
+    base_url = f"https://tapi.bale.ai/bot{token}"
+
+    if queue_item.content_type == "gallery":
+        entry = db.session.get(GalleryEntry, queue_item.content_id)
+        if not entry:
+            raise RuntimeError("Gallery entry not found")
+        asset = db.session.get(Asset, entry.asset_id)
+        if not asset:
+            raise RuntimeError("Asset not found")
+
+        # Get image URL (public)
+        image_url = f"https://inourai.ir/api/v1/assets/{asset.id}/download?stream=1"
+        caption = queue_item.caption or "🎨 تصویر جدید در گالری نورا"
+
+        resp = requests.post(
+            f"{base_url}/sendPhoto",
+            json={"chat_id": channel, "photo": image_url, "caption": caption},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("ok"):
+            queue_item.bale_message_id = str(data["result"]["message_id"])
+
+    elif queue_item.content_type == "blog":
+        post = db.session.get(BlogPost, queue_item.content_id)
+        if not post:
+            raise RuntimeError("Blog post not found")
+
+        text = f"📝 {post.title}\n\n{post.description}\n\nhttps://inourai.ir/blog/{post.slug}"
+        resp = requests.post(
+            f"{base_url}/sendMessage",
+            json={"chat_id": channel, "text": text},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("ok"):
+            queue_item.bale_message_id = str(data["result"]["message_id"])
