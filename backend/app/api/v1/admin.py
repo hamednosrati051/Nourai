@@ -2286,22 +2286,26 @@ def list_bale_queue():
             "reviewed_at": q.reviewed_at.isoformat() + "Z" if q.reviewed_at else None,
             "published_at": q.published_at.isoformat() + "Z" if q.published_at else None,
         }
-        # Enrich with content details
-        if q.content_type == "gallery":
-            entry = db.session.get(GalleryEntry, q.content_id)
-            if entry:
-                asset = db.session.get(Asset, entry.asset_id)
-                if asset:
-                    item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
-                    job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
-                    item["prompt"] = (job.prompt_text or "")[:200] if job else None
-        elif q.content_type == "blog":
-            post = db.session.get(BlogPost, q.content_id)
-            if post:
-                item["title"] = post.title
-                item["description"] = post.description
-                item["cover_image_url"] = post.cover_image_url
-                item["slug"] = post.slug
+        try:
+            # Enrich with content details
+            if q.content_type == "gallery":
+                entry = db.session.get(GalleryEntry, q.content_id)
+                if entry:
+                    asset = db.session.get(Asset, entry.asset_id)
+                    if asset:
+                        item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
+                        job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
+                        item["prompt"] = (job.prompt_text or "")[:200] if job else None
+            elif q.content_type == "blog":
+                post = db.session.get(BlogPost, q.content_id)
+                if post:
+                    item["title"] = post.title
+                    item["description"] = post.description
+                    item["cover_image_url"] = post.cover_image_url
+                    item["slug"] = post.slug
+        except Exception:
+            # Don't fail the whole request if enrichment fails
+            pass
         results.append(item)
     return success_response({"items": results, "meta": meta})
 
