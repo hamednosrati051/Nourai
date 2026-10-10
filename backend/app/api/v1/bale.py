@@ -362,12 +362,19 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
 
     try:
         result = provider.generate(model.provider_model_name, messages, {"max_tokens": max_output})
-    except Exception as exc:  # noqa: BLE001
+    except BaseException as exc:  # Never crash webhook, always refund
         log.warning("bale text provider call failed: %s", exc)
-        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, description="bale_text_failed")
-        db.session.commit()
-        send_message(chat_id, "خطا در تولید پاسخ. بعداً تلاش کنید.")
+        try:
+            release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="bale_text_failed")
+            db.session.commit()
+        except Exception as release_exc:
+            log.error("bale text release failed: %s", release_exc)
+            db.session.rollback()
+        try:
+            send_message(chat_id, "خطا در تولید پاسخ. مبلغ برگشت داده شد.")
+        except Exception:
+            pass
         return
 
     if not result.ok:
@@ -438,12 +445,19 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     send_message(chat_id, "🎨 دارم عکست رو می‌سازم... چند لحظه صبر کن.")
     try:
         result = provider.generate(model.provider_model_name, prompt, {})
-    except Exception as exc:  # noqa: BLE001
+    except BaseException as exc:  # Never crash webhook, always refund
         log.warning("bale image provider call failed: %s", exc)
-        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, description="bale_image_failed")
-        db.session.commit()
-        send_message(chat_id, "خطا در تولید تصویر. بعداً تلاش کنید.")
+        try:
+            release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="bale_image_failed")
+            db.session.commit()
+        except Exception as release_exc:
+            log.error("bale image release failed: %s", release_exc)
+            db.session.rollback()
+        try:
+            send_message(chat_id, "خطا در تولید تصویر. مبلغ برگشت داده شد.")
+        except Exception:
+            pass
         return
 
     if not result.ok or not result.image_bytes:
@@ -889,12 +903,19 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
     send_message(chat_id, "✏️ دارم عکست رو ویرایش می‌کنم...")
     try:
         result = provider.edit(model.provider_model_name, prompt, image_key, {})
-    except Exception as exc:  # noqa: BLE001
+    except BaseException as exc:  # Catch everything - never crash the webhook, always refund
         log.warning("bale edit call failed: %s", exc)
-        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, description="bale_edit_failed")
-        db.session.commit()
-        send_message(chat_id, "خطا در ویرایش تصویر.")
+        try:
+            release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="bale_edit_failed")
+            db.session.commit()
+        except Exception as release_exc:
+            log.error("bale edit release failed: %s", release_exc)
+            db.session.rollback()
+        try:
+            send_message(chat_id, "خطا در ویرایش تصویر. مبلغ برگشت داده شد.")
+        except Exception:
+            pass
         return
 
     if not result.ok or not result.image_bytes:
