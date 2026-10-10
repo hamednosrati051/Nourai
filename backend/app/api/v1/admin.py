@@ -858,6 +858,7 @@ def approve_gallery(asset_id: str):
     db.session.commit()
     # Queue for Bale channel (requires separate approval)
     _queue_for_bale("gallery", entry.id, None)
+    db.session.commit()
     return success_response({"id": entry.id, "status": entry.status})
 
 
