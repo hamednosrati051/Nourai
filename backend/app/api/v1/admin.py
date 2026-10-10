@@ -886,6 +886,20 @@ def reject_gallery(asset_id: str):
     _audit("gallery.rejected", "gallery_entry", entry.id,
            {"asset_id": asset.id, "reason": entry.rejection_reason})
     db.session.commit()
+    # Cancel any pending bale queue entries for this gallery entry
+    from app.models.bale_publish import BALE_QUEUE_PENDING, BALE_QUEUE_REJECTED
+    pending_queues = (
+        db.session.query(BalePublishQueue)
+        .filter_by(content_type="gallery", content_id=entry.id)
+        .filter_by(status=BALE_QUEUE_PENDING)
+        .all()
+    )
+    for q in pending_queues:
+        q.status = BALE_QUEUE_REJECTED
+        q.reviewed_at = utcnow()
+        q.updated_at = utcnow()
+    if pending_queues:
+        db.session.commit()
     return success_response({"id": entry.id, "status": entry.status})
 
 
@@ -2221,13 +2235,13 @@ def upload_blog_image():
 # --- Bale Publish Queue ---
 
 def _queue_for_bale(content_type: str, content_id: str, caption: str | None):
-    """Add an item to the Bale publish queue (if not already queued)."""
+    """Add an item to the Bale publish queue (if not already pending)."""
     from app.models.bale_publish import BALE_QUEUE_PENDING
-    # Avoid duplicates
+    # Avoid duplicates - only skip if there's already a pending one
     existing = (
         db.session.query(BalePublishQueue)
         .filter_by(content_type=content_type, content_id=content_id)
-        .filter(BalePublishQueue.status.in_(["pending", "approved"]))
+        .filter_by(status=BALE_QUEUE_PENDING)
         .first()
     )
     if existing:

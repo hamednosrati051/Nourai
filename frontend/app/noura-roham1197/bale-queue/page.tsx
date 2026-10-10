@@ -73,7 +73,7 @@ export default function BaleQueuePage() {
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-extrabold flex items-center gap-2 mb-6">
         <Send className="h-6 w-6" />
-        صف انتشار کانال بله
+        انتشار در بله
       </h1>
 
       {items.length === 0 ? (
