@@ -30,8 +30,8 @@ export default function BaleQueuePage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiGet<{ data: { items: QueueItem[] } }>('/admin/bale-queue?status=pending');
-      setItems(res.data?.items || []);
+      const res = await apiGet<{ items: QueueItem[] }>('/admin/bale-queue?status=pending');
+      setItems(res.items || []);
     } catch (e) {
       console.error('Bale queue load error:', e);
       toast(`خطا در بارگذاری صف: ${e instanceof Error ? e.message : 'نامشخص'}`, 'error');
