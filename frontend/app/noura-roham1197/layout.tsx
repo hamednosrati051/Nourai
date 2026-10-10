@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAdminLogout, useAdminMe } from '@/features/auth/hooks';
+import { useSupportUnreadCount } from '@/features/admin/hooks';
 import { usePathname } from 'next/navigation';
 import { AdminGuard } from '@/components/ProtectedRoute';
 import { SideNav, type NavItem } from '@/components/SideNav';
@@ -60,6 +61,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { data: admin } = useAdminMe();
   const logout = useAdminLogout();
+  const { data: unread } = useSupportUnreadCount();
+  const navItems = NAV_ITEMS.map((item) =>
+    item.href === '/noura-roham1197/support'
+      ? { ...item, badge: unread?.unread_count ?? 0 }
+      : item
+  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -93,7 +100,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
-        <SideNav items={NAV_ITEMS} ariaLabel="ناوبری پنل ادمین" />
+        <SideNav items={navItems} ariaLabel="ناوبری پنل ادمین" />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>

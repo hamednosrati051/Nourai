@@ -650,3 +650,11 @@ export function useUploadBlogImage() {
     },
   });
 }
+
+export function useSupportUnreadCount() {
+  return useQuery({
+    queryKey: ['admin', 'support', 'unread-count'],
+    queryFn: () => apiGet<{ unread_count: number }>('/admin/support/unread-count'),
+    refetchInterval: 30000,
+  });
+}

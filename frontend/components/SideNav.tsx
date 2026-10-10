@@ -8,6 +8,7 @@ export interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  badge?: number;
 }
 
 /**
@@ -38,6 +39,11 @@ export function SideNav({ items, ariaLabel }: { items: NavItem[]; ariaLabel: str
               >
                 <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
                 {item.label}
+                {item.badge != null && item.badge > 0 && (
+                  <span className="mr-auto rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             </li>
           );

@@ -703,6 +703,14 @@ def list_support():
     } for m in items], 1, 100, total)
 
 
+@bp.get("/admin/support/unread-count")
+@admin_required
+def support_unread_count():
+    from app.models.messenger import SupportMessage
+    count = db.session.query(SupportMessage).filter_by(is_read=False).count()
+    return success_response({"unread_count": count})
+
+
 @bp.post("/admin/support/<msg_id>/read")
 @admin_required
 def mark_support_read(msg_id: str):
