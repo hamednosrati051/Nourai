@@ -2374,7 +2374,23 @@ def _publish_to_bale_channel(queue_item):
 
         # Get image URL (public)
         image_url = f"https://inourai.ir/api/v1/assets/{asset.id}/download?stream=1"
-        caption = queue_item.caption or "🎨 تصویر جدید در گالری نورا"
+        
+        # Build caption with user's prompt (truncated)
+        caption = queue_item.caption
+        if not caption:
+            # Get prompt from generation job
+            prompt_text = ""
+            if asset.job_id:
+                job = db.session.get(GenerationJob, asset.job_id)
+                if job and job.prompt_text:
+                    prompt_text = job.prompt_text.strip()
+                    # Truncate to 150 chars
+                    if len(prompt_text) > 150:
+                        prompt_text = prompt_text[:150].rsplit(' ', 1)[0] + "…"
+            if prompt_text:
+                caption = f"🎨 {prompt_text}\n\n✨ ساخته شده با نورا | inourai.ir"
+            else:
+                caption = "🎨 تصویر جدید در گالری نورا\n\n✨ ساخته شده با نورا | inourai.ir"
 
         resp = requests.post(
             f"{base_url}/sendPhoto",
