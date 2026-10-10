@@ -1,7 +1,7 @@
 'use client';
 
 import { ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useBlocklistWords,
   useCreateBlocklistWord,
@@ -31,7 +31,18 @@ export default function PromptFilterPage() {
   const [phrase, setPhrase] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
-  const words = useBlocklistWords(page, 20);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const words = useBlocklistWords(page, 20, debouncedSearch);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
   const [editing, setEditing] = useState<PromptBlocklistWord | null>(null);
   const [editPhrase, setEditPhrase] = useState('');
   const [editCategory, setEditCategory] = useState('');
@@ -161,6 +172,15 @@ export default function PromptFilterPage() {
 
       {/* Word list */}
       <section aria-label="فهرست عبارات">
+        <div className="mb-3">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="جستجو در عبارات…"
+            className="input w-full max-w-sm"
+          />
+        </div>
         {words.isLoading && <LoadingSpinner />}
         {words.isError && <ErrorState message="بارگذاری فهرست ناموفق بود." onRetry={() => words.refetch()} />}
         {words.data && words.data.items.length === 0 && (
