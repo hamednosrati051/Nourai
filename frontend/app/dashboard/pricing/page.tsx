@@ -201,6 +201,55 @@ export default function PricingPage() {
                 </div>
               );
             })}
+            {/* Contract features (use vision and text models) */}
+            {(() => {
+              const visionModel = data.models.find((m) => m.capability === 'vision');
+              const textModel = data.models.find((m) => m.capability === 'text');
+              return (
+                <>
+                  {visionModel && (
+                    <div key="contract-image" className="card group" style={{ ['--svc' as string]: '#f97316' }}>
+                      <span aria-hidden="true" className="service-icon">
+                        <FileText className="h-7 w-7" style={{ color: '#f97316' }} />
+                      </span>
+                      <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">
+                        تحلیل قرارداد (تصویری)
+                      </h3>
+                      <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">
+                        تحلیل تصویر قرارداد، نکات و ریسک‌ها
+                      </p>
+                      <div className="mt-2 flex items-baseline justify-between">
+                        <span className="text-xs text-neutral-500">هر تصویر</span>
+                        <span className="text-lg font-black" style={{ color: '#f97316' }}>
+                          {calculatePrice(visionModel, data.usd_to_irr)}
+                        </span>
+                      </div>
+                      <span aria-hidden="true" className="service-accent" />
+                    </div>
+                  )}
+                  {textModel && (
+                    <div key="contract-chat" className="card group" style={{ ['--svc' as string]: '#f97316' }}>
+                      <span aria-hidden="true" className="service-icon">
+                        <MessageSquare className="h-7 w-7" style={{ color: '#f97316' }} />
+                      </span>
+                      <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">
+                        دستیار قرارداد (متنی)
+                      </h3>
+                      <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">
+                        تولید و ویرایش متن قرارداد
+                      </p>
+                      <div className="mt-2 flex items-baseline justify-between">
+                        <span className="text-xs text-neutral-500">هر ۱٬۰۰۰ کلمه</span>
+                        <span className="text-lg font-black" style={{ color: '#f97316' }}>
+                          {calculatePrice(textModel, data.usd_to_irr)}
+                        </span>
+                      </div>
+                      <span aria-hidden="true" className="service-accent" />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
