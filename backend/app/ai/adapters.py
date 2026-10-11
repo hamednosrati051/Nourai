@@ -1464,11 +1464,10 @@ class OpenAICompatVideoProvider(VideoAiProvider):
             "seconds": str(seconds),
             "size": size,
         }
-        # Image-to-video is not supported by current models (text-only input).
-        # The option is kept for future models that support image input.
-        # image_b64 = options.get("image_base64")
-        # if image_b64:
-        #     payload["image"] = image_b64
+        # Image-to-video: supported by gen4.5 and gen4_turbo
+        image_b64 = options.get("image_base64")
+        if image_b64:
+            payload["image"] = image_b64
         data = self._api_json("POST", "/videos", payload)
         if data and data.get("_provider_error"):
             return VideoResult(
