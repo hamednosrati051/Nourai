@@ -76,17 +76,29 @@ function formatToman(amount: number): string {
 function calculatePrice(model: ModelPricing, usdToIrr: number): string {
   if (!model.pricing.length || !usdToIrr) return '—';
   
-  // For simplicity, take the first pricing rule and calculate
-  // For text: estimate ~1500 tokens per 1000 Persian words
-  // For others: use unit price directly
   const rule = model.pricing[0];
   if (!rule) return '—';
+
+  // Vision: input (image ~1000 tokens) + output (~500 tokens)
+  if (model.capability === 'vision') {
+    const inputRule = model.pricing.find(r => r.billing_unit === 'input_token');
+    const outputRule = model.pricing.find(r => r.billing_unit === 'output_token');
+    const inputUsd = (inputRule?.unit_price_usd || 0) * 1000;
+    const outputUsd = (outputRule?.unit_price_usd || 0) * 500;
+    const totalIrr = (inputUsd + outputUsd) * usdToIrr;
+    return formatToman(totalIrr / 10);
+  }
+
   const priceUsd = rule.unit_price_usd;
   
   if (model.capability === 'text') {
-    // ~1500 tokens per 1000 words, input + output average
-    const totalUsd = priceUsd * 1500 / rule.unit_size;
-    return formatToman(totalUsd * usdToIrr / 10); // Convert IRR to Toman
+    // ~1500 tokens per 1000 words, input + output
+    const inputRule = model.pricing.find(r => r.billing_unit === 'input_token');
+    const outputRule = model.pricing.find(r => r.billing_unit === 'output_token');
+    const inputUsd = (inputRule?.unit_price_usd || 0) * 750;
+    const outputUsd = (outputRule?.unit_price_usd || 0) * 750;
+    const totalIrr = (inputUsd + outputUsd) * usdToIrr;
+    return formatToman(totalIrr / 10);
   }
   
   if (model.capability === 'speech_to_text' || model.capability === 'text_to_speech') {
