@@ -1429,7 +1429,7 @@ def webhook():
                     _handle_lab(chat_id, user, file_id)
                     return success_response({"ok": True})
 
-        voice = message.get("voice") or {}
+        voice = message.get("voice") or message.get("audio") or {}
         if voice.get("file_id"):
             va_mode, _va_data = _get_user_mode(bale_user_id)
             if va_mode == "awaiting_va_voice":
