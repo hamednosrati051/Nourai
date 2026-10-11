@@ -80,6 +80,7 @@ function calculatePrice(model: ModelPricing, usdToIrr: number): string {
   // For text: estimate ~1500 tokens per 1000 Persian words
   // For others: use unit price directly
   const rule = model.pricing[0];
+  if (!rule) return '—';
   const priceUsd = rule.unit_price_usd;
   
   if (model.capability === 'text') {
