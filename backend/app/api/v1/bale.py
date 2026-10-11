@@ -1430,6 +1430,10 @@ def webhook():
                     return success_response({"ok": True})
 
         voice = message.get("voice") or message.get("audio") or {}
+        # Accept audio files sent as document (e.g. mp3)
+        doc = message.get("document") or {}
+        if doc.get("file_id") and (doc.get("mime_type") or "").startswith("audio/"):
+            voice = doc
         if voice.get("file_id"):
             va_mode, _va_data = _get_user_mode(bale_user_id)
             if va_mode == "awaiting_va_voice":
