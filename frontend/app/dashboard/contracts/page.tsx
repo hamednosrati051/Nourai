@@ -109,20 +109,17 @@ export default function ContractsPage() {
     if (!input.trim() || chatLoading) return;
     const userMsg = input.trim();
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: userMsg }]);
+    const newMessages: ChatMessage[] = [...messages, { role: 'user', content: userMsg }];
+    setMessages(newMessages);
     setChatLoading(true);
     try {
-      const systemPrompt = `شما یک دستیار حقوقی برای قراردادهای ایرانی هستید. به کاربر کمک کنید قرارداد بنویسد یا قراردادش را اصلاح کند. ${CONTRACT_DISCLAIMER}`;
-      const res = await apiPost<{ reply: string }>('/chat', {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages.map((m) => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMsg },
-        ],
+      const res = await apiPost<{ reply: string }>('/vision/contract-chat', {
+        message: userMsg,
+        history: messages.map((m) => ({ role: m.role, content: m.content })),
       }, undefined, {
         'Idempotency-Key': crypto.randomUUID(),
       });
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.reply }]);
+      setMessages([...newMessages, { role: 'assistant', content: res.reply }]);
     } catch (err: any) {
       toast(err?.message || 'خطا در ارسال', 'error');
     } finally {

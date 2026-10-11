@@ -325,3 +325,145 @@ def vision_history():
             for a in items
         ]
     })
+
+
+CONTRACT_CHAT_SYSTEM_PROMPT = """شما یک دستیار حقوقی برای قراردادهای ایرانی هستید.
+
+وظیفه شما:
+- کمک به کاربر برای نوشتن پیش‌نویس قرارداد
+- اصلاح و بهبود متن قراردادهای موجود
+- پاسخ به سؤالات حقوقی مرتبط با قراردادها
+
+قوانین:
+- فقط درباره قراردادها و مسائل حقوقی مرتبط صحبت کن
+- اگر کاربر سؤال غیرمرتبط پرسید، مؤدبانه بگو فقط در زمینه قرارداد کمک می‌کنی
+- فارسی و ساده بنویس
+- در پایان هر پاسخ مهم یادآوری کن: این مشاوره حقوقی نیست
+
+⚠️ این مشاوره حقوقی محسوب نمی‌شود. برای تصمیم‌گیری حقوقی حتماً با وکیل مشورت کنید."""
+
+
+@bp.post("/vision/contract-chat")
+@login_required
+def contract_chat():
+    """Simple contract assistant chat (no conversation management)."""
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    history = data.get("history") or []
+
+    if not message:
+        return validation_error("message is required")
+    if len(message) > 5000:
+        return validation_error("message too long")
+
+    if rate_limited(f"ai:contract-chat:{g.current_user_id}", 30, 3600):
+        return error_response("RATE_LIMITED", status=429)
+
+    # Use the active text model
+    from app.models import AiModel
+    model = db.session.query(AiModel).filter_by(capability="text", is_active=True).first()
+    if model is None:
+        return error_response("MODEL_UNAVAILABLE", status=404)
+
+    # Build messages
+    provider_messages = [{"role": "system", "content": CONTRACT_CHAT_SYSTEM_PROMPT}]
+    for h in history[-10:]:  # Last 10 messages
+        if h.get("role") in ("user", "assistant") and h.get("content"):
+            provider_messages.append({"role": h["role"], "content": h["content"][:2000]})
+    provider_messages.append({"role": "user", "content": message})
+
+    # Estimate tokens
+    total_text = CONTRACT_CHAT_SYSTEM_PROMPT + message + "".join(h.get("content", "") for h in history[-10:])
+    input_tokens = len(total_text) // 4 + 500
+    max_output = 2048
+
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_text(model.id, input_tokens, max_output)
+    except PricingRuleUnavailable:
+        return error_response("PRICING_RULE_UNAVAILABLE", status=500)
+    estimated_irr = estimate["total_irr"]
+
+    idempotency_key = request.headers.get("Idempotency-Key")
+    if not idempotency_key:
+        return error_response("VALIDATION_ERROR", "Idempotency-Key header is required.", 422)
+
+    try:
+        provider = get_text_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("contract chat provider misconfigured: %s", exc)
+        return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
+
+    wallet = get_wallet_for_update(db.session, g.current_user_id)
+    try:
+        reserve(
+            db.session, wallet=wallet, amount_irr=estimated_irr,
+            idempotency_key=f"contract-chat:{idempotency_key}:reserve",
+            reference_type="contract_chat", reference_id=idempotency_key,
+            description="reserve contract chat",
+        )
+    except InsufficientBalance:
+        db.session.rollback()
+        return error_response("INSUFFICIENT_BALANCE", status=402)
+    except DuplicateIdempotencyKey:
+        pass
+
+    usage = UsageEvent(
+        user_id=g.current_user_id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="processing",
+        est_input_tokens=input_tokens,
+        est_output_tokens=max_output,
+        estimated_amount_irr=estimated_irr,
+    )
+    db.session.add(usage)
+    db.session.flush()
+
+    try:
+        result = provider.generate(model.provider_model_name, provider_messages, {"max_tokens": max_output})
+    except Exception as exc:
+        log.warning("contract chat provider failed: %s", exc)
+        usage.status = "failed"
+        try:
+            release(db.session, wallet=wallet, idempotency_key=f"contract-chat:{idempotency_key}:reserve")
+        except Exception:
+            pass
+        db.session.commit()
+        return error_response("PROVIDER_ERROR", "خطا در تولید پاسخ.", 500)
+
+    if result is None or not result.ok:
+        usage.status = "failed"
+        try:
+            release(db.session, wallet=wallet, idempotency_key=f"contract-chat:{idempotency_key}:reserve")
+        except Exception:
+            pass
+        db.session.commit()
+        return error_response("PROVIDER_ERROR", "خطا در تولید پاسخ.", 500)
+
+    # Settle billing
+    output_tokens = result.output_tokens if result.output_tokens else max_output
+    actual_input = result.input_tokens if result.input_tokens else input_tokens
+    try:
+        final = pricing.estimate_text(model.id, actual_input, output_tokens)
+        final_irr = final["total_irr"]
+    except PricingRuleUnavailable:
+        final_irr = estimated_irr
+
+    usage.status = "succeeded"
+    usage.final_input_tokens = actual_input
+    usage.final_output_tokens = output_tokens
+    usage.final_amount_irr = final_irr
+    try:
+        settle(
+            db.session, wallet=wallet,
+            idempotency_key=f"contract-chat:{idempotency_key}:reserve",
+            final_amount_irr=final_irr,
+            reference_type="contract_chat", reference_id=idempotency_key,
+        )
+    except Exception as exc:
+        log.warning("contract chat settle failed: %s", exc)
+    db.session.commit()
+
+    return success_response({"reply": result.text})
