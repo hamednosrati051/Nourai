@@ -326,7 +326,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_TEXT, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if model is None:
@@ -414,7 +414,7 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_GENERATE_IMAGE, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if model is None:
@@ -627,7 +627,7 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_STT, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if model is None:
@@ -714,7 +714,7 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_TTS, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if model is None:
@@ -796,19 +796,19 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     stt_model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_STT, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     text_model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_TEXT, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     tts_model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_TTS, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if not stt_model or not text_model or not tts_model:
@@ -1005,7 +1005,7 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_EDIT_IMAGE, is_active=True)
-        .order_by(AiModel.created_at)
+        .order_by(AiModel.created_at.desc())
         .first()
     )
     if model is None:
