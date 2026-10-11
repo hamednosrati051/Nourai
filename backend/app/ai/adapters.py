@@ -1382,7 +1382,7 @@ class OpenAICompatVideoProvider(VideoAiProvider):
     worker (same as the async image provider).
     """
 
-    POLL_INTERVAL_SECONDS = 10
+    POLL_INTERVAL_SECONDS = 65
     POLL_DEADLINE_SECONDS = 1500  # 25 minutes
 
     def __init__(self, base_url: str, api_key: str, provider_key: str,
