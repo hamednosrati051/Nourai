@@ -18,6 +18,7 @@ JOB_STATUSES = (JOB_QUEUED, JOB_PROCESSING, JOB_SUCCEEDED, JOB_FAILED, JOB_CANCE
 
 MODE_TEXT_TO_IMAGE = "text_to_image"
 MODE_IMAGE_TO_IMAGE = "image_to_image"
+MODE_TEXT_TO_VIDEO = "text_to_video"
 
 
 class GenerationJob(Base):
@@ -61,6 +62,7 @@ ASSET_CHAT_INPUT_IMAGE = "chat_input_image"
 ASSET_INPUT_IMAGE_ORIGINAL = "input_image_original"
 ASSET_INPUT_IMAGE_PROCESSED = "input_image_processed"
 ASSET_GENERATED_IMAGE = "generated_image"
+ASSET_GENERATED_VIDEO = "generated_video"
 
 ASSET_KINDS = (
     ASSET_INPUT_AUDIO,
@@ -69,6 +71,7 @@ ASSET_KINDS = (
     ASSET_INPUT_IMAGE_ORIGINAL,
     ASSET_INPUT_IMAGE_PROCESSED,
     ASSET_GENERATED_IMAGE,
+    ASSET_GENERATED_VIDEO,
 )
 
 

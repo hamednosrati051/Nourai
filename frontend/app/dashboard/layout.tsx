@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Clapperboard,
   FileText,
   FlaskConical,
   Gauge,
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard/chat', label: 'گفت‌وگوی متنی', icon: MessageSquare, capability: 'text' },
   { href: '/dashboard/tts', label: 'تبدیل متن به صوت', icon: Volume2, capability: 'text_to_speech' },
   { href: '/dashboard/image', label: 'تولید و ویرایش تصویر', icon: ImageIcon, capabilities: IMAGE_CAPABILITIES },
+  { href: '/dashboard/video', label: 'تولید ویدیو', icon: Clapperboard, capability: 'video_generation' },
   { href: '/dashboard/vision', label: 'تحلیل تصویر', icon: ScanSearch, capabilities: ['vision', 'text'] },
   { href: '/dashboard/lab-report', label: 'تحلیل برگه آزمایش', icon: FlaskConical, capabilities: ['vision', 'text'] },
   { href: '/dashboard/contracts', label: 'قراردادها', icon: FileText, capabilities: ['vision', 'text'] },

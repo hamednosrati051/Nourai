@@ -98,7 +98,8 @@ export type ModelCapability =
   | 'image'
   | 'generate_image'
   | 'edit_image'
-  | 'vision';
+  | 'vision'
+  | 'video_generation';
 
 /** Capabilities that back the image page (generation + editing). */
 export const IMAGE_CAPABILITIES: ModelCapability[] = ['generate_image', 'edit_image', 'image'];
@@ -263,6 +264,42 @@ export interface ImageJob {
   result_url: string | null;
   result_width?: number | null;
   result_height?: number | null;
+  /** Final settled cost in integer IRR. */
+  cost_irr?: number | null;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Video
+// ---------------------------------------------------------------------------
+
+export type VideoJobType = 'text_to_video';
+export type VideoJobStatus = 'queued' | 'processing' | 'succeeded' | 'failed' | 'cancelled';
+
+export interface VideoSizeOption {
+  key: string;
+  label: string;
+}
+
+export interface VideoConfig {
+  durations: number[];
+  sizes: VideoSizeOption[];
+  model_available: boolean;
+}
+
+export interface VideoJob {
+  id: string;
+  type: VideoJobType;
+  status: VideoJobStatus;
+  model_id: string;
+  model_name?: string;
+  prompt: string;
+  seconds?: number | null;
+  size?: string | null;
+  /** Signed, short-lived URL of the generated video. */
+  result_url: string | null;
   /** Final settled cost in integer IRR. */
   cost_irr?: number | null;
   error_message?: string | null;

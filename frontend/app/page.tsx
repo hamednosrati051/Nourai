@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { NouraHero } from '@/components/NouraHero';
-import { FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
+import { FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2, Clapperboard } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -26,6 +26,13 @@ const SERVICES = [
     description: 'از روی متن تصویر بسازید؛ با برآورد شفاف هزینه، قبل از ثبت نهایی.',
     href: '/dashboard/image',
     color: '#8b5cf6',
+  },
+  {
+    icon: Clapperboard,
+    title: 'تولید ویدیو',
+    description: 'از روی متن ویدیو بسازید؛ مدت و ابعاد دلخواه.',
+    href: '/dashboard/video',
+    color: '#f43f5e',
   },
   {
     icon: Volume2,

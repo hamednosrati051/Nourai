@@ -22,6 +22,7 @@ UNIT_FIXED_REQUEST = "fixed_request"
 UNIT_INPUT_TOKEN = "input_token"
 UNIT_OUTPUT_TOKEN = "output_token"
 UNIT_AUDIO_SECOND = "audio_second"
+UNIT_VIDEO_SECOND = "video_second"
 UNIT_IMAGE_COUNT = "image_count"
 UNIT_INPUT_MEGAPIXEL = "input_megapixel"
 UNIT_OUTPUT_MEGAPIXEL = "output_megapixel"
@@ -31,6 +32,7 @@ BILLING_UNITS = (
     UNIT_INPUT_TOKEN,
     UNIT_OUTPUT_TOKEN,
     UNIT_AUDIO_SECOND,
+    UNIT_VIDEO_SECOND,
     UNIT_IMAGE_COUNT,
     UNIT_INPUT_MEGAPIXEL,
     UNIT_OUTPUT_MEGAPIXEL,
@@ -257,6 +259,31 @@ class PricingService:
             total += sub["total_irr"]
             lines.extend(sub["lines"])
             snapshots.extend(sub["pricing_snapshots"])
+        return {"total_irr": total, "lines": lines, "pricing_snapshots": snapshots}
+
+    def estimate_video(
+        self,
+        model_id: str,
+        video_seconds: int,
+    ) -> dict:
+        """Price a video generation job: per-second + optional fixed fee."""
+        lines, snapshots, total = [], [], 0
+        for unit, qty in (
+            (UNIT_VIDEO_SECOND, video_seconds),
+            (UNIT_FIXED_REQUEST, 1),
+        ):
+            try:
+                rule = self.get_active_rule(model_id, unit)
+            except PricingRuleUnavailable:
+                continue
+            amount, breakdown = self.calculate(rule, qty)
+            total += amount
+            lines.append(breakdown)
+            snapshots.append(snapshot_rule(rule, self.usd_to_irr))
+        if not lines:
+            raise PricingRuleUnavailable(
+                f"no usable pricing rule for video model={model_id}"
+            )
         return {"total_irr": total, "lines": lines, "pricing_snapshots": snapshots}
 
     def estimate_image(

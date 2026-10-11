@@ -18,8 +18,9 @@ CAP_IMAGE = "image"
 # whose single model handles generation and editing).
 CAP_GENERATE_IMAGE = "generate_image"
 CAP_EDIT_IMAGE = "edit_image"
+CAP_VIDEO_GENERATION = "video_generation"
 
-CAPABILITIES = (CAP_TEXT, CAP_STT, CAP_TTS, CAP_IMAGE, CAP_GENERATE_IMAGE, CAP_EDIT_IMAGE)
+CAPABILITIES = (CAP_TEXT, CAP_STT, CAP_TTS, CAP_IMAGE, CAP_GENERATE_IMAGE, CAP_EDIT_IMAGE, CAP_VIDEO_GENERATION)
 
 # Capabilities that back the image page (generation tab + editing tab).
 IMAGE_CAPABILITIES = (CAP_GENERATE_IMAGE, CAP_EDIT_IMAGE, CAP_IMAGE)

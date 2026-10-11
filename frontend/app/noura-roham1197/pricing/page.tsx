@@ -34,6 +34,7 @@ const CAPABILITY_LABELS: Record<ModelCapability, string> = {
   generate_image: 'تولید تصویر',
   edit_image: 'ویرایش تصویر',
   vision: 'تحلیل تصویر',
+  video_generation: 'تولید ویدیو',
 };
 
 const BILLING_UNIT_LABELS: Record<string, string> = {
@@ -41,6 +42,7 @@ const BILLING_UNIT_LABELS: Record<string, string> = {
   input_token: 'توکن ورودی',
   output_token: 'توکن خروجی',
   audio_second: 'ثانیه صوت',
+  video_second: 'ثانیه ویدیو',
   image_count: 'تعداد تصویر',
   input_megapixel: 'مگاپیکسل ورودی',
   output_megapixel: 'مگاپیکسل خروجی',

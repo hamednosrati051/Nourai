@@ -31,6 +31,8 @@ from app.providers.base import (
     TextResult,
     TextToSpeechProvider,
     TranscriptResult,
+    VideoAiProvider,
+    VideoResult,
 )
 
 log = logging.getLogger(__name__)
@@ -1343,3 +1345,172 @@ def get_image_provider(provider_key: str | None = None, model=None) -> ImageAiPr
             provider_key=provider_key or "default",
         )
     raise ValueError(f"unknown image provider_type: {name}")
+
+
+# ---------------------------------------------------------------------------
+# Video provider selection (model-driven).
+#
+# ``get_video_provider`` reads ``provider_type`` from the AiModel row
+# (``fake`` | ``openai_compat``), the same pattern as the image selector.
+# Provider credentials come from the admin model form (env is fallback).
+# ---------------------------------------------------------------------------
+class FakeVideoProvider(VideoAiProvider):
+    def __init__(self):
+        _guard_not_production()
+
+    def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
+        return VideoResult(
+            ok=True,
+            video_bytes=b"fake-video-bytes",
+            mime_type="video/mp4",
+            duration_seconds=int(options.get("seconds") or 4),
+            provider_request_id=f"fake-vid-{uuid.uuid4().hex[:12]}",
+        )
+
+
+class OpenAICompatVideoProvider(VideoAiProvider):
+    """OpenAI-style video generation client (create -> poll -> download).
+
+    ``generate`` POSTs JSON to ``{base_url}/videos`` with ``model``,
+    ``prompt``, ``seconds`` and ``size``; the ``model`` sent is the
+    catalog's ``provider_model_name`` verbatim. The job is polled via
+    ``GET {base_url}/videos/{id}`` until its status is ``completed``
+    (or ``failed``), then the MP4 is fetched from
+    ``GET {base_url}/videos/{id}/content``.
+
+    Video rendering takes minutes, so this blocks inside the Celery
+    worker (same as the async image provider).
+    """
+
+    POLL_INTERVAL_SECONDS = 10
+    POLL_DEADLINE_SECONDS = 1500  # 25 minutes
+
+    def __init__(self, base_url: str, api_key: str, provider_key: str,
+                 timeout_seconds: int = 60):
+        if not base_url or not api_key:
+            raise ValueError("base_url and api_key are required")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.provider_key = provider_key
+        self.timeout_seconds = timeout_seconds
+
+    def _headers(self, content_type: str | None = None) -> dict:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if content_type:
+            headers["Content-Type"] = content_type
+        return headers
+
+    def _api_json(self, method: str, path: str,
+                  payload: dict | None = None) -> dict | None:
+        body = json.dumps(payload).encode("utf-8") if payload is not None else None
+        req = urllib.request.Request(
+            f"{self.base_url}{path}", data=body, method=method,
+            headers=self._headers("application/json"),
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("openai-compat video provider %s %s http %s: %s",
+                        self.provider_key, path, exc.code, detail)
+            if exc.code == 402:
+                return {"_provider_error": "INSUFFICIENT_CREDIT", "_detail": detail}
+            if exc.code == 401:
+                return {"_provider_error": "INVALID_CREDENTIALS", "_detail": detail}
+        except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
+            log.warning("openai-compat video provider %s %s failed: %s",
+                        self.provider_key, path, exc)
+        return None
+
+    def _download_bytes(self, path: str) -> bytes:
+        req = urllib.request.Request(
+            f"{self.base_url}{path}", headers=self._headers())
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                return resp.read()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("openai-compat video download %s failed: %s", path, exc)
+            return b""
+
+    def _poll(self, video_id: str) -> dict | None:
+        import time
+        deadline = time.monotonic() + self.POLL_DEADLINE_SECONDS
+        while time.monotonic() < deadline:
+            data = self._api_json("GET", f"/videos/{video_id}")
+            if not data:
+                return None
+            status = (data.get("status") or "").lower()
+            if status == "completed":
+                return data
+            if status in ("failed", "cancelled", "error"):
+                log.warning("openai-compat video %s ended with %s: %s",
+                            video_id, status, str(data.get("error"))[:200])
+                return None
+            time.sleep(self.POLL_INTERVAL_SECONDS)
+        log.warning("openai-compat video %s polling timed out", video_id)
+        return None
+
+    def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
+        seconds = int(options.get("seconds") or 4)
+        size = options.get("size") or "1280x720"
+        data = self._api_json("POST", "/videos", {
+            "model": model,
+            "prompt": prompt,
+            "seconds": str(seconds),
+            "size": size,
+        })
+        if data and data.get("_provider_error"):
+            return VideoResult(
+                ok=False, error_code=data["_provider_error"],
+                error_message=str(data.get("_detail") or data["_provider_error"])[:200],
+            )
+        video_id = (data or {}).get("id")
+        if not video_id:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not create video job")
+        log.info("openai-compat video job created: %s", video_id)
+        done = self._poll(str(video_id))
+        if not done:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="video generation failed or timed out")
+        video_bytes = self._download_bytes(f"/videos/{video_id}/content")
+        if not video_bytes:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not download result video")
+        usage = done.get("usage") or {}
+        cost_cents = usage.get("cost_cents")
+        try:
+            cost_cents = int(cost_cents) if cost_cents is not None else None
+        except (TypeError, ValueError):
+            cost_cents = None
+        return VideoResult(
+            ok=True, video_bytes=video_bytes, mime_type="video/mp4",
+            duration_seconds=seconds, provider_request_id=str(video_id),
+            provider_cost_cents=cost_cents,
+        )
+
+
+def get_video_provider(provider_key: str | None = None, model=None) -> VideoAiProvider:
+    """Select the video provider from the model row."""
+    name = ((getattr(model, "provider_type", None)) or "fake").lower()
+    if name == "fake":
+        return FakeVideoProvider()
+    if name == "openai_compat":
+        base_url, api_key = _resolve_credentials(provider_key, model)
+        if not base_url or not api_key:
+            raise ValueError(
+                f"missing credentials for provider {provider_key!r}: "
+                f"set them in the admin model form or via "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
+                f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        return OpenAICompatVideoProvider(
+            base_url=base_url, api_key=api_key,
+            provider_key=provider_key or "default",
+        )
+    raise ValueError(f"unknown video provider_type: {name}")

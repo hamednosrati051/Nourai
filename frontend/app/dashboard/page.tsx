@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, CircleDollarSign, Crown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Clapperboard, Crown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -178,6 +178,15 @@ export default function DashboardPage() {
                 title="تولید و ویرایش تصویر"
                 description="ساخت و ویرایش تصویر با مدل‌های پیشرفته"
                 color="#a78bfa"
+              />
+            )}
+            {hasCap('video_generation') && (
+              <ServiceCard
+                href="/dashboard/video"
+                icon={Clapperboard}
+                title="تولید ویدیو"
+                description="ساخت ویدیو از توضیح متنی (چند دقیقه طول می‌کشد)"
+                color="#f43f5e"
               />
             )}
             {(hasCap('vision') || hasCap('text')) && (

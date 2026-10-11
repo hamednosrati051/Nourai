@@ -134,6 +134,35 @@ class ImageAiProvider(ABC):
         ...
 
 
+@dataclass
+class VideoResult:
+    ok: bool
+    video_bytes: bytes = b""
+    mime_type: str = "video/mp4"
+    duration_seconds: int | None = None
+    width: int | None = None
+    height: int | None = None
+    provider_request_id: str | None = None
+    # Provider-reported generation cost in USD cents (when the API reports
+    # it). Used for cost-plus-margin protection; None = unknown.
+    provider_cost_cents: int | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class VideoAiProvider(ABC):
+    @abstractmethod
+    def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
+        """Generate a video from a text prompt.
+
+        ``options`` may carry ``seconds`` (int) and ``size`` (e.g.
+        ``"1280x720"``). Implementations must block until the video is
+        ready (create -> poll -> download) because callers run inside a
+        Celery worker.
+        """
+        ...
+
+
 class ProviderError(Exception):
     """Normalized provider failure (safe to log, safe message for users)."""
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2, FileText, Loader2 } from 'lucide-react';
+import { ArrowRight, Clapperboard, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2, FileText, Loader2 } from 'lucide-react';
 import { PillHeader } from '@/components/PillHeader';
 import { FloatingNav } from '@/components/FloatingNav';
 
@@ -65,6 +65,13 @@ const CAPABILITY_META: Record<string, { title: string; unit: string; description
     color: '#f97316',
     icon: FileText,
   },
+  video_generation: {
+    title: 'تولید ویدیو',
+    unit: 'هر ثانیه',
+    description: 'ساخت ویدیو از توضیح متنی',
+    color: '#f43f5e',
+    icon: Clapperboard,
+  },
 };
 
 function formatToman(amount: number): string {
@@ -102,6 +109,13 @@ function calculatePrice(model: ModelPricing, usdToIrr: number): string {
   if (model.capability === 'speech_to_text' || model.capability === 'text_to_speech') {
     // Per minute estimate (60 seconds)
     const totalUsd = priceUsd * 60 / rule.unit_size;
+    return formatToman(totalUsd * usdToIrr / 10);
+  }
+
+  if (model.capability === 'video_generation') {
+    // Per 4-second clip estimate (shortest duration)
+    const secondsRule = model.pricing.find(r => r.billing_unit === 'video_second') || rule;
+    const totalUsd = (secondsRule.unit_price_usd * 4) / (secondsRule.unit_size || 1);
     return formatToman(totalUsd * usdToIrr / 10);
   }
   
