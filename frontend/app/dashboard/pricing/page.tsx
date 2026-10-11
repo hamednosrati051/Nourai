@@ -190,7 +190,6 @@ export default function PricingPage() {
                   </h3>
                   <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">
                     {meta.description}
-                    <span className="block text-xs text-neutral-400 mt-1">{model.display_name}</span>
                   </p>
                   <div className="mt-2 flex items-baseline justify-between">
                     <span className="text-xs text-neutral-500">{meta.unit}</span>

@@ -3,7 +3,6 @@
 import { ChartColumn } from 'lucide-react';
 import { useState } from 'react';
 import { useUsage } from '@/features/usage/hooks';
-import { useModels } from '@/features/models/hooks';
 import { formatToman } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -30,16 +29,13 @@ const STATUS_META: Record<UsageStatus, { label: string; badge: string }> = {
 export default function UsagePage() {
   const [page, setPage] = useState(1);
   const [service, setService] = useState<ModelService | ''>('');
-  const [modelId, setModelId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  const models = useModels();
-  const usage = useUsage({ page, service, modelId, from, to });
+  const usage = useUsage({ page, service, from, to });
 
   const resetFilters = () => {
     setService('');
-    setModelId('');
     setFrom('');
     setTo('');
     setPage(1);
@@ -69,27 +65,6 @@ export default function UsagePage() {
               <option value="text">متن</option>
               <option value="audio">صوت</option>
               <option value="image">تصویر</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="usage-model" className="label">
-              مدل
-            </label>
-            <select
-              id="usage-model"
-              className="input"
-              value={modelId}
-              onChange={(e) => {
-                setModelId(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="">همه مدل‌ها</option>
-              {(models.data ?? []).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.display_name}
-                </option>
-              ))}
             </select>
           </div>
           <div>
