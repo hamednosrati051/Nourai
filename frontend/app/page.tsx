@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { NouraHero } from '@/components/NouraHero';
-import { FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
+import { FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2 } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -54,6 +54,13 @@ const SERVICES = [
     description: 'برگه آزمایشتان را تحلیل کنید (جایگزین پزشک نیست).',
     href: '/dashboard/lab-report',
     color: '#22d3ee',
+  },
+  {
+    icon: FileText,
+    title: 'قراردادها',
+    description: 'تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست).',
+    href: '/dashboard/contracts',
+    color: '#f97316',
   },
 ];
 

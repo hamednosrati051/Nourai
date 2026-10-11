@@ -198,6 +198,15 @@ export default function DashboardPage() {
                 color="#22d3ee"
               />
             )}
+            {(hasCap('vision') || hasCap('text')) && (
+              <ServiceCard
+                href="/dashboard/contracts"
+                icon={FileText}
+                title="قراردادها"
+                description="تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست)"
+                color="#f97316"
+              />
+            )}
             {hasCap('speech_to_text') && (
               <ServiceCard
                 href="/dashboard/voice"
