@@ -119,7 +119,7 @@ export default function ContractsPage() {
           ...messages.map((m) => ({ role: m.role, content: m.content })),
           { role: 'user', content: userMsg },
         ],
-      }, {
+      }, undefined, {
         'Idempotency-Key': crypto.randomUUID(),
       });
       setMessages((prev) => [...prev, { role: 'assistant', content: res.reply }]);
