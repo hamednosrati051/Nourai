@@ -1458,12 +1458,17 @@ class OpenAICompatVideoProvider(VideoAiProvider):
     def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
         seconds = int(options.get("seconds") or 4)
         size = options.get("size") or "1280x720"
-        data = self._api_json("POST", "/videos", {
+        payload = {
             "model": model,
             "prompt": prompt,
             "seconds": str(seconds),
             "size": size,
-        })
+        }
+        # Optional image-to-video: base64-encoded image
+        image_b64 = options.get("image_base64")
+        if image_b64:
+            payload["image"] = image_b64
+        data = self._api_json("POST", "/videos", payload)
         if data and data.get("_provider_error"):
             return VideoResult(
                 ok=False, error_code=data["_provider_error"],

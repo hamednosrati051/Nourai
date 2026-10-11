@@ -20,6 +20,8 @@ export interface CreateVideoJobInput {
   size: string;
   /** Optional video model id; backend falls back to the active video model. */
   model_id?: string;
+  /** Optional base64-encoded image for image-to-video. */
+  image_base64?: string;
 }
 
 export function useCreateVideoJob() {

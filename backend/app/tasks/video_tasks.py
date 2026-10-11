@@ -118,6 +118,9 @@ def _run_provider(session, job: GenerationJob) -> Asset:
         "seconds": int(params.get("seconds") or 4),
         "size": params.get("size") or "1280x720",
     }
+    # Optional image-to-video
+    if params.get("image_base64"):
+        options["image_base64"] = params["image_base64"]
     result = provider.generate(model.provider_model_name, job.prompt_text or "", options)
     if not result.ok or not result.video_bytes:
         raise RuntimeError(result.error_code or "provider failed")

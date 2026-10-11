@@ -171,6 +171,8 @@ def create_video_job():
             "size": size,
             "size_key": size_key,
             "model_id": model.id,
+            # Optional image-to-video (base64)
+            "image_base64": body.get("image_base64"),
         },
     )
     db.session.add(job)

@@ -49,6 +49,7 @@ export default function VideoPage() {
   const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [viewingJob, setViewingJob] = useState<VideoJob | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
 
   const config = useVideoConfig();
   const createJob = useCreateVideoJob();
@@ -57,6 +58,22 @@ export default function VideoPage() {
   const doneVideos = (history.data?.items ?? []).filter(
     (job) => job.status === 'succeeded' && job.result_url,
   );
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setImageBase64(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix, keep only base64
+      const base64 = result.split(',')[1] || result;
+      setImageBase64(base64);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const cfg = config.data;
   const durations = cfg?.durations ?? [4, 8, 12];
@@ -78,6 +95,7 @@ export default function VideoPage() {
         seconds: values.seconds,
         size: values.size,
         // No model_id: the backend picks the active video model automatically.
+        ...(imageBase64 ? { image_base64: imageBase64 } : {}),
       },
       {
         onSuccess: (job) => {
@@ -160,6 +178,23 @@ export default function VideoPage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Optional image for image-to-video */}
+            <div>
+              <label htmlFor="vid-image" className="label">
+                تصویر (اختیاری - برای تولید ویدیو از روی تصویر)
+              </label>
+              <input
+                id="vid-image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="input"
+              />
+              {imageBase64 && (
+                <p className="mt-1 text-xs text-green-600">تصویر انتخاب شد ✓</p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row">
