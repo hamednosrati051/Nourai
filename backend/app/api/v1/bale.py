@@ -67,6 +67,7 @@ MENU_KEYBOARD = {
         [{"text": "🎧 دستیار صوتی"}],
         [{"text": "🎨 تولید تصویر"}],
         [{"text": "✏️ ویرایش تصویر"}],
+        [{"text": "🧪 برگه آزمایش"}],
         [{"text": "🎙️ صوت به متن"}],
         [{"text": "🔊 متن به صوت"}],
         [{"text": "💰 اعتبار من"}],
@@ -81,6 +82,7 @@ BTN_CHAT = "💬 گفتگو"
 BTN_VA = "🎧 دستیار صوتی"
 BTN_IMAGE = "🎨 تولید تصویر"
 BTN_EDIT = "✏️ ویرایش تصویر"
+BTN_LAB = "🧪 برگه آزمایش"
 BTN_STT = "🎙️ صوت به متن"
 BTN_TTS = "🔊 متن به صوت"
 BTN_WALLET = "💰 اعتبار من"
@@ -477,6 +479,148 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     db.session.commit()
     send_message(chat_id, "🎨 عکست آماده شد!")
     send_photo(chat_id, result.image_bytes, caption=f"🎨 {prompt}")
+
+
+def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
+    """Analyze a lab report image sent by the user."""
+    from app.api.v1.vision import LAB_REPORT_SYSTEM_PROMPT
+    import base64
+
+    # Download the photo
+    photo_bytes = download_bale_file(file_id)
+    if not photo_bytes:
+        send_message(chat_id, "خطا در دانلود عکس. دوباره تلاش کنید.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+
+    # Get vision model
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="vision", is_active=True)
+        .first()
+    )
+    if model is None:
+        send_message(chat_id, "مدل تحلیل تصویر فعالی پیدا نشد.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+
+    try:
+        provider = get_text_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("bale lab provider error: %s", exc)
+        send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+
+    # Estimate cost
+    pricing = PricingService(db.session)
+    input_tokens = len(LAB_REPORT_SYSTEM_PROMPT) // 4 + 1500
+    max_output = 2048
+    try:
+        estimate = pricing.estimate_text(model.id, input_tokens, max_output)
+    except PricingRuleUnavailable:
+        send_message(chat_id, "تعرفه مدل تنظیم نشده.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"bale-lab-{uuid.uuid4().hex}"
+    try:
+        from app.billing.ledger import reserve, InsufficientBalance
+        reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                idempotency_key=key, description="bale_lab_report")
+    except InsufficientBalance:
+        send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+    db.session.commit()
+
+    send_message(chat_id, "🧪 دارم برگه آزمایشت رو تحلیل می‌کنم... چند لحظه صبر کن.")
+
+    # Call provider
+    b64 = base64.b64encode(photo_bytes).decode("utf-8")
+    data_url = f"data:image/jpeg;base64,{b64}"
+    provider_messages = [
+        {"role": "system", "content": LAB_REPORT_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "این برگه آزمایش را تحلیل کن."},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        },
+    ]
+
+    try:
+        result = provider.generate(model.provider_model_name, provider_messages, {"max_output_tokens": max_output})
+    except BaseException as exc:  # Never crash webhook, always refund
+        log.warning("bale lab provider call failed: %s", exc)
+        try:
+            from app.billing.ledger import release
+            release(db.session, wallet=wallet, idempotency_key=key,
+                    description="bale_lab_failed")
+            db.session.commit()
+        except Exception as release_exc:
+            log.error("bale lab release failed: %s", release_exc)
+            db.session.rollback()
+        try:
+            send_message(chat_id, "خطا در تحلیل. مبلغ برگشت داده شد.",
+                         reply_markup=MENU_KEYBOARD)
+        except Exception:
+            pass
+        return
+
+    if not result.ok or not result.text:
+        try:
+            from app.billing.ledger import release
+            release(db.session, wallet=wallet, idempotency_key=key,
+                    description="bale_lab_failed")
+            db.session.commit()
+        except Exception:
+            pass
+        send_message(chat_id, "خطا در تحلیل. بعداً تلاش کنید.",
+                     reply_markup=MENU_KEYBOARD)
+        return
+
+    # Settle billing
+    output_tokens = result.output_tokens if result.output_tokens else max_output
+    actual_input = result.input_tokens if result.input_tokens else input_tokens
+    try:
+        final = pricing.estimate_text(model.id, actual_input, output_tokens)
+        final_irr = final["total_irr"]
+    except PricingRuleUnavailable:
+        final_irr = estimate["total_irr"]
+
+    usage = UsageEvent(
+        user_id=user.id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="succeeded",
+        est_input_tokens=input_tokens,
+        est_output_tokens=max_output,
+        estimated_amount_irr=estimate["total_irr"],
+        final_input_tokens=actual_input,
+        final_output_tokens=output_tokens,
+        final_amount_irr=final_irr,
+    )
+    db.session.add(usage)
+    try:
+        from app.billing.ledger import settle
+        settle(db.session, wallet=wallet, idempotency_key=key,
+               final_amount_irr=final_irr, description="bale_lab_report")
+        db.session.commit()
+    except Exception as exc:
+        log.warning("bale lab settle failed: %s", exc)
+        db.session.rollback()
+
+    # Send result (split if too long)
+    text = result.text
+    if len(text) > 4000:
+        for i in range(0, len(text), 4000):
+            send_message(chat_id, text[i:i+4000], reply_markup=MENU_KEYBOARD if i + 4000 >= len(text) else None)
+    else:
+        send_message(chat_id, text, reply_markup=MENU_KEYBOARD)
 
 
 def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
@@ -1207,6 +1351,12 @@ def webhook():
                          reply_markup=MENU_KEYBOARD)
             return success_response({"ok": True})
 
+        if text == BTN_LAB or text.startswith("/lab"):
+            _set_user_mode(bale_user_id, "awaiting_lab_photo")
+            send_message(chat_id, "🧪 عکس برگه آزمایشت رو بفرست 👇",
+                         reply_markup=MENU_KEYBOARD)
+            return success_response({"ok": True})
+
         if text == BTN_WALLET:
             balance = _wallet_balance(user.id)
             send_message(chat_id, f"💰 موجودی کیف پولت: {_toman(balance)} تومان",
@@ -1267,6 +1417,10 @@ def webhook():
                     _set_user_mode(bale_user_id, "awaiting_edit_prompt", {"file_id": file_id})
                     send_message(chat_id, "✏️ حالا بگو چی رو ویرایش کنم 👇",
                                  reply_markup=MENU_KEYBOARD)
+                    return success_response({"ok": True})
+                elif ph_mode == "awaiting_lab_photo":
+                    _set_user_mode(bale_user_id, None)
+                    _handle_lab(chat_id, user, file_id)
                     return success_response({"ok": True})
 
         voice = message.get("voice") or {}
