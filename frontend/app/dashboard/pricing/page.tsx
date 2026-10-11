@@ -13,8 +13,6 @@ interface PricingRule {
 }
 
 interface ModelPricing {
-  slug: string;
-  display_name: string;
   capability: string;
   pricing: PricingRule[];
 }
@@ -181,7 +179,7 @@ export default function PricingPage() {
               const Icon = meta.icon;
               const price = calculatePrice(model, data.usd_to_irr);
               return (
-                <div key={model.slug} className="card group" style={{ ['--svc' as string]: meta.color }}>
+                <div key={model.capability} className="card group" style={{ ['--svc' as string]: meta.color }}>
                   <span aria-hidden="true" className="service-icon">
                     <Icon className="h-7 w-7" style={{ color: meta.color }} />
                   </span>
