@@ -1564,12 +1564,84 @@ class OpenAICompatVideoProvider(VideoAiProvider):
         )
 
 
+class AsyncGenerationVideoProvider(_AsyncGenerationBase, VideoAiProvider):
+    """MetisAI async video generation (create -> poll -> download).
+
+    Uses the same ``/api/v2/generate`` endpoint as the image provider,
+    with ``operation`` ``"Imagine"`` and video-specific args.
+    """
+
+    def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
+        # Resume existing job if provider_video_id is provided (retry safety)
+        task_id = options.get("provider_video_id")
+        if not task_id:
+            # Parse vendor/model from "vendor/model" format
+            vendor, _, name = model.partition("/")
+            if not name:
+                # Fallback: treat whole string as model name
+                vendor, name = "wan-video", model
+            seconds = int(options.get("seconds") or 4)
+            args: dict = {"prompt": prompt, "duration": seconds}
+            # Image-to-video: upload image first, pass URL
+            image_b64 = options.get("image_base64")
+            if image_b64:
+                import base64
+                try:
+                    image_bytes = base64.b64decode(image_b64)
+                except Exception:
+                    return VideoResult(ok=False, error_code="INVALID_IMAGE",
+                                       error_message="invalid image data")
+                image_url = self._upload(image_bytes, "input.jpg")
+                if not image_url:
+                    return VideoResult(ok=False, error_code="UPLOAD_FAILED",
+                                       error_message="could not upload input image")
+                args["image_input"] = image_url
+            task_id = self._create_task(vendor, name, "Imagine", args)
+            if not task_id:
+                return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                                   error_message="could not create video job")
+            log.info("async video job created: %s", task_id)
+            options["provider_video_id"] = str(task_id)
+        else:
+            log.info("async video resuming job: %s", task_id)
+            seconds = int(options.get("seconds") or 4)
+
+        data = self._poll(str(task_id))
+        if not data:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="video generation failed or timed out")
+        # Metis returns data[0].url for completed videos
+        generations = data.get("data") or data.get("generations") or []
+        url = (generations[0].get("url") if generations else None)
+        if not url:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="empty generation result")
+        video_bytes = self._download(url)
+        if not video_bytes:
+            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                               error_message="could not download result video")
+        usage = data.get("usage") or {}
+        provider_cost_cents = _metis_usage_cost_to_cents(usage)
+        return VideoResult(
+            ok=True, video_bytes=video_bytes, mime_type="video/mp4",
+            duration_seconds=seconds, provider_request_id=str(task_id),
+            provider_cost_cents=provider_cost_cents,
+        )
+
+    def _upload(self, image_bytes: bytes, filename: str) -> str | None:
+        body, content_type = _encode_multipart({}, "files", filename, "image/jpeg", image_bytes)
+        data = self._api("POST", "/api/v1/storage", body, content_type)
+        files = (data or {}).get("files") or []
+        url = files[0].get("url") if files else None
+        return url
+
+
 def get_video_provider(provider_key: str | None = None, model=None) -> VideoAiProvider:
     """Select the video provider from the model row."""
     name = ((getattr(model, "provider_type", None)) or "fake").lower()
     if name == "fake":
         return FakeVideoProvider()
-    if name == "openai_compat":
+    if name in ("openai_compat", "async_generation_video"):
         base_url, api_key = _resolve_credentials(provider_key, model)
         if not base_url or not api_key:
             raise ValueError(
@@ -1577,6 +1649,11 @@ def get_video_provider(provider_key: str | None = None, model=None) -> VideoAiPr
                 f"set them in the admin model form or via "
                 f"AI_PROVIDER_{(provider_key or 'default').upper()}_BASE_URL / "
                 f"AI_PROVIDER_{(provider_key or 'default').upper()}_API_KEY"
+            )
+        if name == "async_generation_video":
+            return AsyncGenerationVideoProvider(
+                base_url=base_url, api_key=api_key,
+                provider_key=provider_key or "default",
             )
         return OpenAICompatVideoProvider(
             base_url=base_url, api_key=api_key,
