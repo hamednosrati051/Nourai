@@ -120,6 +120,6 @@ def aborted_during_processing(session, job: GenerationJob) -> bool:
     return True
 
 
-from app.tasks import audio_tasks, image_tasks, sweep_tasks, tts_tasks  # noqa: E402,F401
+from app.tasks import audio_tasks, image_tasks, sweep_tasks, tts_tasks, video_tasks  # noqa: E402,F401
 
-__all__ = ["audio_tasks", "image_tasks", "sweep_tasks", "tts_tasks", "get_flask_app", "settle_job_billing", "release_job_billing", "cancel_job", "aborted_during_processing"]
+__all__ = ["audio_tasks", "image_tasks", "sweep_tasks", "tts_tasks", "video_tasks", "get_flask_app", "settle_job_billing", "release_job_billing", "cancel_job", "aborted_during_processing"]
