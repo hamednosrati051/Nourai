@@ -602,7 +602,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
         estimated_amount_irr=estimate["total_irr"],
         final_input_tokens=actual_input,
         final_output_tokens=output_tokens,
-        final_amount_irr=final_irr,
+        charged_amount_irr=final_irr,
     )
     db.session.add(usage)
     try:
