@@ -87,7 +87,7 @@ def user_summary(session, user: User) -> dict:
     wallet = session.query(WalletAccount).filter_by(user_id=user.id).one_or_none()
     return {
         "id": user.id,
-        "mobile_masked": mask_mobile(user.mobile_normalized),
+        "mobile_masked": user.mobile_normalized,
         "is_active": user.is_active,
         "mobile_verified_at": _iso(user.mobile_verified_at),
         "last_login_at": _iso(user.last_login_at),
