@@ -608,6 +608,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
     try:
         from app.billing.ledger import settle
         settle(db.session, wallet=wallet, idempotency_key=key,
+               reserved_amount_irr=estimate["total_irr"],
                final_amount_irr=final_irr, description="bale_lab_report")
         db.session.commit()
     except Exception as exc:
