@@ -121,7 +121,17 @@ def _run_provider(session, job: GenerationJob) -> Asset:
     # Optional image-to-video
     if params.get("image_base64"):
         options["image_base64"] = params["image_base64"]
-    result = provider.generate(model.provider_model_name, job.prompt_text or "", options)
+    # Resume safety: if a provider video ID was saved from a previous attempt, reuse it
+    if params.get("provider_video_id"):
+        options["provider_video_id"] = params["provider_video_id"]
+    try:
+        result = provider.generate(model.provider_model_name, job.prompt_text or "", options)
+    finally:
+        # Save provider video ID for retry safety (prevents duplicate video creation)
+        if options.get("provider_video_id") and options["provider_video_id"] != params.get("provider_video_id"):
+            params["provider_video_id"] = options["provider_video_id"]
+            job.parameters_json = params
+            session.commit()
     if not result.ok or not result.video_bytes:
         raise RuntimeError(result.error_code or "provider failed")
 

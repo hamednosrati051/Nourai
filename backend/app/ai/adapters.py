@@ -1456,29 +1456,37 @@ class OpenAICompatVideoProvider(VideoAiProvider):
         return None
 
     def generate(self, model: str, prompt: str, options: dict) -> VideoResult:
-        seconds = int(options.get("seconds") or 4)
-        size = options.get("size") or "1280x720"
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "seconds": str(seconds),
-            "size": size,
-        }
-        # Image-to-video: supported by gen4.5 and gen4_turbo
-        image_b64 = options.get("image_base64")
-        if image_b64:
-            payload["image"] = image_b64
-        data = self._api_json("POST", "/videos", payload)
-        if data and data.get("_provider_error"):
-            return VideoResult(
-                ok=False, error_code=data["_provider_error"],
-                error_message=str(data.get("_detail") or data["_provider_error"])[:200],
-            )
-        video_id = (data or {}).get("id")
+        # Resume existing job if provider_video_id is provided (retry safety)
+        video_id = options.get("provider_video_id")
         if not video_id:
-            return VideoResult(ok=False, error_code="PROVIDER_ERROR",
-                               error_message="could not create video job")
-        log.info("openai-compat video job created: %s", video_id)
+            seconds = int(options.get("seconds") or 4)
+            size = options.get("size") or "1280x720"
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "seconds": str(seconds),
+                "size": size,
+            }
+            # Image-to-video: supported by gen4.5 and gen4_turbo
+            image_b64 = options.get("image_base64")
+            if image_b64:
+                payload["image"] = image_b64
+            data = self._api_json("POST", "/videos", payload)
+            if data and data.get("_provider_error"):
+                return VideoResult(
+                    ok=False, error_code=data["_provider_error"],
+                    error_message=str(data.get("_detail") or data["_provider_error"])[:200],
+                )
+            video_id = (data or {}).get("id")
+            if not video_id:
+                return VideoResult(ok=False, error_code="PROVIDER_ERROR",
+                                   error_message="could not create video job")
+            log.info("openai-compat video job created: %s", video_id)
+            # Save for retry safety (mutable options dict)
+            options["provider_video_id"] = str(video_id)
+        else:
+            log.info("openai-compat resuming video job: %s", video_id)
+            seconds = int(options.get("seconds") or 4)
         done = self._poll(str(video_id))
         if not done:
             return VideoResult(ok=False, error_code="PROVIDER_ERROR",
