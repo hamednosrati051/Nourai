@@ -751,16 +751,22 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
         result = provider.synthesize(model.provider_model_name, text, {})
     except Exception as exc:  # noqa: BLE001
         log.warning("bale tts call failed: %s", exc)
-        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, description="bale_tts_failed")
-        db.session.commit()
+        try:
+            release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=f"{key}:release", description="bale_tts_failed")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         send_message(chat_id, "خطا در تولید صوت.")
         return
 
     if not result.ok or not result.audio_bytes:
-        release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-                idempotency_key=key, description="bale_tts_failed")
-        db.session.commit()
+        try:
+            release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=f"{key}:release", description="bale_tts_failed")
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         send_message(chat_id, "خطا در تولید صوت.")
         return
 
