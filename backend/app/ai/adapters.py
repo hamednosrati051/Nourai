@@ -1431,6 +1431,44 @@ class OpenAICompatVideoProvider(VideoAiProvider):
                         self.provider_key, path, exc)
         return None
 
+    def _api_multipart(self, path: str, fields: dict, file_field: str,
+                       file_bytes: bytes, filename: str = "image.jpg") -> dict | None:
+        """POST multipart/form-data for video creation with image reference."""
+        import uuid
+        boundary = f"----{uuid.uuid4().hex}"
+        body = b""
+        for key, value in fields.items():
+            body += f"--{boundary}\r\n".encode()
+            body += f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode()
+            body += f"{value}\r\n".encode()
+        # File field
+        body += f"--{boundary}\r\n".encode()
+        body += f'Content-Disposition: form-data; name="{file_field}"; filename="{filename}"\r\n'.encode()
+        body += b"Content-Type: image/jpeg\r\n\r\n"
+        body += file_bytes + b"\r\n"
+        body += f"--{boundary}--\r\n".encode()
+
+        headers = {"Authorization": f"Bearer {self.api_key}",
+                   "Content-Type": f"multipart/form-data; boundary={boundary}"}
+        req = urllib.request.Request(f"{self.base_url}{path}", data=body,
+                                     method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8")[:300]
+            except Exception:
+                pass
+            log.warning("openai-compat video provider %s %s http %s: %s",
+                        self.provider_key, path, exc.code, detail)
+            return {"_provider_error": f"HTTP_{exc.code}", "_detail": detail}
+        except Exception as exc:
+            log.warning("openai-compat video provider %s %s failed: %s",
+                        self.provider_key, path, exc)
+        return None
+
     def _download_bytes(self, path: str) -> bytes:
         req = urllib.request.Request(
             f"{self.base_url}{path}", headers=self._headers())
@@ -1465,17 +1503,31 @@ class OpenAICompatVideoProvider(VideoAiProvider):
         if not video_id:
             seconds = int(options.get("seconds") or 4)
             size = options.get("size") or "1280x720"
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "seconds": str(seconds),
-                "size": size,
-            }
-            # Image-to-video: supported by gen4.5 and gen4_turbo
+            # Image-to-video: use multipart with input_reference per AvalAI docs
             image_b64 = options.get("image_base64")
             if image_b64:
-                payload["image"] = image_b64
-            data = self._api_json("POST", "/videos", payload)
+                import base64
+                try:
+                    image_bytes = base64.b64decode(image_b64)
+                except Exception:
+                    return VideoResult(ok=False, error_code="INVALID_IMAGE",
+                                       error_message="invalid image data")
+                fields = {
+                    "model": model,
+                    "prompt": prompt,
+                    "seconds": str(seconds),
+                    "size": size,
+                }
+                data = self._api_multipart("/videos", fields, "input_reference",
+                                           image_bytes)
+            else:
+                payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "seconds": str(seconds),
+                    "size": size,
+                }
+                data = self._api_json("POST", "/videos", payload)
             if data and data.get("_provider_error"):
                 return VideoResult(
                     ok=False, error_code=data["_provider_error"],

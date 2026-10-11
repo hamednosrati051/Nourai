@@ -48,6 +48,8 @@ bp = Blueprint("video", __name__)
 
 # Allowed clip lengths (seconds) and output sizes.
 VIDEO_DURATIONS = (4, 8, 12)
+# gen4 models support max 10s (not 12)
+VIDEO_DURATIONS_GEN4 = (4, 8, 10)
 VIDEO_SIZES = {
     "landscape": "1280x720",
     "portrait": "720x1280",
@@ -68,6 +70,15 @@ def _resolve_video_model(model_id: str | None) -> AiModel | None:
         .order_by(AiModel.created_at)
         .first()
     )
+
+
+def _durations_for_model(model: AiModel | None) -> tuple:
+    """Return allowed durations based on model type."""
+    if model and model.provider_model_name:
+        name = model.provider_model_name.lower()
+        if "gen4" in name:
+            return VIDEO_DURATIONS_GEN4
+    return VIDEO_DURATIONS
 
 
 def _job_payload(job: GenerationJob) -> dict:
@@ -108,7 +119,7 @@ def _job_payload(job: GenerationJob) -> dict:
 def video_config():
     model = _resolve_video_model(None)
     return success_response({
-        "durations": list(VIDEO_DURATIONS),
+        "durations": list(_durations_for_model(model)),
         "sizes": [{"key": k, "label": v} for k, v in VIDEO_SIZES.items()],
         "model_available": model is not None,
     })
@@ -146,6 +157,13 @@ def create_video_job():
     model = _resolve_video_model(body.get("model_id"))
     if model is None:
         return error_response("MODEL_UNAVAILABLE", "مدل فعال تولید ویدیو یافت نشد.", 404)
+
+    try:
+        seconds = int(body.get("seconds") or 4)
+    except (TypeError, ValueError):
+        seconds = 4
+    if seconds not in _durations_for_model(model):
+        return validation_error()
 
     idempotency_key = request.headers.get("Idempotency-Key")
     if not idempotency_key:
