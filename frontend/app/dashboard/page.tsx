@@ -162,6 +162,15 @@ export default function DashboardPage() {
         <section aria-labelledby="services-heading">
           <h2 id="services-heading" className="mb-3 text-lg font-bold">سرویس‌ها</h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {hasCap('speech_to_text') && (
+              <ServiceCard
+                href="/dashboard/voice"
+                icon={Mic}
+                title="نورا"
+                description="دستیار صوتی نورا؛ حرف بزن، جواب متنی و صوتی بگیر"
+                color="#f472b6"
+              />
+            )}
             {hasCap('text') && (
               <ServiceCard
                 href="/dashboard/chat"
@@ -214,15 +223,6 @@ export default function DashboardPage() {
                 title="قراردادها"
                 description="تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست)"
                 color="#f97316"
-              />
-            )}
-            {hasCap('speech_to_text') && (
-              <ServiceCard
-                href="/dashboard/voice"
-                icon={Mic}
-                title="نورا"
-                description="دستیار صوتی نورا؛ حرف بزن، جواب متنی و صوتی بگیر"
-                color="#f472b6"
               />
             )}
             {hasCap('speech_to_text') && (
