@@ -1422,6 +1422,10 @@ class OpenAICompatVideoProvider(VideoAiProvider):
                 return {"_provider_error": "INSUFFICIENT_CREDIT", "_detail": detail}
             if exc.code == 401:
                 return {"_provider_error": "INVALID_CREDENTIALS", "_detail": detail}
+            if exc.code == 429:
+                return {"_provider_error": "RATE_LIMITED", "_detail": detail}
+            # For other HTTP errors, include the code and detail
+            return {"_provider_error": f"HTTP_{exc.code}", "_detail": detail}
         except Exception as exc:  # noqa: BLE001 - network/timeout/etc.
             log.warning("openai-compat video provider %s %s failed: %s",
                         self.provider_key, path, exc)
