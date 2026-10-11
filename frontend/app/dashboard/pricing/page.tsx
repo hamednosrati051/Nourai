@@ -1,65 +1,126 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2 } from 'lucide-react';
+import { ArrowRight, Image as ImageIcon, MessageSquare, Mic, ScanEye, Volume2, FileText, Loader2 } from 'lucide-react';
 import { PillHeader } from '@/components/PillHeader';
 import { FloatingNav } from '@/components/FloatingNav';
 
-/**
- * Service tariffs in toman, derived from the admin pricing rules
- * (USD tariffs × 2,660,000 IRR/USD rate).
- *
- * - Text: avalai-text $0.0000003/in + $0.0000008/out per token;
- *   ~1500 tokens per 1000 Persian words → ≈ ۴۴۰ تومان
- * - STT: shenava-stt $0.001 per request → ۲۶۶ تومان
- * - TTS: piper-tts $0.0037594 per request → ۱٬۰۰۰ تومان
- * - Generate: qwen-image $0.035 per image → ۹٬۳۱۰ تومان
- * - Edit: qwen-image-edit $0.045 per image → ۱۱٬۹۷۰ تومان
- */
-const TARIFFS = [
-  {
-    icon: MessageSquare,
+interface PricingRule {
+  billing_unit: string;
+  unit_price_usd: number;
+  unit_size: number;
+}
+
+interface ModelPricing {
+  slug: string;
+  display_name: string;
+  capability: string;
+  pricing: PricingRule[];
+}
+
+interface PricingData {
+  usd_to_irr: number;
+  models: ModelPricing[];
+}
+
+const CAPABILITY_META: Record<string, { title: string; unit: string; description: string; color: string; icon: any }> = {
+  text: {
     title: 'گفت‌وگوی متنی',
     unit: 'هر ۱٬۰۰۰ کلمه',
-    price: '≈ ۴۴۰ تومان',
     description: 'مکالمه با مدل‌های زبانی (ورودی + خروجی)',
     color: '#38bdf8',
+    icon: MessageSquare,
   },
-  {
-    icon: Mic,
+  speech_to_text: {
     title: 'تبدیل صوت به متن',
-    unit: 'هر درخواست',
-    price: '۲۶۶ تومان',
+    unit: 'هر دقیقه',
     description: 'پیاده‌سازی صوت فارسی به متن (شنوا)',
     color: '#f472b6',
+    icon: Mic,
   },
-  {
-    icon: Volume2,
+  text_to_speech: {
     title: 'تبدیل متن به صوت',
-    unit: 'هر درخواست',
-    price: '۱٬۰۰۰ تومان',
+    unit: 'هر دقیقه',
     description: 'تبدیل متن به گفتار فارسی',
     color: '#34d399',
+    icon: Volume2,
   },
-  {
-    icon: ImageIcon,
+  generate_image: {
     title: 'تولید تصویر',
     unit: 'هر تصویر',
-    price: '۹٬۳۱۰ تومان',
     description: 'ساخت تصویر از توضیح متنی',
     color: '#a78bfa',
+    icon: ImageIcon,
   },
-  {
-    icon: ScanEye,
+  edit_image: {
     title: 'ویرایش تصویر',
     unit: 'هر تصویر',
-    price: '۱۱٬۹۷۰ تومان',
     description: 'ویرایش و تغییر تصویر',
     color: '#fbbf24',
+    icon: ScanEye,
   },
-];
+  vision: {
+    title: 'تحلیل تصویر',
+    unit: 'هر تصویر',
+    description: 'تحلیل و تفسیر تصویر، از جمله برگه آزمایش',
+    color: '#f97316',
+    icon: FileText,
+  },
+};
+
+function formatToman(amount: number): string {
+  return `≈ ${Math.round(amount).toLocaleString('fa-IR')} تومان`;
+}
+
+function calculatePrice(model: ModelPricing, usdToIrr: number): string {
+  if (!model.pricing.length || !usdToIrr) return '—';
+  
+  // For simplicity, take the first pricing rule and calculate
+  // For text: estimate ~1500 tokens per 1000 Persian words
+  // For others: use unit price directly
+  const rule = model.pricing[0];
+  const priceUsd = rule.unit_price_usd;
+  
+  if (model.capability === 'text') {
+    // ~1500 tokens per 1000 words, input + output average
+    const totalUsd = priceUsd * 1500 / rule.unit_size;
+    return formatToman(totalUsd * usdToIrr / 10); // Convert IRR to Toman
+  }
+  
+  if (model.capability === 'speech_to_text' || model.capability === 'text_to_speech') {
+    // Per minute estimate (60 seconds)
+    const totalUsd = priceUsd * 60 / rule.unit_size;
+    return formatToman(totalUsd * usdToIrr / 10);
+  }
+  
+  // Per image/request
+  const totalIrr = priceUsd * usdToIrr;
+  return formatToman(totalIrr / 10);
+}
 
 export default function PricingPage() {
+  const [data, setData] = useState<PricingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/v1/site/pricing')
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.data) {
+          setData(json.data);
+        } else {
+          setError(true);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
+  }, []);
+
   return (
     <div className="min-h-screen">
       <PillHeader />
@@ -80,36 +141,59 @@ export default function PricingPage() {
           <p className="mt-2 text-sm text-neutral-600 dark:text-slate-400">
             هزینه هر سرویس به تومان. مبلغ دقیق هر درخواست از کیف پول شما کسر می‌شود.
           </p>
+          {data && data.usd_to_irr > 0 && (
+            <p className="mt-1 text-xs text-neutral-500">
+              نرخ دلار: {data.usd_to_irr.toLocaleString('fa-IR')} ریال
+            </p>
+          )}
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {TARIFFS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <div key={t.title} className="card group" style={{ ['--svc' as string]: t.color }}>
-                <span aria-hidden="true" className="service-icon">
-                  <Icon className="h-7 w-7" style={{ color: t.color }} />
-                </span>
-                <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">
-                  {t.title}
-                </h3>
-                <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">
-                  {t.description}
-                </p>
-                <div className="mt-2 flex items-baseline justify-between">
-                  <span className="text-xs text-neutral-500">{t.unit}</span>
-                  <span className="text-lg font-black" style={{ color: t.color }}>
-                    {t.price}
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-neutral-400" />
+          </div>
+        )}
+
+        {error && (
+          <div className="py-20 text-center text-sm text-neutral-500">
+            خطا در بارگذاری تعرفه‌ها. لطفاً دوباره تلاش کنید.
+          </div>
+        )}
+
+        {data && !loading && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {data.models.map((model) => {
+              const meta = CAPABILITY_META[model.capability];
+              if (!meta) return null;
+              const Icon = meta.icon;
+              const price = calculatePrice(model, data.usd_to_irr);
+              return (
+                <div key={model.slug} className="card group" style={{ ['--svc' as string]: meta.color }}>
+                  <span aria-hidden="true" className="service-icon">
+                    <Icon className="h-7 w-7" style={{ color: meta.color }} />
                   </span>
+                  <h3 className="text-lg font-extrabold text-neutral-900 dark:text-white">
+                    {meta.title}
+                  </h3>
+                  <p className="flex-1 text-sm leading-7 text-neutral-600 dark:text-slate-400">
+                    {meta.description}
+                    <span className="block text-xs text-neutral-400 mt-1">{model.display_name}</span>
+                  </p>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xs text-neutral-500">{meta.unit}</span>
+                    <span className="text-lg font-black" style={{ color: meta.color }}>
+                      {price}
+                    </span>
+                  </div>
+                  <span aria-hidden="true" className="service-accent" />
                 </div>
-                <span aria-hidden="true" className="service-accent" />
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         <p className="mt-6 text-center text-xs text-neutral-500">
-          قیمت‌ها بر اساس تعرفه‌های فعلی محاسبه شده‌اند و ممکن است تغییر کنند. مبلغ نهایی هر درخواست در تاریخچه مصرف ثبت می‌شود.
+          قیمت‌ها بر اساس تعرفه‌های فعلی و نرخ دلار محاسبه شده‌اند و ممکن است تغییر کنند. مبلغ نهایی هر درخواست در تاریخچه مصرف ثبت می‌شود.
         </p>
       </main>
     </div>
