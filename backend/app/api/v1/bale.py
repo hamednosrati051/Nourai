@@ -1419,7 +1419,7 @@ def webhook():
                                  reply_markup=MENU_KEYBOARD)
                     return success_response({"ok": True})
                 elif ph_mode == "awaiting_lab_photo":
-                    _set_user_mode(bale_user_id, None)
+                    _clear_user_mode(bale_user_id)
                     _handle_lab(chat_id, user, file_id)
                     return success_response({"ok": True})
 
