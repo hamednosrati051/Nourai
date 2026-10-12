@@ -514,24 +514,28 @@ def contract_chat():
     except Exception as exc:
         log.warning("contract chat settle failed: %s", exc)
 
-    # Save to conversation history
-    from app.models.contract_chat import ContractChatSession, ContractChatMessage
-    session_id = data.get("session_id")
-    if session_id:
-        session = db.session.get(ContractChatSession, session_id)
-        if not session or session.user_id != g.current_user_id:
+    # Save to conversation history (non-blocking: chat must work even if this fails)
+    _session_id = None
+    try:
+        from app.models.contract_chat import ContractChatSession, ContractChatMessage
+        session_id = data.get("session_id")
+        if session_id:
+            session = db.session.get(ContractChatSession, session_id)
+            if not session or session.user_id != g.current_user_id:
+                session = None
+        else:
             session = None
-    else:
-        session = None
-    if not session:
-        # Create new session, title from first message
-        title = message[:80] if len(message) <= 80 else message[:77] + "..."
-        session = ContractChatSession(user_id=g.current_user_id, title=title)
-        db.session.add(session)
-        db.session.flush()
-    # Save user message and assistant reply
-    db.session.add(ContractChatMessage(session_id=session.id, role="user", content=message))
-    db.session.add(ContractChatMessage(session_id=session.id, role="assistant", content=result.text))
-    db.session.commit()
+        if not session:
+            title = message[:80] if len(message) <= 80 else message[:77] + "..."
+            session = ContractChatSession(user_id=g.current_user_id, title=title)
+            db.session.add(session)
+            db.session.flush()
+        db.session.add(ContractChatMessage(session_id=session.id, role="user", content=message))
+        db.session.add(ContractChatMessage(session_id=session.id, role="assistant", content=result.text))
+        db.session.commit()
+        _session_id = session.id
+    except Exception:
+        db.session.rollback()
+        log.warning("contract chat history save failed", exc_info=True)
 
-    return success_response({"reply": result.text, "session_id": session.id})
+    return success_response({"reply": result.text, "session_id": _session_id})
