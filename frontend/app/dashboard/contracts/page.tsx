@@ -131,7 +131,7 @@ export default function ContractsPage() {
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       <h1 className="text-2xl font-extrabold flex items-center gap-2">
         <FileText className="h-6 w-6" />
-        قراردادها
+        قراردادهای حقوقی
       </h1>
 
       {/* Tabs */}

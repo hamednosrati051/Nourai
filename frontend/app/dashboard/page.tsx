@@ -220,7 +220,7 @@ export default function DashboardPage() {
               <ServiceCard
                 href="/dashboard/contracts"
                 icon={FileText}
-                title="قراردادها"
+                title="قراردادهای حقوقی"
                 description="تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست)"
                 color="#f97316"
               />
