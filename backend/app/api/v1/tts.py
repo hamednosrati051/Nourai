@@ -55,24 +55,6 @@ bp = Blueprint("tts", __name__)
 TTS_MAX_CHARS = 2000
 
 
-def _strip_emojis(text: str) -> str:
-    """Remove emojis from text before TTS (they sound wrong when spoken)."""
-    import re
-    # Emoji ranges: emoticons, symbols, transport, flags, etc.
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F600-\U0001F64F"  # emoticons
-        "\U0001F300-\U0001F5FF"  # symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # flags
-        "\U00002702-\U000027B0"  # dingbats
-        "\U000024C2-\U0001F251"
-        "]+",
-        flags=re.UNICODE,
-    )
-    return emoji_pattern.sub("", text).strip()
-
-
 class TtsJobSchema(BaseModel):
     text: str
     tts_model_id: str | None = None
@@ -125,10 +107,6 @@ def create_tts_job():
         return validation_error(exc)
 
     text = (data.text or "").strip()
-    if not text:
-        return error_response("EMPTY_TEXT", "متن خالی است.", 422)
-    # Strip emojis: they sound wrong in TTS output
-    text = _strip_emojis(text)
     if not text:
         return error_response("EMPTY_TEXT", "متن خالی است.", 422)
     if len(text) > TTS_MAX_CHARS:
