@@ -116,6 +116,20 @@ export default function VoicePage() {
     prevThreadCount.current = count;
   }, [items.length, trackedVisible]);
 
+  // Scroll to bottom on page enter (after items load)
+  const hasScrolledOnMount = useRef(false);
+  useEffect(() => {
+    if (!hasScrolledOnMount.current && items.length > 0) {
+      hasScrolledOnMount.current = true;
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'instant' as ScrollBehavior,
+        });
+      });
+    }
+  }, [items.length]);
+
   const phase: Phase = recording
     ? 'listening'
     : trackedProcessing
