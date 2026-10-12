@@ -1237,8 +1237,10 @@ def bale_payment_callback():
         .first()
     )
     if link:
-        send_message(int(link.platform_user_id),
-                     f"✅ {_toman(payment.amount_irr)} تومان به کیف پولت اضافه شد!")
+        # Send via the correct bot (lab vs main)
+        _notify = _lab_send_message if payment.idempotency_key.startswith("bale-lab-pay-") else send_message
+        _notify(int(link.platform_user_id),
+                f"✅ {_toman(payment.amount_irr)} تومان به کیف پولت اضافه شد!")
     return _verify_page(True)
 
 
