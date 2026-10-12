@@ -16,6 +16,7 @@ from app.models.settings import CurrencySettings, ImageProcessingProfile, SiteSe
 from app.models.usage import UsageEvent
 from app.models.user import OtpChallenge, User
 from app.models.vision_analysis import VisionAnalysis
+from app.models.contract_chat import ContractChatSession, ContractChatMessage
 from app.models.wallet import WalletAccount, WalletTransaction
 
 __all__ = [
@@ -45,6 +46,8 @@ __all__ = [
     "UsageEvent",
     "User",
     "VisionAnalysis",
+    "ContractChatSession",
+    "ContractChatMessage",
     "WalletAccount",
     "WalletTransaction",
     "new_uuid",

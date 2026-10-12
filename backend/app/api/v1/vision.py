@@ -343,6 +343,55 @@ CONTRACT_CHAT_SYSTEM_PROMPT = """شما یک دستیار حقوقی برای ق
 ⚠️ این مشاوره حقوقی محسوب نمی‌شود. برای تصمیم‌گیری حقوقی حتماً با وکیل مشورت کنید."""
 
 
+@bp.get("/vision/contract-chat/history")
+@login_required
+def contract_chat_history():
+    """List past contract chat sessions."""
+    from app.models.contract_chat import ContractChatSession
+    limit = min(int(request.args.get("limit", 20)), 50)
+    sessions = (
+        db.session.query(ContractChatSession)
+        .filter_by(user_id=g.current_user_id)
+        .order_by(ContractChatSession.updated_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return success_response({
+        "items": [
+            {
+                "id": s.id,
+                "title": s.title,
+                "created_at": s.created_at.isoformat() + "Z" if s.created_at else None,
+            }
+            for s in sessions
+        ]
+    })
+
+
+@bp.get("/vision/contract-chat/history/<session_id>")
+@login_required
+def contract_chat_session_detail(session_id: str):
+    """Get messages of a specific chat session."""
+    from app.models.contract_chat import ContractChatSession, ContractChatMessage
+    session = db.session.get(ContractChatSession, session_id)
+    if not session or session.user_id != g.current_user_id:
+        return error_response("NOT_FOUND", status=404)
+    messages = (
+        db.session.query(ContractChatMessage)
+        .filter_by(session_id=session_id)
+        .order_by(ContractChatMessage.created_at.asc())
+        .all()
+    )
+    return success_response({
+        "id": session.id,
+        "title": session.title,
+        "messages": [
+            {"role": m.role, "content": m.content}
+            for m in messages
+        ],
+    })
+
+
 @bp.post("/vision/contract-chat")
 @login_required
 def contract_chat():
@@ -464,6 +513,25 @@ def contract_chat():
         )
     except Exception as exc:
         log.warning("contract chat settle failed: %s", exc)
+
+    # Save to conversation history
+    from app.models.contract_chat import ContractChatSession, ContractChatMessage
+    session_id = data.get("session_id")
+    if session_id:
+        session = db.session.get(ContractChatSession, session_id)
+        if not session or session.user_id != g.current_user_id:
+            session = None
+    else:
+        session = None
+    if not session:
+        # Create new session, title from first message
+        title = message[:80] if len(message) <= 80 else message[:77] + "..."
+        session = ContractChatSession(user_id=g.current_user_id, title=title)
+        db.session.add(session)
+        db.session.flush()
+    # Save user message and assistant reply
+    db.session.add(ContractChatMessage(session_id=session.id, role="user", content=message))
+    db.session.add(ContractChatMessage(session_id=session.id, role="assistant", content=result.text))
     db.session.commit()
 
-    return success_response({"reply": result.text})
+    return success_response({"reply": result.text, "session_id": session.id})

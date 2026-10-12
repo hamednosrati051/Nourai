@@ -35,6 +35,9 @@ export default function ContractsPage() {
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const [chatHistory, setChatHistory] = useState<{ id: string; title: string; created_at: string }[]>([]);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [input, setInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -113,18 +116,44 @@ export default function ContractsPage() {
     setMessages(newMessages);
     setChatLoading(true);
     try {
-      const res = await apiPost<{ reply: string }>('/vision/contract-chat', {
+      const res = await apiPost<{ reply: string; session_id: string }>('/vision/contract-chat', {
         message: userMsg,
         history: messages.map((m) => ({ role: m.role, content: m.content })),
+        session_id: chatSessionId,
       }, undefined, {
         'Idempotency-Key': crypto.randomUUID(),
       });
       setMessages([...newMessages, { role: 'assistant', content: res.reply }]);
+      if (res.session_id) setChatSessionId(res.session_id);
     } catch (err: any) {
       toast(err?.message || 'خطا در ارسال', 'error');
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const loadChatHistory = async () => {
+    try {
+      const res = await apiGet<{ items: { id: string; title: string; created_at: string }[] }>('/vision/contract-chat/history');
+      setChatHistory(res.items);
+    } catch {}
+    setChatHistoryOpen(true);
+  };
+
+  const loadChatSession = async (sessionId: string) => {
+    try {
+      const res = await apiGet<{ messages: ChatMessage[] }>('/vision/contract-chat/history/' + sessionId);
+      setMessages(res.messages);
+      setChatSessionId(sessionId);
+      setChatHistoryOpen(false);
+    } catch (err: any) {
+      toast(err?.message || 'خطا در بارگذاری', 'error');
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setChatSessionId(null);
   };
 
   return (
@@ -271,6 +300,38 @@ export default function ContractsPage() {
 
       {tab === 'chat' && (
         <div className="flex flex-col gap-4">
+          <div className="flex gap-2 justify-start">
+            <button onClick={loadChatHistory} className="btn-ghost text-sm flex items-center gap-1">
+              <History className="h-4 w-4" />
+              تاریخچه گفتگو
+            </button>
+            {messages.length > 0 && (
+              <button onClick={startNewChat} className="btn-ghost text-sm">
+                گفتگوی جدید
+              </button>
+            )}
+          </div>
+          <Modal open={chatHistoryOpen} title="تاریخچه گفتگو" onClose={() => setChatHistoryOpen(false)} maxWidth="max-w-2xl">
+            <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto">
+              {chatHistory.length === 0 && (
+                <p className="text-center text-neutral-500 py-8">هنوز گفتگویی انجام نشده</p>
+              )}
+              {chatHistory.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => loadChatSession(h.id)}
+                  className="text-right p-3 rounded-lg bg-neutral-100 dark:bg-white/5 hover:bg-neutral-200 dark:hover:bg-white/10 transition-colors block w-full"
+                >
+                  <p className="text-sm line-clamp-1 mb-1">{h.title || 'گفتگو'}</p>
+                  {h.created_at && (
+                    <p className="text-xs text-neutral-500">
+                      {new Date(h.created_at).toLocaleDateString('fa-IR')} — {new Date(h.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Modal>
           <div className="card min-h-[300px] max-h-[400px] overflow-y-auto flex flex-col gap-3 p-4">
             {messages.length === 0 && (
               <p className="text-center text-neutral-500 py-8 text-sm">
