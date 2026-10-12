@@ -1530,10 +1530,18 @@ def _lab_handle_charge_callback(chat_id: int, callback_id: str, user: User, amou
     payment.status = "pending"
     db.session.commit()
     _lab_answer_callback(callback_id)
+    # Route through our own domain so Zibal sees a non-empty Referer.
+    pay_url = f"https://inourai.ir/api/v1/go/{start.track_id}"
     _lab_send_message(
         chat_id,
-        f"💳 برای پرداخت {_toman(amount_irr)} تومان روی لینک زیر بزن:\n{start.payment_url}",
-        reply_markup=LAB_MENU_KEYBOARD,
+        f"💳 برای شارژ {_toman(amount_irr)} تومان روی دکمه زیر بزن:\n\n"
+        f"✅ بعد از پرداخت موفق، موجودیت خودکار به‌روز می‌شه.\n\n"
+        f"⚠️ این اعتبار فقط توی بات بله قابل استفاده‌ست.",
+        reply_markup={
+            "inline_keyboard": [
+                [{"text": "💳 پرداخت آنلاین", "url": pay_url}]
+            ]
+        },
     )
 
 
