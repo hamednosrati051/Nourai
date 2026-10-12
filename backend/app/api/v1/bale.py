@@ -89,9 +89,10 @@ BTN_WALLET = "💰 اعتبار من"
 BTN_CHARGE = "➕ افزایش اعتبار"
 BTN_SUPPORT = "🛟 پشتیبانی"
 
-# Lab-only bot menu (credit + support only)
+# Lab-only bot menu (lab test + credit + support)
 LAB_MENU_KEYBOARD = {
     "keyboard": [
+        [{"text": "🧪 تفسیر برگه آزمایش"}],
         [{"text": "💰 اعتبار من"}],
         [{"text": "➕ افزایش اعتبار"}],
         [{"text": "🛟 پشتیبانی"}],
@@ -1596,6 +1597,16 @@ def lab_webhook():
         # /start command
         if text == "/start":
             _lab_send_message(chat_id, LAB_WELCOME, reply_markup=LAB_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Lab test button - prompt for photo
+        if text == "🧪 تفسیر برگه آزمایش":
+            _set_user_mode(bale_user_id, "awaiting_lab_photo")
+            _lab_send_message(
+                chat_id,
+                "🧪 عکس برگه آزمایشت رو بفرست تا تحلیلش کنم.",
+                reply_markup=LAB_MENU_KEYBOARD,
+            )
             return success_response({"ok": True})
 
         # Wallet balance
