@@ -64,7 +64,7 @@ const SERVICES = [
   },
   {
     icon: FileText,
-    title: 'قراردادها',
+    title: 'قراردادهای حقوقی',
     description: 'تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست).',
     href: '/dashboard/contracts',
     color: '#f97316',
