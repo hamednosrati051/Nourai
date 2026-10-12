@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 from flask import Blueprint, g, request
+from sqlalchemy.orm import defer
 
 from app.api.deps import (
     client_ip,
@@ -236,8 +237,16 @@ def create_video_job():
 @login_required
 def list_video_jobs():
     page, page_size = pagination_params()
+    # Defer heavy TEXT/JSON columns not needed for the list view — selecting
+    # them all blows MySQL's sort buffer on ORDER BY created_at (error 1038).
     query = (
         db.session.query(GenerationJob)
+        .options(
+            defer(GenerationJob.result_text),
+            defer(GenerationJob.error_message),
+            defer(GenerationJob.processing_profile_snapshot_json),
+            defer(GenerationJob.provider_request_id),
+        )
         .filter_by(user_id=g.current_user_id, capability=CAP_VIDEO_GENERATION)
         .order_by(GenerationJob.created_at.desc())
     )
