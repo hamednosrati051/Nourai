@@ -239,6 +239,7 @@ def list_video_jobs():
     page, page_size = pagination_params()
     # Defer heavy TEXT/JSON columns not needed for the list view — selecting
     # them all blows MySQL's sort buffer on ORDER BY created_at (error 1038).
+    # prompt_text/parameters_json are lazy-loaded per-item by _job_payload.
     query = (
         db.session.query(GenerationJob)
         .options(
@@ -246,6 +247,8 @@ def list_video_jobs():
             defer(GenerationJob.error_message),
             defer(GenerationJob.processing_profile_snapshot_json),
             defer(GenerationJob.provider_request_id),
+            defer(GenerationJob.prompt_text),
+            defer(GenerationJob.parameters_json),
         )
         .filter_by(user_id=g.current_user_id, capability=CAP_VIDEO_GENERATION)
         .order_by(GenerationJob.created_at.desc())
