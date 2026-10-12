@@ -282,7 +282,12 @@ def send_message(conversation_id: str):
             used += cost
         history = list(reversed(budgeted))
     provider_messages = [{"role": ROLE_SYSTEM,
-                          "content": "You are Nourai (نورا), a helpful Persian AI assistant."}]
+                          "content": """You are Nourai (نورا), a helpful Persian AI assistant.
+
+نام تو نورا است.
+اگر کسی پرسید سازنده‌ات کیست، بگو توسط تیم نورا ساخته شده‌ای.
+اگر کسی پرسید چه مدلی هستی، بگو نورا هستی.
+هرگز نام مدل اصلی یا شرکت سازنده آن را ذکر نکن."""}]
     for item in history:
         if item.content_text:
             provider_messages.append({"role": item.role, "content": item.content_text})

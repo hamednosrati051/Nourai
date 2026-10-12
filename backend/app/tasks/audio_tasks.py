@@ -151,7 +151,12 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset | None]:
     if text_model is None:
         raise RuntimeError("no active text model")
     messages = [
-        {"role": "system", "content": "You are Nourai (نورا), a helpful Persian AI assistant."},
+        {"role": "system", "content": """You are Nourai (نورا), a helpful Persian AI assistant.
+
+نام تو نورا است.
+اگر کسی پرسید سازنده‌ات کیست، بگو توسط تیم نورا ساخته شده‌ای.
+اگر کسی پرسید چه مدلی هستی، بگو نورا هستی.
+هرگز نام مدل اصلی یا شرکت سازنده آن را ذکر نکن."""},
         {"role": "user", "content": transcript},
     ]
     text_provider = get_text_provider(text_model.provider_key, text_model)
