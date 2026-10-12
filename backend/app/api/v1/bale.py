@@ -481,15 +481,16 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     send_photo(chat_id, result.image_bytes, caption=f"🎨 {prompt}")
 
 
-def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
+def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
     """Analyze a lab report image sent by the user."""
     from app.api.v1.vision import LAB_REPORT_SYSTEM_PROMPT
+    _send = send_fn or send_message
     import base64
 
     # Download the photo
     photo_bytes = download_bale_file(file_id)
     if not photo_bytes:
-        send_message(chat_id, "خطا در دانلود عکس. دوباره تلاش کنید.",
+        _send(chat_id, "خطا در دانلود عکس. دوباره تلاش کنید.",
                      reply_markup=MENU_KEYBOARD)
         return
 
@@ -500,7 +501,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
         .first()
     )
     if model is None:
-        send_message(chat_id, "مدل تحلیل تصویر فعالی پیدا نشد.",
+        _send(chat_id, "مدل تحلیل تصویر فعالی پیدا نشد.",
                      reply_markup=MENU_KEYBOARD)
         return
 
@@ -508,7 +509,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
         provider = get_text_provider(model.provider_key, model)
     except ValueError as exc:
         log.error("bale lab provider error: %s", exc)
-        send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.",
+        _send(chat_id, "خطای سرویس. بعداً تلاش کنید.",
                      reply_markup=MENU_KEYBOARD)
         return
 
@@ -519,7 +520,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
     try:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
     except PricingRuleUnavailable:
-        send_message(chat_id, "تعرفه مدل تنظیم نشده.",
+        _send(chat_id, "تعرفه مدل تنظیم نشده.",
                      reply_markup=MENU_KEYBOARD)
         return
 
@@ -530,12 +531,12 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
         reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
                 idempotency_key=key, description="bale_lab_report")
     except InsufficientBalance:
-        send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
+        _send(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
                      reply_markup=MENU_KEYBOARD)
         return
     db.session.commit()
 
-    send_message(chat_id, "🧪 دارم برگه آزمایشت رو تحلیل می‌کنم... چند لحظه صبر کن.")
+    _send(chat_id, "🧪 دارم برگه آزمایشت رو تحلیل می‌کنم... چند لحظه صبر کن.")
 
     # Call provider
     b64 = base64.b64encode(photo_bytes).decode("utf-8")
@@ -564,7 +565,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
             log.error("bale lab release failed: %s", release_exc)
             db.session.rollback()
         try:
-            send_message(chat_id, "خطا در تحلیل. مبلغ برگشت داده شد.",
+            _send(chat_id, "خطا در تحلیل. مبلغ برگشت داده شد.",
                          reply_markup=MENU_KEYBOARD)
         except Exception:
             pass
@@ -578,7 +579,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
             db.session.commit()
         except Exception:
             pass
-        send_message(chat_id, "خطا در تحلیل. بعداً تلاش کنید.",
+        _send(chat_id, "خطا در تحلیل. بعداً تلاش کنید.",
                      reply_markup=MENU_KEYBOARD)
         return
 
@@ -619,9 +620,9 @@ def _handle_lab(chat_id: int, user: User, file_id: str) -> None:
     text = result.text
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
-            send_message(chat_id, text[i:i+4000], reply_markup=MENU_KEYBOARD if i + 4000 >= len(text) else None)
+            _send(chat_id, text[i:i+4000], reply_markup=MENU_KEYBOARD if i + 4000 >= len(text) else None)
     else:
-        send_message(chat_id, text, reply_markup=MENU_KEYBOARD)
+        _send(chat_id, text, reply_markup=MENU_KEYBOARD)
 
 
 def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
@@ -1451,5 +1452,100 @@ def webhook():
         return success_response({"ok": True})
     except Exception as exc:  # noqa: BLE001
         log.exception("bale webhook failed: %s", exc)
+        db.session.rollback()
+        return success_response({"ok": True})
+
+
+# ============================================================================
+# Lab Bot (@noura_lab_diag_bot) - Lab test interpretation only
+# ============================================================================
+
+def _lab_bale_token() -> str:
+    token = config.bale_lab_bot_token
+    if not token:
+        raise RuntimeError("BALE_LAB_BOT_TOKEN is not configured")
+    return token
+
+
+def _lab_bale_api(method: str, payload: dict | None = None) -> dict:
+    import requests
+    url = f"{BALE_API}/bot{_lab_bale_token()}/{method}"
+    try:
+        r = requests.post(url, json=payload, timeout=15)
+        return r.json()
+    except Exception as exc:
+        log.error("lab bale api error: %s", exc)
+        return {}
+
+
+def _lab_send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    _lab_bale_api("sendMessage", payload)
+
+
+LAB_WELCOME = (
+    "🧪 سلام! به ربات تفسیر برگه آزمایش نورا خوش اومدی.\n\n"
+    "کافیه عکس برگه آزمایشت رو بفرستی تا تحلیلش کنم.\n\n"
+    "⚠️ توجه: این تحلیل جنبه اطلاع‌رسانی داره و جایگزین نظر پزشک نیست."
+)
+
+
+@bp.post("/lab/webhook")
+def lab_webhook():
+    """Webhook for the lab-only bot."""
+    update = request.get_json(silent=True) or {}
+    try:
+        message = update.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        from_user = message.get("from") or {}
+        bale_user_id = from_user.get("id")
+        if not chat_id or not bale_user_id:
+            return success_response({"ok": True})
+
+        # Check channel membership (same as main bot)
+        if not _is_channel_member(bale_user_id):
+            _send_join_prompt(chat_id)
+            return success_response({"ok": True})
+
+        # Auto-provision user
+        user = _get_or_create_user(bale_user_id, from_user)
+
+        text = (message.get("text") or "").strip()
+
+        # /start command
+        if text == "/start":
+            _lab_send_message(chat_id, LAB_WELCOME)
+            return success_response({"ok": True})
+
+        # Photo -> auto lab analysis (no button needed)
+        photos = message.get("photo") or []
+        if photos:
+            # Get the largest photo
+            photo = max(photos, key=lambda p: p.get("file_size", 0))
+            file_id = photo.get("file_id")
+            if file_id:
+                _handle_lab(chat_id, user, file_id, send_fn=_lab_send_message)
+                return success_response({"ok": True})
+
+        # Document as image
+        doc = message.get("document") or {}
+        if doc.get("file_id") and (doc.get("mime_type") or "").startswith("image/"):
+            _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message)
+            return success_response({"ok": True})
+
+        # Any other text -> guide to send photo
+        if text:
+            _lab_send_message(
+                chat_id,
+                "📸 لطفاً عکس برگه آزمایشت رو بفرست تا تحلیلش کنم."
+            )
+            return success_response({"ok": True})
+
+        return success_response({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        log.exception("lab bale webhook failed: %s", exc)
         db.session.rollback()
         return success_response({"ok": True})
