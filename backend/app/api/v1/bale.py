@@ -1489,6 +1489,53 @@ def _lab_bale_api(method: str, payload: dict | None = None) -> dict:
         return {}
 
 
+def _lab_answer_callback(callback_id: str, text: str | None = None) -> None:
+    _lab_bale_api("answerCallbackQuery", {"callback_query_id": callback_id, "text": text or ""})
+
+
+def _lab_handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_irr: int) -> None:
+    """Handle charge amount tap in lab bot (uses lab token for responses)."""
+    if amount_irr not in CHARGE_PRESETS:
+        _lab_answer_callback(callback_id, "مبلغ نامعتبر")
+        return
+    # Create a Zibal payment for this bot user.
+    payment = Payment(
+        user_id=user.id,
+        gateway="zibal",
+        amount_irr=amount_irr,
+        plan_id=None,
+        status="created",
+        idempotency_key=f"bale-lab-pay-{uuid.uuid4().hex}",
+    )
+    db.session.add(payment)
+    db.session.commit()
+
+    try:
+        gateway = get_payment_gateway()
+        start = gateway.create_payment(
+            amount_irr,
+            "https://inourai.ir/api/v1/bale/payment-callback",
+            {"payment_id": payment.id, "user_id": user.id, "channel": "bale",
+             "chat_id": chat_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("lab bale payment create failed: %s", exc)
+        payment.status = "failed"
+        db.session.commit()
+        _lab_answer_callback(callback_id, "خطا در ایجاد پرداخت")
+        return
+
+    payment.track_id = start.track_id
+    payment.status = "pending"
+    db.session.commit()
+    _lab_answer_callback(callback_id)
+    _lab_send_message(
+        chat_id,
+        f"💳 برای پرداخت {_toman(amount_irr)} تومان روی لینک زیر بزن:\n{start.payment_url}",
+        reply_markup=LAB_MENU_KEYBOARD,
+    )
+
+
 def _lab_send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
     payload = {"chat_id": chat_id, "text": text}
     if reply_markup:
@@ -1508,6 +1555,26 @@ def lab_webhook():
     """Webhook for the lab-only bot."""
     update = request.get_json(silent=True) or {}
     try:
+        # Callback queries (charge amount taps)
+        callback = update.get("callback_query") or {}
+        if callback:
+            cb_id = callback.get("id")
+            from_user = callback.get("from") or {}
+            bale_user_id = from_user.get("id")
+            message = callback.get("message") or {}
+            chat_id = (message.get("chat") or {}).get("id")
+            data = callback.get("data") or ""
+            if bale_user_id and chat_id and data.startswith("charge:"):
+                user = _get_or_create_user(bale_user_id, from_user)
+                try:
+                    amount = int(data.split(":", 1)[1])
+                except ValueError:
+                    amount = 0
+                _lab_handle_charge_callback(chat_id, cb_id, user, amount)
+            else:
+                _lab_answer_callback(cb_id)
+            return success_response({"ok": True})
+
         message = update.get("message") or {}
         chat = message.get("chat") or {}
         chat_id = chat.get("id")
@@ -1538,12 +1605,13 @@ def lab_webhook():
                               reply_markup=LAB_MENU_KEYBOARD)
             return success_response({"ok": True})
 
-        # Charge (reuse main bot's charge flow via deep link)
+        # Charge - full flow in lab bot
         if text == BTN_CHARGE or text.startswith("/charge"):
+            balance = _wallet_balance(user.id)
             _lab_send_message(
                 chat_id,
-                "➕ برای افزایش اعتبار، به ربات اصلی برو:\n@nourai_bot",
-                reply_markup=LAB_MENU_KEYBOARD,
+                f"💰 موجودی فعلیت: {_toman(balance)} تومان\n\nمبلغ شارژ رو انتخاب کن:",
+                reply_markup=_charge_keyboard(),
             )
             return success_response({"ok": True})
 
