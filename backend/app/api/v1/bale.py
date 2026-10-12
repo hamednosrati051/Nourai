@@ -1653,9 +1653,10 @@ def lab_webhook():
                               reply_markup=LAB_MENU_KEYBOARD)
             return success_response({"ok": True})
 
-        # Photo -> auto lab analysis (no button needed)
+        # Photo -> auto lab analysis (no button needed, default behavior)
         photos = message.get("photo") or []
         if photos:
+            _clear_user_mode(bale_user_id)
             # Get the largest photo
             photo = max(photos, key=lambda p: p.get("file_size", 0))
             file_id = photo.get("file_id")
@@ -1666,6 +1667,7 @@ def lab_webhook():
         # Document as image
         doc = message.get("document") or {}
         if doc.get("file_id") and (doc.get("mime_type") or "").startswith("image/"):
+            _clear_user_mode(bale_user_id)
             _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD)
             return success_response({"ok": True})
 
