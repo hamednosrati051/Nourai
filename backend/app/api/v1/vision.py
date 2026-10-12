@@ -352,7 +352,7 @@ def contract_chat_history():
     sessions = (
         db.session.query(ContractChatSession)
         .filter_by(user_id=g.current_user_id)
-        .order_by(ContractChatSession.updated_at.desc())
+        .order_by(ContractChatSession.created_at.desc())
         .limit(limit)
         .all()
     )

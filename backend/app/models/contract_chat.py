@@ -20,9 +20,6 @@ class ContractChatSession(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, nullable=False
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=utcnow, onupdate=utcnow, nullable=False
-    )
 
 
 class ContractChatMessage(Base):
