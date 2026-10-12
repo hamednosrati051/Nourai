@@ -89,6 +89,16 @@ BTN_WALLET = "💰 اعتبار من"
 BTN_CHARGE = "➕ افزایش اعتبار"
 BTN_SUPPORT = "🛟 پشتیبانی"
 
+# Lab-only bot menu (credit + support only)
+LAB_MENU_KEYBOARD = {
+    "keyboard": [
+        [{"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}],
+        [{"text": "🛟 پشتیبانی"}],
+    ],
+    "resize_keyboard": True,
+}
+
 # Persistent per-user mode via messenger_user_states table (generic across
 # platforms). Survives API restarts, unlike the previous in-memory dict.
 def _get_user_mode(platform_user_id: int) -> tuple[str | None, dict]:
@@ -481,17 +491,18 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     send_photo(chat_id, result.image_bytes, caption=f"🎨 {prompt}")
 
 
-def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
+def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None) -> None:
     """Analyze a lab report image sent by the user."""
     from app.api.v1.vision import LAB_REPORT_SYSTEM_PROMPT
     _send = send_fn or send_message
+    _menu = menu or MENU_KEYBOARD
     import base64
 
     # Download the photo
     photo_bytes = download_bale_file(file_id)
     if not photo_bytes:
         _send(chat_id, "خطا در دانلود عکس. دوباره تلاش کنید.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
 
     # Get vision model
@@ -502,7 +513,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
     )
     if model is None:
         _send(chat_id, "مدل تحلیل تصویر فعالی پیدا نشد.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
 
     try:
@@ -510,7 +521,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
     except ValueError as exc:
         log.error("bale lab provider error: %s", exc)
         _send(chat_id, "خطای سرویس. بعداً تلاش کنید.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
 
     # Estimate cost
@@ -521,7 +532,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
     except PricingRuleUnavailable:
         _send(chat_id, "تعرفه مدل تنظیم نشده.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
 
     wallet = get_wallet_for_update(db.session, user.id)
@@ -532,7 +543,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
                 idempotency_key=key, description="bale_lab_report")
     except InsufficientBalance:
         _send(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
     db.session.commit()
 
@@ -566,7 +577,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
             db.session.rollback()
         try:
             _send(chat_id, "خطا در تحلیل. مبلغ برگشت داده شد.",
-                         reply_markup=MENU_KEYBOARD)
+                         reply_markup=_menu)
         except Exception:
             pass
         return
@@ -580,7 +591,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
         except Exception:
             pass
         _send(chat_id, "خطا در تحلیل. بعداً تلاش کنید.",
-                     reply_markup=MENU_KEYBOARD)
+                     reply_markup=_menu)
         return
 
     # Settle billing
@@ -620,9 +631,9 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None) -> None:
     text = result.text
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
-            _send(chat_id, text[i:i+4000], reply_markup=MENU_KEYBOARD if i + 4000 >= len(text) else None)
+            _send(chat_id, text[i:i+4000], reply_markup=_menu if i + 4000 >= len(text) else None)
     else:
-        _send(chat_id, text, reply_markup=MENU_KEYBOARD)
+        _send(chat_id, text, reply_markup=_menu)
 
 
 def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
@@ -1517,7 +1528,33 @@ def lab_webhook():
 
         # /start command
         if text == "/start":
-            _lab_send_message(chat_id, LAB_WELCOME)
+            _lab_send_message(chat_id, LAB_WELCOME, reply_markup=LAB_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Wallet balance
+        if text == BTN_WALLET:
+            balance = _wallet_balance(user.id)
+            _lab_send_message(chat_id, f"💰 موجودی کیف پولت: {_toman(balance)} تومان",
+                              reply_markup=LAB_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Charge (reuse main bot's charge flow via deep link)
+        if text == BTN_CHARGE or text.startswith("/charge"):
+            _lab_send_message(
+                chat_id,
+                "➕ برای افزایش اعتبار، به ربات اصلی برو:\n@nourai_bot",
+                reply_markup=LAB_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        # Support
+        if text == BTN_SUPPORT:
+            _lab_send_message(
+                chat_id,
+                "🛟 پشتیبانی نورا\n\n"
+                "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
+                reply_markup=LAB_MENU_KEYBOARD,
+            )
             return success_response({"ok": True})
 
         # Photo -> auto lab analysis (no button needed)
@@ -1527,13 +1564,13 @@ def lab_webhook():
             photo = max(photos, key=lambda p: p.get("file_size", 0))
             file_id = photo.get("file_id")
             if file_id:
-                _handle_lab(chat_id, user, file_id, send_fn=_lab_send_message)
+                _handle_lab(chat_id, user, file_id, send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD)
                 return success_response({"ok": True})
 
         # Document as image
         doc = message.get("document") or {}
         if doc.get("file_id") and (doc.get("mime_type") or "").startswith("image/"):
-            _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message)
+            _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD)
             return success_response({"ok": True})
 
         # Any other text -> guide to send photo
