@@ -159,6 +159,20 @@ def _run_chain(session, job: GenerationJob) -> tuple[str, str, Asset | None]:
     if not text_res.ok:
         raise RuntimeError(text_res.error_code or "text generation failed")
     reply_text = text_res.text
+    # Strip emojis from voice replies (Noora section only)
+    import re
+    _emoji_re = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"
+        "\U0001F300-\U0001F5FF"
+        "\U0001F680-\U0001F6FF"
+        "\U0001F1E0-\U0001F1FF"
+        "\U00002702-\U000027B0"
+        "\U000024C2-\U0001F251"
+        "]+",
+        flags=re.UNICODE,
+    )
+    reply_text = _emoji_re.sub("", reply_text).strip()
 
     # Token accounting for the text leg (tiktoken; provider usage wins when valid).
     if text_model.tokenizer_encoding:
