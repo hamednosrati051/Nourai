@@ -1524,7 +1524,7 @@ class OpenAICompatVideoProvider(VideoAiProvider):
                 payload = {
                     "model": model,
                     "prompt": prompt,
-                    "seconds": seconds,
+                    "seconds": str(seconds),
                     "size": size,
                 }
                 data = self._api_json("POST", "/videos", payload)
