@@ -1617,12 +1617,29 @@ def lab_webhook():
 
         # Support
         if text == BTN_SUPPORT:
+            _set_user_mode(bale_user_id, "awaiting_lab_support")
             _lab_send_message(
                 chat_id,
-                "🛟 پشتیبانی نورا\n\n"
+                "🛟 پشتیبانی ربات آزمایش\n\n"
                 "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
                 reply_markup=LAB_MENU_KEYBOARD,
             )
+            return success_response({"ok": True})
+
+        # Handle lab support message
+        lab_mode, _ = _get_user_mode(bale_user_id)
+        if lab_mode == "awaiting_lab_support" and text:
+            _clear_user_mode(bale_user_id)
+            msg = SupportMessage(
+                platform="bale",
+                platform_user_id=bale_user_id,
+                user_id=user.id,
+                message=f"[ربات آزمایش] {text[:1900]}",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            _lab_send_message(chat_id, "✅ پیامت ثبت شد. به‌زودی بررسی می‌کنیم.",
+                              reply_markup=LAB_MENU_KEYBOARD)
             return success_response({"ok": True})
 
         # Photo -> auto lab analysis (no button needed)
