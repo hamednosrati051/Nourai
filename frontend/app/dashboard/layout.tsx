@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Clapperboard,
+  FileDown,
   FileText,
   FlaskConical,
   Gauge,
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavEntry[] = [
   { href: '/dashboard/vision', label: 'تحلیل تصویر', icon: ScanSearch, capabilities: ['vision', 'text'] },
   { href: '/dashboard/lab-report', label: 'تحلیل برگه آزمایش', icon: FlaskConical, capabilities: ['vision', 'text'] },
   { href: '/dashboard/contracts', label: 'قراردادهای حقوقی', icon: FileText, capabilities: ['vision', 'text'] },
+  { href: '/dashboard/pdf', label: 'ساخت PDF', icon: FileDown, capability: 'text' },
   { href: '/dashboard/history', label: 'تاریخچه', icon: History },
   { href: '/dashboard/wallet', label: 'کیف پول', icon: Wallet },
   { href: '/dashboard/usage', label: 'مصرف', icon: Gauge },
