@@ -106,6 +106,10 @@ export default function PdfPage() {
         undefined,
         { 'Idempotency-Key': crypto.randomUUID() }
       );
+      if (!res.text?.trim()) {
+        setError('متن تولید نشد. دوباره تلاش کنید.');
+        return;
+      }
       setDraftText(res.text);
       setDraftTitle(res.title);
       setStep(2);
