@@ -50,11 +50,18 @@ log = logging.getLogger(__name__)
 
 bp = Blueprint("pdf", __name__)
 
-# Output token budgets per length choice
+# Output token budgets per length choice (for billing estimation only)
 LENGTH_TOKENS = {
     "short": 1500,
     "medium": 4000,
     "long": 8000,
+}
+
+# Human-readable length guidance injected into the prompt
+LENGTH_GUIDANCE = {
+    "short": "متن کوتاه باشد: حدود ۱ تا ۲ صفحه.",
+    "medium": "متن با طول متوسط باشد: حدود ۳ تا ۵ صفحه.",
+    "long": "متن بلند و مفصل باشد: حدود ۸ تا ۱۰ صفحه.",
 }
 
 PDF_SYSTEM_PROMPT = """شما یک نویسنده حرفه‌ای فارسی‌زبان هستید که سندهای رسمی و مرتب تولید می‌کنید.
@@ -120,11 +127,15 @@ def pdf_prepare():
         system_prompt = PDF_SYSTEM_PROMPT
         user_prompt = (
             f"موضوع سند: {content}\n\n"
-            f"یک سند کامل و ساخت‌یافته درباره این موضوع بنویس."
+            f"یک سند کامل و ساخت‌یافته درباره این موضوع بنویس.\n"
+            f"{LENGTH_GUIDANCE[length]}"
         )
     else:
         system_prompt = FORMAT_SYSTEM_PROMPT
-        user_prompt = f"متن کاربر برای قالب‌بندی:\n\n{content}"
+        user_prompt = (
+            f"متن کاربر برای قالب‌بندی:\n\n{content}\n\n"
+            f"{LENGTH_GUIDANCE[length]}"
+        )
 
     title = _default_title(title, content)
 
@@ -191,7 +202,7 @@ def pdf_prepare():
     try:
         result = provider.generate(
             model.provider_model_name, provider_messages,
-            {"max_output_tokens": max_output},
+            {},  # no max_output_tokens: length is guided via prompt text
         )
     except Exception as exc:
         log.warning("pdf provider failed: %s", exc)
