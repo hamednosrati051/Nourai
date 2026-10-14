@@ -27,7 +27,6 @@ from app.ai.tokens import TokenCounter, TokenizerUnavailable
 from app.api.deps import (
     error_response,
     login_required,
-    rate_limited,
     success_response,
     validation_error,
 )
@@ -113,9 +112,6 @@ def pdf_prepare():
         return validation_error("content too long (max 10000 chars)")
     if length not in LENGTH_TOKENS:
         return validation_error("length must be short, medium or long")
-
-    if rate_limited(f"ai:pdf:{g.current_user_id}", 10, 3600):
-        return error_response("RATE_LIMITED", status=429)
 
     model = _resolve_text_model(None)
     if model is None or not model.is_active:
@@ -263,9 +259,6 @@ def pdf_render():
         return validation_error("text is required")
     if len(text) > 60000:
         return validation_error("text too long (max 60000 chars)")
-
-    if rate_limited(f"pdf:render:{g.current_user_id}", 20, 3600):
-        return error_response("RATE_LIMITED", status=429)
 
     title = _default_title(title, text)
 
