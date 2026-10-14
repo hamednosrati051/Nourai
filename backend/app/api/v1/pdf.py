@@ -206,6 +206,13 @@ def pdf_prepare():
         db.session.commit()
         return error_response("PROVIDER_ERROR", "تولید متن ناموفق بود.", 500)
 
+    if not (result.text or "").strip():
+        log.warning(
+            "pdf prepare empty text: model=%s provider=%s max_output=%s input_tokens=%s output_tokens=%s",
+            model.name, model.provider_key, max_output,
+            result.input_tokens, result.output_tokens,
+        )
+
     output_tokens = result.output_tokens if result.output_tokens else max_output
     actual_input = result.input_tokens if result.input_tokens else input_tokens
     try:
