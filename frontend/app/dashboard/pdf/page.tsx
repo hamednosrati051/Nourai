@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FileDown, Loader2, Lightbulb, Type } from 'lucide-react';
-import { apiPost } from '@/lib/api';
+import { readCookie, apiUrl } from '@/lib/api';
 import { useToast } from '@/components/Toast';
 
 const LENGTHS = [
@@ -26,11 +26,14 @@ export default function PdfPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/pdf/generate', {
+      // Binary download: apiPost parses JSON, so use fetch directly with CSRF header
+      const csrf = readCookie('nourai_csrf') ?? readCookie('nourai_admin_csrf');
+      const res = await fetch(apiUrl('/pdf/generate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Idempotency-Key': crypto.randomUUID(),
+          ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
         },
         credentials: 'include',
         body: JSON.stringify({

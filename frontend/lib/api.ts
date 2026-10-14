@@ -68,7 +68,7 @@ export function apiUrl(path: string): string {
 }
 
 /** Read a cookie value by name (client-side only). */
-function readCookie(name: string): string | null {
+export function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
   return match?.[1] ? decodeURIComponent(match[1]) : null;
