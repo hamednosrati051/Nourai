@@ -169,7 +169,7 @@ export default function PdfPage() {
         </div>
         <button
           onClick={() => setHistoryOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted text-sm font-medium hover:bg-muted/80"
+          className="btn-ghost btn-sm flex items-center gap-1.5"
         >
           <History className="w-4 h-4" />
           تاریخچه
@@ -183,7 +183,7 @@ export default function PdfPage() {
           onClick={() => setHistoryOpen(false)}
         >
           <div
-            className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+            className="card w-full max-w-lg max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
@@ -191,24 +191,24 @@ export default function PdfPage() {
               <h2 className="text-lg font-semibold">تاریخچه PDFها</h2>
               <button
                 onClick={() => setHistoryOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-muted"
+                className="btn-ghost btn-sm p-1.5"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             {history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">هنوز سندی نساخته‌اید.</p>
+              <p className="text-sm text-neutral-500">هنوز سندی نساخته‌اید.</p>
             ) : (
               <div className="space-y-2">
                 {history.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-white/10 px-4 py-3"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{item.title}</p>
                       {item.created_at && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-neutral-500">
                           {new Date(item.created_at).toLocaleString('fa-IR')}
                         </p>
                       )}
@@ -216,7 +216,7 @@ export default function PdfPage() {
                     <button
                       onClick={() => handleDownloadHistory(item)}
                       disabled={downloadingId === item.id}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm hover:bg-muted/80 disabled:opacity-50"
+                      className="btn-ghost btn-sm shrink-0 flex items-center gap-1.5 disabled:opacity-50"
                     >
                       {downloadingId === item.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -240,15 +240,15 @@ export default function PdfPage() {
       )}
 
       {step === 1 ? (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <div className="card">
           {/* tabs */}
           <div className="flex gap-2 mb-5">
             <button
               onClick={() => setTab('idea')}
               className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${
                 tab === 'idea'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-white dark:bg-white/10 shadow-sm ring-1 ring-brand-400'
+                  : 'bg-neutral-100 dark:bg-white/5 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
               }`}
             >
               <Sparkles className="w-4 h-4 inline ml-1" />
@@ -258,8 +258,8 @@ export default function PdfPage() {
               onClick={() => setTab('text')}
               className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${
                 tab === 'text'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-white dark:bg-white/10 shadow-sm ring-1 ring-brand-400'
+                  : 'bg-neutral-100 dark:bg-white/5 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
               }`}
             >
               <FileText className="w-4 h-4 inline ml-1" />
@@ -268,13 +268,13 @@ export default function PdfPage() {
           </div>
 
           <label className="block text-sm font-medium mb-1.5">
-            عنوان سند <span className="text-muted-foreground font-normal">(اختیاری)</span>
+            عنوان سند <span className="text-neutral-500 font-normal">(اختیاری)</span>
           </label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="مثلاً: گزارش فروش تابستان"
-            className="w-full mb-4 px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="input w-full mb-4"
           />
 
           <label className="block text-sm font-medium mb-1.5">
@@ -290,7 +290,7 @@ export default function PdfPage() {
                 ? 'مثلاً: راهنمای نگهداری گیاهان آپارتمانی'
                 : 'متن خود را اینجا بچسبانید...'
             }
-            className="w-full mb-4 px-4 py-3 rounded-xl border border-border bg-background text-sm leading-7 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y"
+            className="input w-full mb-4 resize-y leading-7"
           />
 
           <label className="block text-sm font-medium mb-1.5">طول سند</label>
@@ -301,8 +301,8 @@ export default function PdfPage() {
                 onClick={() => setLength(l.value)}
                 className={`px-4 py-2 rounded-xl text-sm transition ${
                   length === l.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-white dark:bg-white/10 shadow-sm ring-1 ring-brand-400'
+                    : 'bg-neutral-100 dark:bg-white/5 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
                 }`}
               >
                 {l.label}
@@ -313,7 +313,7 @@ export default function PdfPage() {
           <button
             onClick={handlePrepare}
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="btn-primary w-full disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -327,22 +327,22 @@ export default function PdfPage() {
               </>
             )}
           </button>
-          <p className="text-xs text-muted-foreground mt-3 text-center">
+          <p className="text-xs text-neutral-500 mt-3 text-center">
             هزینه فقط در این مرحله از کیف پول کم می‌شود. ساخت PDF رایگان است.
           </p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <div className="card">
           <button
             onClick={backToStep1}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
+            className="flex items-center gap-1 text-sm text-neutral-500 hover:text-foreground mb-4"
           >
             <ArrowLeft className="w-4 h-4 rotate-180" />
             بازگشت و تغییر ورودی
           </button>
 
           <h2 className="text-lg font-semibold mb-1">پیش‌نمایش و ویرایش متن</h2>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-sm text-neutral-500 mb-4">
             متن تولیدشده را بررسی و در صورت نیاز ویرایش کنید، سپس PDF بسازید.
           </p>
 
@@ -350,7 +350,7 @@ export default function PdfPage() {
           <input
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
-            className="w-full mb-4 px-4 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="input w-full mb-4"
           />
 
           <label className="block text-sm font-medium mb-1.5">متن سند</label>
@@ -359,13 +359,13 @@ export default function PdfPage() {
             onChange={(e) => setDraftText(e.target.value)}
             rows={16}
             dir="rtl"
-            className="w-full mb-4 px-4 py-3 rounded-xl border border-border bg-background text-sm leading-8 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y"
+            className="input w-full mb-4 resize-y leading-8"
           />
 
           <button
             onClick={handleRender}
             disabled={rendering}
-            className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="btn-primary w-full disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {rendering ? (
               <>
