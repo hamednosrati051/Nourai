@@ -11,14 +11,25 @@ import { Footer } from '@/components/Footer';
 import { ServiceCard } from '@/components/ServiceCard';
 import { PlansSection } from '@/components/PlansSection';
 import { GalleryCarousel } from '@/components/GalleryCarousel';
+import { useModels } from '@/features/models/hooks';
+import { IMAGE_CAPABILITIES, type ModelCapability } from '@/types/api';
 
-const SERVICES = [
+const SERVICES: {
+  icon: typeof MessageSquare;
+  title: string;
+  description: string;
+  href: string;
+  color: string;
+  /** Visible when ANY of these capabilities has at least one active model. */
+  caps: ModelCapability[];
+}[] = [
   {
     icon: MessageSquare,
     title: 'گفتگو',
     description: 'گفت‌وگوی متنی هوشمند با مدل‌های زبانی؛ پاسخ دقیق، سریع و کاملاً فارسی.',
     href: '/dashboard/chat',
     color: '#3b82f6',
+    caps: ['text'],
   },
   {
     icon: ImageIcon,
@@ -26,6 +37,7 @@ const SERVICES = [
     description: 'از روی متن تصویر بسازید؛ با برآورد شفاف هزینه، قبل از ثبت نهایی.',
     href: '/dashboard/image',
     color: '#8b5cf6',
+    caps: IMAGE_CAPABILITIES,
   },
   {
     icon: Clapperboard,
@@ -33,6 +45,7 @@ const SERVICES = [
     description: 'از روی متن ویدیو بسازید؛ مدت و ابعاد دلخواه.',
     href: '/dashboard/video',
     color: '#f43f5e',
+    caps: ['video_generation'],
   },
   {
     icon: Volume2,
@@ -40,6 +53,7 @@ const SERVICES = [
     description: 'متن‌تان را به گفتار طبیعی تبدیل کنید و فایل صوتی دانلود بگیرید.',
     href: '/dashboard/tts',
     color: '#34d399',
+    caps: ['text_to_speech'],
   },
   {
     icon: Mic,
@@ -47,6 +61,7 @@ const SERVICES = [
     description: 'ویس یا فایل صوتی بفرستید و متن دقیق و تمیز تحویل بگیرید.',
     href: '/dashboard/stt',
     color: '#f472b6',
+    caps: ['speech_to_text'],
   },
   {
     icon: ScanSearch,
@@ -54,6 +69,7 @@ const SERVICES = [
     description: 'تصویر خود را بدهید و تحلیل هوشمند تحویل بگیرید.',
     href: '/dashboard/vision',
     color: '#f59e0b',
+    caps: ['vision', 'text'],
   },
   {
     icon: FlaskConical,
@@ -61,6 +77,7 @@ const SERVICES = [
     description: 'برگه آزمایشتان را تحلیل کنید (جایگزین پزشک نیست).',
     href: '/dashboard/lab-report',
     color: '#22d3ee',
+    caps: ['vision', 'text'],
   },
   {
     icon: FileText,
@@ -68,6 +85,7 @@ const SERVICES = [
     description: 'تحلیل و تنظیم قرارداد (مشاوره حقوقی نیست).',
     href: '/dashboard/contracts',
     color: '#f97316',
+    caps: ['vision', 'text'],
   },
 ];
 
@@ -77,6 +95,16 @@ export default function HomePage() {
   const gallery = useGallery();
   const authed = !!user;
   const ctaHref = authed ? '/dashboard' : '/auth/login';
+
+  // Capabilities with at least one active model. While loading (or on error)
+  // keep every tile visible so a slow/failed request never breaks the landing;
+  // only a confirmed-empty capability hides its tile (same as dashboard).
+  const models = useModels();
+  const readyCaps = new Set((models.data ?? []).map((m) => m.capability));
+  const settled = models.isSuccess;
+  const visibleServices = SERVICES.filter(
+    (s) => !settled || s.caps.some((c) => readyCaps.has(c)),
+  );
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-x-clip">
@@ -127,7 +155,7 @@ export default function HomePage() {
             سرویس‌های <span className="text-gradient">{BRAND.fa}</span>
           </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {SERVICES.map((s) => (
+            {visibleServices.map((s) => (
               <ServiceCard
                 key={s.title}
                 icon={s.icon}
