@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiPost, apiGet, readCookie, apiUrl } from '@/lib/api';
-import { Loader2, FileText, Download, Sparkles, ArrowLeft, History } from 'lucide-react';
+import { Loader2, FileText, Download, Sparkles, ArrowLeft, History, X } from 'lucide-react';
 
 type Tab = 'idea' | 'text';
 type LengthChoice = 'short' | 'medium' | 'long';
@@ -32,6 +32,13 @@ export default function PdfPage() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    // autofocus the main input box whenever the tab changes
+    if (step === 1) contentRef.current?.focus();
+  }, [tab, step]);
 
   const loadHistory = async () => {
     try {
@@ -155,10 +162,76 @@ export default function PdfPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8" dir="rtl">
-      <div className="flex items-center gap-3 mb-6">
-        <FileText className="w-7 h-7 text-primary" />
-        <h1 className="text-2xl font-bold">ساخت PDF با هوش مصنوعی</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <FileText className="w-7 h-7 text-primary" />
+          <h1 className="text-2xl font-bold">ساخت PDF با هوش مصنوعی</h1>
+        </div>
+        <button
+          onClick={() => setHistoryOpen(true)}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-muted text-sm font-medium hover:bg-muted/80"
+        >
+          <History className="w-4 h-4" />
+          تاریخچه
+        </button>
       </div>
+
+      {/* history modal */}
+      {historyOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">تاریخچه PDFها</h2>
+              <button
+                onClick={() => setHistoryOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-muted"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">هنوز سندی نساخته‌اید.</p>
+            ) : (
+              <div className="space-y-2">
+                {history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{item.title}</p>
+                      {item.created_at && (
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(item.created_at).toLocaleString('fa-IR')}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDownloadHistory(item)}
+                      disabled={downloadingId === item.id}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm hover:bg-muted/80 disabled:opacity-50"
+                    >
+                      {downloadingId === item.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      دانلود
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 text-sm">
@@ -208,6 +281,7 @@ export default function PdfPage() {
             {tab === 'idea' ? 'موضوع یا ایده' : 'متن آماده'}
           </label>
           <textarea
+            ref={contentRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={6}
@@ -308,46 +382,6 @@ export default function PdfPage() {
         </div>
       )}
 
-      {/* history */}
-      <div className="mt-10">
-        <div className="flex items-center gap-2 mb-4">
-          <History className="w-5 h-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">تاریخچه</h2>
-        </div>
-        {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">هنوز سندی نساخته‌اید.</p>
-        ) : (
-          <div className="space-y-2">
-            {history.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{item.title}</p>
-                  {item.created_at && (
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(item.created_at).toLocaleString('fa-IR')}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDownloadHistory(item)}
-                  disabled={downloadingId === item.id}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-sm hover:bg-muted/80 disabled:opacity-50"
-                >
-                  {downloadingId === item.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  دانلود
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
