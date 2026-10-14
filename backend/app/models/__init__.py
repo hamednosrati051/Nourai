@@ -11,6 +11,7 @@ from app.models.messenger import MessengerUser, MessengerUserState, SupportMessa
 from app.models.moderation import ModerationSettings, PromptBlocklist
 from app.models.jobs import Asset, GenerationJob
 from app.models.payment import Payment
+from app.models.pdf_document import PdfDocument
 from app.models.plans import Plan, UserPlanSubscription
 from app.models.settings import CurrencySettings, ImageProcessingProfile, SiteSettings
 from app.models.usage import UsageEvent
@@ -41,6 +42,7 @@ __all__ = [
     "OtpChallenge",
     "PromptBlocklist",
     "Payment",
+    "PdfDocument",
     "Plan",
     "UserPlanSubscription",
     "UsageEvent",

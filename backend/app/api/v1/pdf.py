@@ -1,10 +1,18 @@
-"""AI PDF generation: user gives an idea/topic (or ready text), gets back a Persian PDF.
+"""AI PDF generation: two-step flow.
 
-Two modes:
-  - "idea": AI drafts the full document from the topic, then renders PDF.
-  - "text": AI only formats/structures the user's ready text, then renders PDF.
+Step 1 (prepare): user gives an idea/topic (or ready text), AI drafts/formats
+the document text and returns it as JSON for the user to review/edit.
+  - "idea": AI drafts the full document from the topic.
+  - "text": AI only formats/structures the user's ready text.
 
-Billing follows the text-model tariff (input + output tokens), same as chat.
+Step 2 (render): user sends the (possibly edited) text, backend renders the
+Persian PDF, stores it in object storage + history, and returns the file.
+
+Billing follows the text-model tariff (input + output tokens), same as chat,
+and happens only at the prepare step. Rendering is free.
+
+History: GET /pdf/history lists the user's documents; GET /pdf/<id>/download
+re-downloads a stored file.
 """
 from __future__ import annotations
 
@@ -34,8 +42,9 @@ from app.billing.ledger import (
 )
 from app.billing.pricing import PricingService, PricingRuleUnavailable
 from app.extensions import db
-from app.models import AiModel, UsageEvent
+from app.models import AiModel, PdfDocument, UsageEvent, new_uuid
 from app.services.pdf_generator import generate_pdf
+from app.services.storage import StorageService, asset_key
 
 log = logging.getLogger(__name__)
 
@@ -70,9 +79,19 @@ FORMAT_SYSTEM_PROMPT = """شما یک ویراستار حرفه‌ای فارس�
 """
 
 
-@bp.post("/pdf/generate")
+def _default_title(title: str, content: str) -> str:
+    title = (title or "").strip()
+    if title:
+        return title[:255]
+    # Fallback: first 60 chars of the request text
+    fallback = " ".join(content.split())[:60].strip()
+    return fallback or "سند بدون عنوان"
+
+
+@bp.post("/pdf/prepare")
 @login_required
-def pdf_generate():
+def pdf_prepare():
+    """Step 1: AI drafts/formats the document text. Returns JSON {text, title}."""
     data = request.get_json(force=True, silent=True) or {}
     mode = data.get("mode", "idea")
     content = (data.get("content") or "").strip()
@@ -107,8 +126,7 @@ def pdf_generate():
         system_prompt = FORMAT_SYSTEM_PROMPT
         user_prompt = f"متن کاربر برای قالب‌بندی:\n\n{content}"
 
-    if not title:
-        title = content[:60]
+    title = _default_title(title, content)
 
     try:
         counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
@@ -186,7 +204,7 @@ def pdf_generate():
         except Exception:
             pass
         db.session.commit()
-        return error_response("PROVIDER_ERROR", "تولید PDF ناموفق بود.", 500)
+        return error_response("PROVIDER_ERROR", "تولید متن ناموفق بود.", 500)
 
     output_tokens = result.output_tokens if result.output_tokens else max_output
     actual_input = result.input_tokens if result.input_tokens else input_tokens
@@ -195,19 +213,6 @@ def pdf_generate():
         final_irr = final["total_irr"]
     except PricingRuleUnavailable:
         final_irr = estimated_irr
-
-    # Render PDF
-    try:
-        pdf_bytes = generate_pdf(title, result.text)
-    except Exception as exc:
-        log.error("pdf render failed: %s", exc)
-        usage.status = "failed"
-        try:
-            release(db.session, wallet=wallet, idempotency_key=f"pdf:{idempotency_key}:reserve")
-        except Exception:
-            pass
-        db.session.commit()
-        return error_response("PROVIDER_ERROR", "ساخت فایل PDF ناموفق بود.", 500)
 
     usage.status = "succeeded"
     usage.final_input_tokens = actual_input
@@ -224,7 +229,105 @@ def pdf_generate():
         log.warning("pdf settle failed: %s", exc)
     db.session.commit()
 
-    filename = f"nourai-pdf-{uuid.uuid4().hex[:8]}.pdf"
+    return success_response({"text": result.text, "title": title})
+
+
+@bp.post("/pdf/render")
+@login_required
+def pdf_render():
+    """Step 2: render the (possibly edited) text to PDF, store it, return file."""
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get("text") or "").strip()
+    title = (data.get("title") or "").strip()
+
+    if not text:
+        return validation_error("text is required")
+    if len(text) > 60000:
+        return validation_error("text too long (max 60000 chars)")
+
+    if rate_limited(f"pdf:render:{g.current_user_id}", 20, 3600):
+        return error_response("RATE_LIMITED", status=429)
+
+    title = _default_title(title, text)
+
+    try:
+        pdf_bytes = generate_pdf(title, text)
+    except Exception as exc:
+        log.error("pdf render failed: %s", exc)
+        return error_response("PROVIDER_ERROR", "ساخت فایل PDF ناموفق بود.", 500)
+
+    # Store in object storage + history
+    doc_id = new_uuid()
+    key = asset_key(g.current_user_id, "pdf", "pdf")
+    try:
+        StorageService().put_bytes(key, pdf_bytes, "application/pdf")
+    except Exception as exc:
+        log.error("pdf storage failed: %s", exc)
+        return error_response("PROVIDER_ERROR", "ذخیره فایل PDF ناموفق بود.", 500)
+
+    doc = PdfDocument(
+        id=doc_id,
+        user_id=g.current_user_id,
+        title=title,
+        storage_key=key,
+    )
+    db.session.add(doc)
+    db.session.commit()
+
+    filename = f"nourai-pdf-{doc_id[:8]}.pdf"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@bp.get("/pdf/history")
+@login_required
+def pdf_history():
+    """List the user's generated PDF documents (latest 50)."""
+    docs = (
+        db.session.query(PdfDocument)
+        .filter(PdfDocument.user_id == g.current_user_id)
+        .order_by(PdfDocument.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return success_response({
+        "items": [
+            {
+                "id": d.id,
+                "title": d.title,
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in docs
+        ]
+    })
+
+
+@bp.get("/pdf/<doc_id>/download")
+@login_required
+def pdf_download(doc_id: str):
+    """Re-download a stored PDF from history."""
+    doc = (
+        db.session.query(PdfDocument)
+        .filter(
+            PdfDocument.id == doc_id,
+            PdfDocument.user_id == g.current_user_id,
+        )
+        .first()
+    )
+    if doc is None:
+        return error_response("NOT_FOUND", status=404)
+
+    try:
+        pdf_bytes = StorageService().get_bytes(doc.storage_key)
+    except Exception as exc:
+        log.error("pdf download failed: %s", exc)
+        return error_response("PROVIDER_ERROR", "دریافت فایل ناموفق بود.", 500)
+
+    filename = f"nourai-pdf-{doc.id[:8]}.pdf"
     return send_file(
         io.BytesIO(pdf_bytes),
         mimetype="application/pdf",
