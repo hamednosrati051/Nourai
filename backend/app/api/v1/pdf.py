@@ -209,7 +209,7 @@ def pdf_prepare():
     if not (result.text or "").strip():
         log.warning(
             "pdf prepare empty text: model=%s provider=%s max_output=%s input_tokens=%s output_tokens=%s",
-            model.name, model.provider_key, max_output,
+            model.display_name, model.provider_key, max_output,
             result.input_tokens, result.output_tokens,
         )
 
