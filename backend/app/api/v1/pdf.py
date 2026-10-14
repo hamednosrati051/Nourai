@@ -198,7 +198,9 @@ def pdf_prepare():
     try:
         result = provider.generate(
             model.provider_model_name, provider_messages,
-            {},  # no max_output_tokens: length is guided via prompt text
+            # Safety cap only: length is guided via prompt text.
+            # (Low max_tokens values trigger empty responses on AvalAI.)
+            {"max_output_tokens": 16000},
         )
     except Exception as exc:
         log.warning("pdf provider failed: %s", exc)
