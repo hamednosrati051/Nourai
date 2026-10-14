@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, CircleDollarSign, Clapperboard, Crown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Clapperboard, Crown, FileDown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -178,6 +178,15 @@ export default function DashboardPage() {
                 title="گفت‌وگوی متنی"
                 description="مکالمه با مدل‌های زبانی با استریم زنده پاسخ‌ها"
                 color="#38bdf8"
+              />
+            )}
+            {hasCap('text') && (
+              <ServiceCard
+                href="/dashboard/pdf"
+                icon={FileDown}
+                title="ساخت PDF"
+                description="از ایده یا متن آماده، سند PDF فارسی بسازید"
+                color="#10b981"
               />
             )}
             {hasImageCap && (

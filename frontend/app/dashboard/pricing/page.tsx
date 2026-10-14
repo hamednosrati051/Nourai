@@ -26,7 +26,7 @@ const CAPABILITY_META: Record<string, { title: string; unit: string; description
   text: {
     title: 'گفت‌وگوی متنی',
     unit: 'هر ۱٬۰۰۰ کلمه',
-    description: 'مکالمه با مدل‌های زبانی، از جمله دستیار قرارداد',
+    description: 'مکالمه با مدل‌های زبانی، دستیار قرارداد و ساخت PDF',
     color: '#38bdf8',
     icon: MessageSquare,
   },

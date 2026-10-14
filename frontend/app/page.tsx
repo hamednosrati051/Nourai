@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { NouraHero } from '@/components/NouraHero';
-import { FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2, Clapperboard } from 'lucide-react';
+import { FileText, FileDown, FlaskConical, Image as ImageIcon, MessageSquare, Mic, ScanSearch, Volume2, Clapperboard } from 'lucide-react';
 import { BRAND } from '@/lib/config';
 import { useMe } from '@/features/auth/hooks';
 import { useGallery } from '@/features/gallery/hooks';
@@ -86,6 +86,14 @@ const SERVICES: {
     href: '/dashboard/contracts',
     color: '#f97316',
     caps: ['vision', 'text'],
+  },
+  {
+    icon: FileDown,
+    title: 'ساخت PDF',
+    description: 'از ایده یا متن آماده، سند PDF فارسی بسازید.',
+    href: '/dashboard/pdf',
+    color: '#10b981',
+    caps: ['text'],
   },
 ];
 
