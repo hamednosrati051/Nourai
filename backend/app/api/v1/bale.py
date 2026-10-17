@@ -1264,6 +1264,8 @@ def bale_payment_callback():
             _notify = _tts_send_message
         elif payment.idempotency_key.startswith("bale-stt-pay-"):
             _notify = _stt_send_message
+        elif payment.idempotency_key.startswith("bale-pdf-pay-"):
+            _notify = _pdf_send_message
         else:
             _notify = send_message
         _notify(int(link.platform_user_id),
@@ -2483,5 +2485,416 @@ def stt_webhook():
         return success_response({"ok": True})
     except Exception as exc:  # noqa: BLE001
         log.exception("stt bale webhook failed: %s", exc)
+        db.session.rollback()
+        return success_response({"ok": True})
+
+
+# ============================================================================
+# PDF Bot (@nourai_pdf_bot) - AI PDF generation only
+# ============================================================================
+
+PDF_FREE_QUOTA = 3
+
+
+def _pdf_bale_token() -> str:
+    token = config.bale_pdf_bot_token
+    if not token:
+        raise RuntimeError("BALE_PDF_BOT_TOKEN is not configured")
+    return token
+
+
+def _pdf_bale_api(method: str, payload: dict | None = None, files: dict | None = None) -> dict:
+    import requests
+    url = f"{BALE_API}/bot{_pdf_bale_token()}/{method}"
+    try:
+        if files:
+            r = requests.post(url, data=payload, files=files, timeout=60)
+        else:
+            r = requests.post(url, json=payload, timeout=15)
+        return r.json()
+    except Exception as exc:
+        log.error("pdf bale api error: %s", exc)
+        return {}
+
+
+def _pdf_answer_callback(callback_id: str, text: str | None = None) -> None:
+    _pdf_bale_api("answerCallbackQuery", {"callback_query_id": callback_id, "text": text or ""})
+
+
+def _pdf_send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    _pdf_bale_api("sendMessage", payload)
+
+
+def _pdf_send_document(chat_id: int, pdf_bytes: bytes, filename: str) -> None:
+    _pdf_bale_api("sendDocument", {"chat_id": str(chat_id)},
+                  files={"document": (filename, pdf_bytes, "application/pdf")})
+
+
+def _pdf_handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_irr: int) -> None:
+    """Handle charge amount tap in PDF bot (uses PDF token for responses)."""
+    if amount_irr not in CHARGE_PRESETS:
+        _pdf_answer_callback(callback_id, "مبلغ نامعتبر")
+        return
+    payment = Payment(
+        user_id=user.id,
+        gateway="zibal",
+        amount_irr=amount_irr,
+        plan_id=None,
+        status="created",
+        idempotency_key=f"bale-pdf-pay-{uuid.uuid4().hex}",
+    )
+    db.session.add(payment)
+    db.session.commit()
+
+    try:
+        gateway = get_payment_gateway()
+        start = gateway.create_payment(
+            amount_irr,
+            "https://inourai.ir/api/v1/bale/payment-callback",
+            {"payment_id": payment.id, "user_id": user.id, "channel": "bale",
+             "chat_id": chat_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("pdf bale payment create failed: %s", exc)
+        payment.status = "failed"
+        db.session.commit()
+        _pdf_answer_callback(callback_id, "خطا در ایجاد پرداخت")
+        return
+
+    payment.track_id = start.track_id
+    payment.status = "pending"
+    db.session.commit()
+    _pdf_answer_callback(callback_id)
+    pay_url = f"https://inourai.ir/api/v1/go/{start.track_id}"
+    _pdf_send_message(
+        chat_id,
+        f"💳 برای شارژ {_toman(amount_irr)} تومان روی دکمه زیر بزن:\n\n"
+        f"✅ بعد از پرداخت موفق، موجودیت خودکار به‌روز می‌شه.\n\n"
+        f"⚠️ این اعتبار فقط توی بات بله قابل استفاده‌ست.",
+        reply_markup={
+            "inline_keyboard": [
+                [{"text": "💳 پرداخت آنلاین", "url": pay_url}]
+            ]
+        },
+    )
+
+
+PDF_WELCOME = (
+    "📄 سلام! به ربات ساخت PDF نورا خوش اومدی.\n\n"
+    "کافیه موضوع یا متنت رو بفرستی تا یه PDF تمیز و مرتب تحویل بگیری.\n\n"
+    f"🎁 {PDF_FREE_QUOTA} درخواست اولت رایگانه!"
+)
+
+
+PDF_MENU_KEYBOARD = {
+    "keyboard": [
+        [{"text": "📄 ساخت PDF"}],
+        [{"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}],
+        [{"text": "🛟 پشتیبانی"}],
+    ],
+    "resize_keyboard": True,
+}
+
+
+def _pdf_free_remaining(user_id: str) -> int:
+    """How many free PDF-bot requests the user still has."""
+    from app.models import UsageEvent
+    used = (
+        db.session.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.status == "succeeded",
+            UsageEvent.metadata_json["bot"].as_string() == "pdf",
+        )
+        .count()
+    )
+    return max(0, PDF_FREE_QUOTA - used)
+
+
+def _handle_pdf_bot(chat_id: int, user: User, content: str) -> None:
+    """Topic/text -> PDF for the dedicated PDF bot (first 3 free)."""
+    from app.ai.adapters import get_text_provider
+    from app.models import UsageEvent
+    from app.services.pdf_generator import generate_pdf
+    content = (content or "").strip()
+    if not content:
+        _pdf_send_message(chat_id, "متنی نفرستادی.")
+        return
+    if len(content) > 10000:
+        _pdf_send_message(chat_id, "متن خیلی طولانیه (حداکثر ۱۰۰۰۰ حرف).")
+        return
+
+    # Resolve text model (same as web PDF)
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="text", is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if model is None:
+        _pdf_send_message(chat_id, "مدل متنی فعالی پیدا نشد.")
+        return
+    try:
+        provider = get_text_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("pdf bot provider error: %s", exc)
+        _pdf_send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.")
+        return
+
+    free_left = _pdf_free_remaining(user.id)
+    is_free = free_left > 0
+
+    # Use the same prompts as web PDF (idea mode, medium length)
+    from app.api.v1.pdf import PDF_SYSTEM_PROMPT, LENGTH_GUIDANCE
+    system_prompt = PDF_SYSTEM_PROMPT
+    user_prompt = (
+        f"موضوع سند: {content}\n\n"
+        f"یک سند کامل و ساخت‌یافته درباره این موضوع بنویس.\n"
+        f"{LENGTH_GUIDANCE['medium']}"
+    )
+    max_output = 4000
+
+    try:
+        counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
+    except TokenizerUnavailable:
+        counter = None
+    if counter is not None:
+        text_tokens = counter.count_text(system_prompt) + counter.count_text(user_prompt)
+    else:
+        text_tokens = (len(system_prompt) + len(user_prompt)) // 4
+
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_text(model.id, text_tokens, max_output)
+    except PricingRuleUnavailable:
+        _pdf_send_message(chat_id, "تعرفه مدل تنظیم نشده.")
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"pdf-bot-{uuid.uuid4().hex}"
+    if not is_free:
+        try:
+            reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="pdf bot")
+        except InsufficientBalance:
+            _pdf_send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
+            return
+        db.session.commit()
+
+    usage = UsageEvent(
+        user_id=user.id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="processing",
+        est_input_tokens=text_tokens,
+        est_output_tokens=max_output,
+        estimated_amount_irr=0 if is_free else estimate["total_irr"],
+        metadata_json={"bot": "pdf", "free": is_free},
+    )
+    db.session.add(usage)
+    db.session.flush()
+
+    _pdf_send_message(chat_id, "📄 دارم سند رو می‌نویسم...")
+
+    def _generate():
+        try:
+            return provider.generate(
+                model.provider_model_name,
+                [{"role": "system", "content": system_prompt},
+                 {"role": "user", "content": user_prompt}],
+                {"max_output_tokens": max_output},
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("pdf bot provider call failed: %s", exc)
+            return None
+
+    result = _generate()
+    # Retry once on empty text; never charge for an empty result.
+    if result is not None and result.ok and not (result.text or "").strip():
+        log.warning("pdf bot empty text, retrying once")
+        result = _generate()
+
+    if result is None or not result.ok or not (result.text or "").strip():
+        usage.status = "failed"
+        if not is_free:
+            try:
+                release(db.session, wallet=wallet,
+                        reserved_amount_irr=estimate["total_irr"],
+                        idempotency_key=f"{key}:release",
+                        description="pdf bot failed")
+            except Exception:
+                pass
+        db.session.commit()
+        _pdf_send_message(chat_id, "خطا در تولید سند. بعداً تلاش کن.")
+        return
+
+    doc_text = result.text.strip()
+    title = content[:60]
+
+    # Render PDF
+    try:
+        pdf_bytes = generate_pdf(title, doc_text)
+    except Exception as exc:
+        log.error("pdf bot render failed: %s", exc)
+        usage.status = "failed"
+        if not is_free:
+            try:
+                release(db.session, wallet=wallet,
+                        reserved_amount_irr=estimate["total_irr"],
+                        idempotency_key=f"{key}:release",
+                        description="pdf bot render failed")
+            except Exception:
+                pass
+        db.session.commit()
+        _pdf_send_message(chat_id, "خطا در ساخت فایل PDF.")
+        return
+
+    # Settle on actual tokens
+    in_tok = result.input_tokens or text_tokens
+    out_tok = result.output_tokens or max_output
+    if is_free:
+        final_irr = 0
+        free_left -= 1
+    else:
+        try:
+            final_irr = pricing.estimate_text(model.id, in_tok, out_tok)["total_irr"]
+        except PricingRuleUnavailable:
+            final_irr = estimate["total_irr"]
+        try:
+            settle(db.session, wallet=wallet,
+                   reserved_amount_irr=estimate["total_irr"],
+                   final_amount_irr=final_irr,
+                   idempotency_key=f"{key}:settle",
+                   reference_type="usage_event", reference_id=usage.id,
+                   description="settle pdf bot")
+        except Exception as exc:
+            log.warning("pdf bot settle failed: %s", exc)
+
+    usage.status = "succeeded"
+    usage.final_input_tokens = in_tok
+    usage.final_output_tokens = out_tok
+    usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
+    db.session.commit()
+
+    _pdf_send_document(chat_id, pdf_bytes, f"nourai-{usage.id[:8]}.pdf")
+    if is_free:
+        _pdf_send_message(
+            chat_id,
+            f"✅ تموم شد! 🎁 {free_left} درخواست رایگان دیگه داری.",
+            reply_markup=PDF_MENU_KEYBOARD,
+        )
+
+
+@bp.post("/pdf/webhook")
+def pdf_webhook():
+    """Webhook for the PDF-only bot."""
+    update = request.get_json(silent=True) or {}
+    try:
+        callback = update.get("callback_query") or {}
+        if callback:
+            cb_id = callback.get("id")
+            from_user = callback.get("from") or {}
+            bale_user_id = from_user.get("id")
+            message = callback.get("message") or {}
+            chat_id = (message.get("chat") or {}).get("id")
+            data = callback.get("data") or ""
+            if bale_user_id and chat_id and data.startswith("charge:"):
+                user = _get_or_create_user(bale_user_id, from_user)
+                try:
+                    amount = int(data.split(":", 1)[1])
+                except ValueError:
+                    amount = 0
+                _pdf_handle_charge_callback(chat_id, cb_id, user, amount)
+            else:
+                _pdf_answer_callback(cb_id)
+            return success_response({"ok": True})
+
+        message = update.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        from_user = message.get("from") or {}
+        bale_user_id = from_user.get("id")
+        if not chat_id or not bale_user_id:
+            return success_response({"ok": True})
+
+        if not _is_channel_member(bale_user_id):
+            _pdf_send_message(chat_id, "برای استفاده از ربات، اول تو کانال ما عضو شو.")
+            return success_response({"ok": True})
+
+        user = _get_or_create_user(bale_user_id, from_user)
+        text = (message.get("text") or "").strip()
+
+        if text == "/start":
+            _pdf_send_message(chat_id, PDF_WELCOME, reply_markup=PDF_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == "📄 ساخت PDF":
+            _pdf_send_message(
+                chat_id,
+                "📝 موضوع یا متنت رو بفرست تا PDFش کنم.",
+                reply_markup=PDF_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_WALLET:
+            balance = _wallet_balance(user.id)
+            free_left = _pdf_free_remaining(user.id)
+            _pdf_send_message(
+                chat_id,
+                f"💰 موجودی کیف پولت: {_toman(balance)} تومان\n"
+                f"🎁 درخواست رایگان مونده: {free_left}",
+                reply_markup=PDF_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_CHARGE or text.startswith("/charge"):
+            balance = _wallet_balance(user.id)
+            _pdf_send_message(
+                chat_id,
+                f"💰 موجودی فعلیت: {_toman(balance)} تومان\n\nمبلغ شارژ رو انتخاب کن:",
+                reply_markup=_charge_keyboard(),
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_SUPPORT:
+            _set_user_mode(bale_user_id, "awaiting_pdf_support")
+            _pdf_send_message(
+                chat_id,
+                "🛟 پشتیبانی ربات PDF\n\n"
+                "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
+                reply_markup=PDF_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        pdf_mode, _ = _get_user_mode(bale_user_id)
+        if pdf_mode == "awaiting_pdf_support" and text:
+            _clear_user_mode(bale_user_id)
+            msg = SupportMessage(
+                platform="bale",
+                platform_user_id=bale_user_id,
+                user_id=user.id,
+                message=f"[ربات PDF] {text[:1900]}",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            _pdf_send_message(chat_id, "✅ پیامت ثبت شد. به‌زودی بررسی می‌کنیم.",
+                              reply_markup=PDF_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Any other text -> PDF generation
+        if text:
+            _clear_user_mode(bale_user_id)
+            _handle_pdf_bot(chat_id, user, text)
+            return success_response({"ok": True})
+
+        return success_response({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        log.exception("pdf bale webhook failed: %s", exc)
         db.session.rollback()
         return success_response({"ok": True})

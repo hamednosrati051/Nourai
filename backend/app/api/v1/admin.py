@@ -747,6 +747,8 @@ def reply_support(msg_id: str):
             _send = _tts_send_message
         elif m.message.startswith("[ربات شنیدار]"):
             _send = _stt_send_message
+        elif m.message.startswith("[ربات PDF]"):
+            _send = _pdf_send_message
         else:
             _send = send_message
         _send(
