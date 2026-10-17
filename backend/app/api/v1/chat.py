@@ -56,7 +56,7 @@ log = logging.getLogger(__name__)
 bp = Blueprint("chat", __name__)
 
 GENERATION_TIMEOUT_SECONDS = 90
-DEFAULT_MAX_OUTPUT_TOKENS = 1024
+DEFAULT_MAX_OUTPUT_TOKENS = 4096
 MAX_CONTENT_CHARS = 20000
 # Token budget for conversation history sent to the provider.
 # Keeps input costs bounded on long conversations.
@@ -383,7 +383,24 @@ def send_message(conversation_id: str):
     else:
         result_error = None
 
-    if result is None or not result.ok:
+    # Provider sometimes returns ok=True with empty text (e.g. AvalAI returns
+    # empty when the answer would exceed max_tokens). Retry once before giving
+    # up; never charge for an empty result.
+    if result is not None and result.ok and not (result.text or "").strip():
+        log.warning("chat provider returned empty text, retrying once")
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(
+                    provider.generate, model.provider_model_name, provider_messages,
+                    {"max_output_tokens": max_output_tokens},
+                )
+                result = future.result(timeout=GENERATION_TIMEOUT_SECONDS)
+                result_error = None
+        except Exception as exc:  # noqa: BLE001
+            result = None
+            result_error = ("PROVIDER_ERROR", str(exc)[:200])
+
+    if result is None or not result.ok or not (result.text or "").strip():
         code = (result.error_code if result else None) or (result_error[0] if result_error else "PROVIDER_ERROR")
         if not quota_covered:
             wallet = get_wallet_for_update(db.session, g.current_user_id)
