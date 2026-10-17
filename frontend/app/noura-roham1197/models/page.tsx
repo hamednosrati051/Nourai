@@ -41,6 +41,7 @@ const CAPABILITIES: ModelCapability[] = [
   'image',
   'generate_image',
   'edit_image',
+  'vision',
   'video_generation',
 ];
 
