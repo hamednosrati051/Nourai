@@ -26,6 +26,7 @@ import requests
 from flask import Blueprint, request
 
 from app.ai.adapters import get_image_provider, get_stt_provider, get_text_provider
+from app.ai.tokens import TokenCounter, TokenizerUnavailable
 from app.api.deps import success_response
 from app.auth.otp import normalize_mobile
 from app.billing.ledger import (
