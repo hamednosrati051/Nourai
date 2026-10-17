@@ -62,6 +62,7 @@ const modelSchema = z.object({
   base_url: z.string().trim().optional(),
   api_key: z.string().trim().optional(),
   is_active: z.boolean(),
+  default_max_output_tokens: z.coerce.number().int().min(1).max(32768).optional(),
 }).superRefine((v, ctx) => {
   if (v.api_key?.trim() && !v.base_url?.trim()) {
     ctx.addIssue({
@@ -114,6 +115,7 @@ export default function AdminModelsPage() {
       base_url: '',
       api_key: '',
       is_active: true,
+      default_max_output_tokens: undefined,
     });
     setModalOpen(true);
   };
@@ -128,6 +130,7 @@ export default function AdminModelsPage() {
       base_url: m.base_url || '',
       api_key: '',
       is_active: m.is_active,
+      default_max_output_tokens: m.default_max_output_tokens ?? undefined,
     });
     setModalOpen(true);
   };
@@ -153,6 +156,9 @@ export default function AdminModelsPage() {
                 }
               : {}),
             is_active: values.is_active,
+            ...(values.default_max_output_tokens
+              ? { default_max_output_tokens: values.default_max_output_tokens }
+              : {}),
           },
         },
         {
@@ -183,6 +189,9 @@ export default function AdminModelsPage() {
             }
           : {}),
         is_active: values.is_active,
+        ...(values.default_max_output_tokens
+          ? { default_max_output_tokens: values.default_max_output_tokens }
+          : {}),
       },
       {
         onSuccess: () => {
@@ -334,6 +343,23 @@ export default function AdminModelsPage() {
                     <p role="alert" className="field-error">{errors.provider_model_name.message}</p>
                   )}
                   <p className="field-hint">برای Async Generation با فرمت vendor/model بنویسید، مثلاً google/nano-banana</p>
+                </div>
+                <div>
+                  <label htmlFor="model-max-output" className="label">سقف توکن خروجی</label>
+                  <input
+                    id="model-max-output"
+                    dir="ltr"
+                    type="number"
+                    min={1}
+                    max={32768}
+                    placeholder="خالی = پیش‌فرض سیستم"
+                    className={`input text-left ${errors.default_max_output_tokens ? 'input-error' : ''}`}
+                    {...register('default_max_output_tokens')}
+                  />
+                  {errors.default_max_output_tokens && (
+                    <p role="alert" className="field-error">{errors.default_max_output_tokens.message}</p>
+                  )}
+                  <p className="field-hint">حداکثر توکن پاسخ مدل. خالی بماند از پیش‌فرض سیستم استفاده می‌شود.</p>
                 </div>
               </div>
             </div>

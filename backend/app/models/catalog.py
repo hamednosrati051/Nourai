@@ -50,6 +50,9 @@ class AiModel(Base):
     # keys live in env/secret manager, never here.
     config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Per-model default cap for generated tokens (admin-configurable).
+    # NULL = fall back to the endpoint's built-in default.
+    default_max_output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ModelPricingRule(Base):

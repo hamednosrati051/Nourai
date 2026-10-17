@@ -248,7 +248,9 @@ def send_message(conversation_id: str):
         log.warning("tokenizer unavailable for model %s; using estimated token counts",
                     model.id)
 
-    max_output_tokens = data.max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
+    max_output_tokens = (data.max_output_tokens
+                         or model.default_max_output_tokens
+                         or DEFAULT_MAX_OUTPUT_TOKENS)
     if not 1 <= max_output_tokens <= 8192:
         return validation_error()
 

@@ -119,6 +119,8 @@ export interface AiModel {
   tokenizer_encoding?: string | null;
   config_json?: Record<string, unknown> | null;
   description?: string | null;
+  /** Per-model default cap for generated tokens (admin-configurable). */
+  default_max_output_tokens?: number | null;
   /** True when provider credentials were stored via the admin form. */
   has_credentials?: boolean;
   /** Provider endpoint URL (not sensitive); api_key is never returned. */

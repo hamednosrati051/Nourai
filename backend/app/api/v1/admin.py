@@ -976,6 +976,8 @@ class ModelCreateSchema(BaseModel):
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
+    # Per-model default cap for generated tokens (admin-configurable).
+    default_max_output_tokens: int | None = None
     # Write-only provider credentials (from the admin form). Stored on the
     # model record; never returned by the API. Env vars remain as fallback.
     base_url: str | None = None
@@ -991,6 +993,7 @@ class ModelUpdateSchema(BaseModel):
     tokenizer_encoding: str | None = None
     config_json: dict | None = None
     description: str | None = None
+    default_max_output_tokens: int | None = None
     # Write-only: non-empty values replace the stored credentials.
     base_url: str | None = None
     api_key: str | None = None
@@ -1046,6 +1049,7 @@ def _model_payload(model: AiModel) -> dict:
         "provider_model_name": model.provider_model_name, "is_active": model.is_active,
         "pricing_type": model.pricing_type, "provider_type": model.provider_type,
         "tokenizer_encoding": model.tokenizer_encoding,
+        "default_max_output_tokens": model.default_max_output_tokens,
         "base_url": creds.get("base_url") or "",
         "config_json": cfg or None, "description": model.description,
         "has_credentials": has_credentials,
@@ -1122,6 +1126,7 @@ def create_model():
         is_active=data.is_active, pricing_type=data.pricing_type,
         tokenizer_encoding=encoding, config_json=config_with_creds,
         description=data.description,
+        default_max_output_tokens=data.default_max_output_tokens,
     )
     db.session.add(model)
     db.session.flush()
@@ -1170,6 +1175,9 @@ def update_model(model_id: str):
         changes["provider_credentials"] = True
     if data.description is not None:
         model.description = data.description; changes["description"] = True
+    if data.default_max_output_tokens is not None:
+        model.default_max_output_tokens = data.default_max_output_tokens
+        changes["default_max_output_tokens"] = model.default_max_output_tokens
     _audit("model.updated", "ai_model", model.id, changes)
     db.session.commit()
     payload = _model_payload(model)

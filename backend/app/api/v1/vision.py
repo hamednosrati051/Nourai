@@ -230,7 +230,7 @@ def analyze_image():
         text_tokens = (len(system_prompt) + len(user_prompt)) // 4
     input_tokens = text_tokens + TOKENS_PER_IMAGE
 
-    max_output = DEFAULT_MAX_OUTPUT_TOKENS
+    max_output = model.default_max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
     pricing = PricingService(db.session)
     try:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
