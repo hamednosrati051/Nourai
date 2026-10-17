@@ -432,6 +432,10 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     if model is None:
         send_message(chat_id, "مدل تولید تصویر فعالی پیدا نشد.")
         return
+    max_prompt = model.max_prompt_chars or 4000
+    if len(prompt) > max_prompt:
+        send_message(chat_id, "متن شما خیلی طولانیه، لطفاً کوتاه‌ترش کنید.")
+        return
     try:
         provider = get_image_provider(model.provider_key, model)
     except ValueError as exc:

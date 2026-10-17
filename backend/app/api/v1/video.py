@@ -158,6 +158,9 @@ def create_video_job():
     model = _resolve_video_model(body.get("model_id"))
     if model is None:
         return error_response("MODEL_UNAVAILABLE", "مدل فعال تولید ویدیو یافت نشد.", 404)
+    max_prompt = model.max_prompt_chars or 4000
+    if len(prompt) > max_prompt:
+        return error_response("VALIDATION_ERROR", "متن شما خیلی طولانیه، لطفاً کوتاه‌ترش کنید.", 422)
 
     try:
         seconds = int(body.get("seconds") or 4)
@@ -183,7 +186,7 @@ def create_video_job():
         capability=CAP_VIDEO_GENERATION,
         model_id=model.id,
         status=JOB_QUEUED,
-        prompt_text=prompt[:(model.max_prompt_chars or 4000)],
+        prompt_text=prompt,
         mode=MODE_TEXT_TO_VIDEO,
         parameters_json={
             "seconds": seconds,

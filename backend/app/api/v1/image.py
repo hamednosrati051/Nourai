@@ -324,6 +324,9 @@ def create_image_job():
     model = _resolve_image_model(_val("model_id"), mode)
     if model is None:
         return error_response("MODEL_UNAVAILABLE", "مدل فعال تولید تصویر یافت نشد.", 404)
+    max_prompt = model.max_prompt_chars or 4000
+    if len(prompt) > max_prompt:
+        return error_response("VALIDATION_ERROR", "متن شما خیلی طولانیه، لطفاً کوتاه‌ترش کنید.", 422)
     profile = get_active_profile(model.id)
     if profile is None:
         return error_response("MODEL_UNAVAILABLE", "پروفایل پردازش تصویر تنظیم نشده است.", 500)
@@ -392,7 +395,7 @@ def create_image_job():
         capability="image",
         model_id=model.id,
         status=JOB_QUEUED,
-        prompt_text=prompt[:(model.max_prompt_chars or 4000)],
+        prompt_text=prompt,
         mode=mode,
         source_asset_id=processed_asset.id if processed_asset else None,
         parameters_json={

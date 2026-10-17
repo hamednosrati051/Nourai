@@ -208,8 +208,10 @@ def send_message(conversation_id: str):
     except ValidationError:
         return validation_error()
     content = (data.content or "").strip()
-    if not content or len(content) > MAX_CONTENT_CHARS:
+    if not content:
         return validation_error()
+    if len(content) > MAX_CONTENT_CHARS:
+        return error_response("VALIDATION_ERROR", "متن شما خیلی طولانیه، لطفاً کوتاه‌ترش کنید.", 422)
 
     # Prompt blocklist: reject before rate-limit accounting, wallet hold,
     # or any provider call.
