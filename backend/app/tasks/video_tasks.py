@@ -14,6 +14,7 @@ from app.billing.pricing import PricingService
 from app.extensions import db
 from app.models import AiModel, Asset, GenerationJob, UsageEvent
 from app.models.catalog import CAP_VIDEO_GENERATION
+from app.models.gallery import GALLERY_PENDING, GalleryEntry
 from app.models.jobs import (
     ASSET_GENERATED_VIDEO,
     JOB_FAILED,
@@ -92,9 +93,19 @@ def process_video_job(self, job_id: str) -> dict:
         job.status = JOB_SUCCEEDED
         job.finished_at = utcnow()
         job.result_text = None
+        _enqueue_gallery(session, result_asset, job.user_id)
         session.commit()
         log.info("video job %s succeeded asset=%s", job_id, result_asset.id)
         return {"ok": True, "asset_id": result_asset.id}
+
+
+def _enqueue_gallery(session, asset, user_id: str) -> None:
+    """Queue a generated video for gallery moderation (idempotent)."""
+    existing = session.query(GalleryEntry).filter_by(asset_id=asset.id).one_or_none()
+    if existing is None:
+        session.add(
+            GalleryEntry(asset_id=asset.id, user_id=user_id, status=GALLERY_PENDING)
+        )
 
 
 def _run_provider(session, job: GenerationJob) -> Asset:

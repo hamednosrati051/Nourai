@@ -234,10 +234,13 @@ export function useAdminUsage(page = 1, filters?: { service?: string; userId?: s
 // Gallery moderation queue
 // ---------------------------------------------------------------------------
 
-export function useAdminGallery(status: 'pending' | 'approved' | 'rejected' = 'pending') {
+export function useAdminGallery(
+  status: 'pending' | 'approved' | 'rejected' = 'pending',
+  kind: 'image' | 'video' = 'image',
+) {
   return useQuery({
-    queryKey: ['admin', 'gallery', status],
-    queryFn: () => apiGet<GalleryQueueItem[]>(`/admin/gallery${buildQuery({ status })}`),
+    queryKey: ['admin', 'gallery', status, kind],
+    queryFn: () => apiGet<GalleryQueueItem[]>(`/admin/gallery${buildQuery({ status, kind })}`),
   });
 }
 

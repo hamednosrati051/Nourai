@@ -1,4 +1,4 @@
-"""Public gallery: at most 20 latest admin-approved generated images.
+"""Public gallery: at most 20 latest admin-approved generated media.
 
 Only ``status=approved`` rows ordered by ``reviewed_at`` desc are ever
 returned. Pending/rejected entries and non-generated assets (chat input
@@ -10,13 +10,16 @@ from __future__ import annotations
 from app.config import config
 from app.models import Asset, GalleryEntry
 from app.models.gallery import GALLERY_APPROVED
-from app.models.jobs import ASSET_GENERATED_IMAGE, GenerationJob
+from app.models.jobs import ASSET_GENERATED_IMAGE, ASSET_GENERATED_VIDEO, GenerationJob
 
 # Generic, safe alt text — never the user's prompt.
 GALLERY_ALT_TEXT = "تصویر تولیدشده توسط کاربر نورا"
 
+GALLERY_KINDS = {"image": ASSET_GENERATED_IMAGE, "video": ASSET_GENERATED_VIDEO}
 
-def public_gallery(session, limit: int | None = None) -> list[dict]:
+
+def public_gallery(session, limit: int | None = None, kind: str = "image") -> list[dict]:
+    asset_kind = GALLERY_KINDS.get(kind, ASSET_GENERATED_IMAGE)
     limit = min(limit or config.gallery_public_limit, config.gallery_public_limit)
     rows = (
         session.query(GalleryEntry, Asset, GenerationJob)
@@ -24,7 +27,7 @@ def public_gallery(session, limit: int | None = None) -> list[dict]:
         .outerjoin(GenerationJob, Asset.job_id == GenerationJob.id)
         .filter(
             GalleryEntry.status == GALLERY_APPROVED,
-            Asset.kind == ASSET_GENERATED_IMAGE,
+            Asset.kind == asset_kind,
         )
         .order_by(GalleryEntry.reviewed_at.desc())
         .limit(limit)
@@ -34,6 +37,7 @@ def public_gallery(session, limit: int | None = None) -> list[dict]:
     for entry, asset, job in rows:
         items.append({
             "id": entry.id,
+            "kind": asset.kind,
             "width": asset.width,
             "height": asset.height,
             "aspect_ratio": round(asset.width / asset.height, 4)

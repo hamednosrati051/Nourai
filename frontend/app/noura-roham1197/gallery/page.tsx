@@ -1,6 +1,6 @@
 'use client';
 
-import { Images } from 'lucide-react';
+import { Clapperboard, Images } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   useAdminGallery,
@@ -42,24 +42,50 @@ function AuthImage({ src, alt, className }: { src: string; alt: string; classNam
   return <img src={url} alt={alt} loading="lazy" className={className} />;
 }
 
+/** Video that loads via authenticated fetch (for admin viewing non-public assets). */
+function AuthVideo({ src, className }: { src: string; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    let objUrl: string | null = null;
+    fetch(src, { credentials: 'include' })
+      .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then((b) => {
+        if (!active) return;
+        objUrl = URL.createObjectURL(b);
+        setUrl(objUrl);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [src]);
+  if (!url) return <div className={className} />;
+  return <video src={url} controls preload="metadata" className={className} />;
+}
+
 type Tab = 'pending' | 'approved' | 'rejected';
+type MediaKind = 'image' | 'video';
 
 /** Admin gallery moderation: approve / reject / remove items. */
 export default function AdminGalleryPage() {
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>('pending');
+  const [media, setMedia] = useState<MediaKind>('image');
   const [rejectTarget, setRejectTarget] = useState<GalleryQueueItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const queue = useAdminGallery(tab);
+  const queue = useAdminGallery(tab, media);
   const approve = useApproveGalleryItem();
   const reject = useRejectGalleryItem();
   const remove = useRemoveGalleryItem();
   const requeue = useRequeueGalleryItem();
 
+  const mediaLabel = media === 'video' ? 'ویدیو' : 'تصویر';
   const onApprove = (item: GalleryQueueItem) => {
     approve.mutate(item.asset_id, {
-      onSuccess: () => toast('تصویر تأیید و در گالری منتشر شد.', 'success'),
+      onSuccess: () => toast(`${mediaLabel} تأیید و در گالری منتشر شد.`, 'success'),
       onError: (err) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'تأیید ناموفق بود.', 'error'),
     });
@@ -73,7 +99,7 @@ export default function AdminGalleryPage() {
         onSuccess: () => {
           setRejectTarget(null);
           setRejectReason('');
-          toast('تصویر رد شد.', 'success');
+          toast(`${mediaLabel} رد شد.`, 'success');
         },
         onError: (err) =>
           toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'رد ناموفق بود.', 'error'),
@@ -82,9 +108,9 @@ export default function AdminGalleryPage() {
   };
 
   const onRemove = (item: GalleryQueueItem) => {
-    if (!window.confirm('این تصویر از گالری عمومی خارج می‌شود (بدون حذف فایل اصلی). ادامه می‌دهید؟')) return;
+    if (!window.confirm(`این ${mediaLabel} از گالری عمومی خارج می‌شود (بدون حذف فایل اصلی). ادامه می‌دهید؟`)) return;
     remove.mutate(item.asset_id, {
-      onSuccess: () => toast('تصویر از گالری خارج شد.', 'success'),
+      onSuccess: () => toast(`${mediaLabel} از گالری خارج شد.`, 'success'),
       onError: (err) =>
         toast(err instanceof ApiError ? getErrorMessage(err.code, err.message) : 'عملیات ناموفق بود.', 'error'),
     });
@@ -96,12 +122,36 @@ export default function AdminGalleryPage() {
     { value: 'rejected', label: 'ردشده' },
   ];
 
+  const mediaTabs: { value: MediaKind; label: string }[] = [
+    { value: 'image', label: 'تصاویر' },
+    { value: 'video', label: 'ویدیوها' },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-extrabold">مدیریت گالری</h1>
       <p className="text-sm text-neutral-600 dark:text-slate-400">
-        فقط تصاویر تأییدشده در گالری عمومی و چرخش صفحه اصلی نمایش داده می‌شوند (حداکثر ۲۰ تصویر آخر).
+        فقط موارد تأییدشده در گالری عمومی نمایش داده می‌شوند (حداکثر ۲۰ مورد آخر).
       </p>
+
+      <div role="tablist" aria-label="نوع رسانه" className="flex gap-2 overflow-x-auto pb-1">
+        {mediaTabs.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            role="tab"
+            aria-selected={media === t.value}
+            onClick={() => setMedia(t.value)}
+            className={`btn-sm whitespace-nowrap rounded-xl px-4 font-semibold transition-colors ${
+              media === t.value
+                ? 'bg-brand-600 text-white dark:bg-brand-500 dark:text-navy-950'
+                : 'btn-secondary'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       <div role="tablist" aria-label="وضعیت بررسی" className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map((t) => (
@@ -126,9 +176,9 @@ export default function AdminGalleryPage() {
       {queue.isError && <ErrorState message="بارگذاری صف گالری ناموفق بود." onRetry={() => queue.refetch()} />}
       {queue.data && queue.data.length === 0 && (
         <EmptyState
-          icon={Images}
+          icon={media === 'video' ? Clapperboard : Images}
           title={tab === 'pending' ? 'صف بررسی خالی است' : 'موردی نیست'}
-          description={tab === 'pending' ? 'تصویر جدیدی برای بررسی وجود ندارد.' : 'در این وضعیت تصویری ثبت نشده است.'}
+          description={tab === 'pending' ? `${mediaLabel} جدیدی برای بررسی وجود ندارد.` : `در این وضعیت ${mediaLabel}ی ثبت نشده است.`}
         />
       )}
 
@@ -138,13 +188,20 @@ export default function AdminGalleryPage() {
             <li key={item.id} className="card !p-3">
               <div
                 className="relative w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-navy-800"
-                style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '1 / 1' }}
+                style={{ aspectRatio: item.width && item.height ? `${item.width} / ${item.height}` : '16 / 9' }}
               >
-                <AuthImage
-                  src={item.thumbnail_url ?? item.image_url}
-                  alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
+                {item.kind === 'generated_video' ? (
+                  <AuthVideo
+                    src={item.image_url}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <AuthImage
+                    src={item.thumbnail_url ?? item.image_url}
+                    alt={item.alt_text ?? `تصویر گالری ${BRAND.fa}`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-500 dark:text-slate-400">
                 <span dir="ltr">{item.user_mobile_masked}</span>

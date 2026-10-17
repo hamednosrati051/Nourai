@@ -1,6 +1,6 @@
 'use client';
 
-import { Images } from 'lucide-react';
+import { Clapperboard, Images } from 'lucide-react';
 import { useState } from 'react';
 import { BRAND } from '@/lib/config';
 import { useGallery } from '@/features/gallery/hooks';
@@ -15,11 +15,18 @@ import { ApiError, getErrorMessage } from '@/lib/api';
 /**
  * Public gallery in the Binavira-inspired app style:
  * floating pill header + vertical right-side nav + navy/light card grid.
- * At most 20 latest admin-approved images from GET /api/v1/gallery only.
+ * At most 20 latest admin-approved items from GET /api/v1/gallery.
+ * Images and videos have separate tabs; the homepage carousel uses
+ * images only (useGallery() default).
  */
+type MediaKind = 'image' | 'video';
+
 export default function GalleryPage() {
-  const { data: items, isLoading, isError, error, refetch } = useGallery();
+  const [media, setMedia] = useState<MediaKind>('image');
+  const { data: items, isLoading, isError, error, refetch } = useGallery(media);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const mediaLabel = media === 'video' ? 'ویدیو' : 'تصویر';
 
   return (
     <div className="min-h-screen">
@@ -33,8 +40,35 @@ export default function GalleryPage() {
             نگارخانه <span className="text-gradient">{BRAND.fa}</span>
           </h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-slate-400">
-            منتخبی از تصاویر ساخته‌شده توسط کاربران که توسط تیم ما تأیید شده‌اند.
+            منتخبی از تصاویر و ویدیوهای ساخته‌شده توسط کاربران که توسط تیم ما تأیید شده‌اند.
           </p>
+        </div>
+
+        <div role="tablist" aria-label="نوع رسانه" className="mb-8 flex gap-2">
+          {(
+            [
+              { value: 'image', label: 'تصاویر' },
+              { value: 'video', label: 'ویدیوها' },
+            ] as { value: MediaKind; label: string }[]
+          ).map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="tab"
+              aria-selected={media === t.value}
+              onClick={() => {
+                setMedia(t.value);
+                setLightboxIndex(null);
+              }}
+              className={`btn-sm whitespace-nowrap rounded-xl px-4 font-semibold transition-colors ${
+                media === t.value
+                  ? 'bg-brand-600 text-white dark:bg-brand-500 dark:text-navy-950'
+                  : 'btn-secondary'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {isLoading && <LoadingSpinner label="در حال بارگذاری نگارخانه…" />}
@@ -48,15 +82,15 @@ export default function GalleryPage() {
 
         {!isLoading && !isError && (!items || items.length === 0) && (
           <EmptyState
-            icon={Images}
-            title="هنوز تصویری تأیید نشده است"
-            description="به‌زودی تصاویر تأییدشده کاربران در این نگارخانه نمایش داده می‌شود."
+            icon={media === 'video' ? Clapperboard : Images}
+            title={`هنوز ${mediaLabel}ی تأیید نشده است`}
+            description={`به‌زودی ${mediaLabel}های تأییدشده کاربران در این نگارخانه نمایش داده می‌شود.`}
             actionLabel="بازگشت به صفحه اصلی"
             actionHref="/"
           />
         )}
 
-        {!isLoading && !isError && items && items.length > 0 && (
+        {!isLoading && !isError && items && items.length > 0 && media === 'image' && (
           <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-label="تصاویر نگارخانه">
             {items.map((item, i) => (
               <li
@@ -89,7 +123,30 @@ export default function GalleryPage() {
           </ul>
         )}
 
-        {lightboxIndex !== null && items && (
+        {!isLoading && !isError && items && items.length > 0 && media === 'video' && (
+          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2" aria-label="ویدیوهای نگارخانه">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100 shadow-sm dark:border-white/10 dark:bg-navy-800 dark:shadow-black/30"
+              >
+                <div className="relative aspect-video w-full bg-black">
+                  <video
+                    src={item.image_url}
+                    controls
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </div>
+                {item.prompt && (
+                  <p className="px-4 py-3 text-sm text-neutral-600 dark:text-slate-400">{item.prompt}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {lightboxIndex !== null && items && media === 'image' && (
           <GalleryLightbox
             items={items}
             initialIndex={lightboxIndex}

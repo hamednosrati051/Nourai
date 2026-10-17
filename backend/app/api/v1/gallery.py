@@ -1,12 +1,13 @@
 """Public gallery: at most 20 latest admin-approved images.
 
-No pagination beyond the fixed cap (MVP). Empty array when nothing is
-approved — never placeholder images. No mobile numbers, private prompts or
-sensitive ids are exposed.
+Defaults to images; pass ?kind=video for approved videos. No pagination
+beyond the fixed cap (MVP). Empty array when nothing is approved — never
+placeholder images. No mobile numbers, private prompts or sensitive ids
+are exposed.
 """
 from __future__ import annotations
 
-from flask import Blueprint
+from flask import Blueprint, request
 
 from app.api.deps import success_response
 from app.config import config
@@ -20,7 +21,10 @@ bp = Blueprint("gallery", __name__)
 
 @bp.get("/gallery")
 def get_gallery():
-    items = public_gallery(db.session)
+    kind = request.args.get("kind", "image")
+    if kind not in ("image", "video"):
+        kind = "image"
+    items = public_gallery(db.session, kind=kind)
     for item in items:
         asset = db.session.get(Asset, item["asset_id"])
         # Stream via backend (same-origin). Presigned URLs point at localhost.

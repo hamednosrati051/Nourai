@@ -64,7 +64,7 @@ from app.models import (
 from app.models.catalog import CAP_IMAGE, CAPABILITIES
 from app.models.payment import PAY_PAID
 from app.models.gallery import GALLERY_APPROVED, GALLERY_PENDING, GALLERY_REJECTED
-from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET_KINDS
+from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET_GENERATED_VIDEO, ASSET_KINDS
 from app.services import users as user_service
 from app.services.audit import audit
 from app.services.storage import storage
@@ -798,9 +798,14 @@ def list_gallery():
     status = request.args.get("status", GALLERY_PENDING)
     if status not in (GALLERY_PENDING, GALLERY_APPROVED, GALLERY_REJECTED):
         return validation_error()
+    kind = request.args.get("kind", "image")
+    if kind not in ("image", "video"):
+        return validation_error()
+    asset_kind = ASSET_GENERATED_IMAGE if kind == "image" else ASSET_GENERATED_VIDEO
     query = (
         db.session.query(GalleryEntry)
-        .filter_by(status=status)
+        .join(Asset, GalleryEntry.asset_id == Asset.id)
+        .filter(GalleryEntry.status == status, Asset.kind == asset_kind)
         .order_by(GalleryEntry.reviewed_at.desc(), GalleryEntry.created_at.desc())
     )
     page, page_size = pagination_params()
@@ -823,6 +828,7 @@ def list_gallery():
             item.update({
                 "width": asset.width, "height": asset.height,
                 "mime_type": asset.mime_type, "size_bytes": asset.size_bytes,
+                "kind": asset.kind,
             })
             item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
             # The admin UI renders the prompt (small) under each image.
@@ -835,7 +841,7 @@ def list_gallery():
 
 def _gallery_entry_for_asset(asset_id: str) -> tuple[Asset | None, GalleryEntry | None]:
     asset = db.session.get(Asset, asset_id)
-    if asset is None or asset.kind != ASSET_GENERATED_IMAGE:
+    if asset is None or asset.kind not in (ASSET_GENERATED_IMAGE, ASSET_GENERATED_VIDEO):
         return None, None
     entry = db.session.query(GalleryEntry).filter_by(asset_id=asset_id).one_or_none()
     return asset, entry
@@ -846,7 +852,7 @@ def _gallery_entry_for_asset(asset_id: str) -> tuple[Asset | None, GalleryEntry 
 def approve_gallery(asset_id: str):
     asset, entry = _gallery_entry_for_asset(asset_id)
     if asset is None:
-        return error_response("NOT_FOUND", "فقط تصاویر تولیدشده می‌توانند وارد گالری شوند.", 404)
+        return error_response("NOT_FOUND", "فقط تصاویر و ویدیوهای تولیدشده می‌توانند وارد گالری شوند.", 404)
     now = utcnow()
     if entry is None:
         entry = GalleryEntry(asset_id=asset.id, user_id=asset.user_id)
@@ -857,9 +863,11 @@ def approve_gallery(asset_id: str):
     entry.rejection_reason = None
     _audit("gallery.approved", "gallery_entry", entry.id, {"asset_id": asset.id})
     db.session.commit()
-    # Queue for Bale channel (requires separate approval)
-    _queue_for_bale("gallery", entry.id, None)
-    db.session.commit()
+    # Queue for Bale channel (requires separate approval) — images only,
+    # videos never go to the Bale channel.
+    if asset.kind == ASSET_GENERATED_IMAGE:
+        _queue_for_bale("gallery", entry.id, None)
+        db.session.commit()
     return success_response({"id": entry.id, "status": entry.status})
 
 

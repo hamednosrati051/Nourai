@@ -315,6 +315,8 @@ export interface GalleryItem {
   id: string;
   /** Optimized, publicly accessible image URL. */
   image_url: string;
+  /** Asset kind: generated_image | generated_video (admin gallery). */
+  kind?: string | null;
   /** Optimized thumbnail URL (falls back to image_url when absent). */
   thumbnail_url?: string | null;
   width?: number | null;
