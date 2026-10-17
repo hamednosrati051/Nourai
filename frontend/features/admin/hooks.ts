@@ -309,7 +309,9 @@ export function useUpdateAdminModel() {
 export function usePricingRules() {
   return useQuery({
     queryKey: ['admin', 'pricing-rules'],
-    queryFn: () => apiGet<PricingRule[]>('/admin/pricing-rules'),
+    // The pricing page has no pagination UI; fetch up to the max page
+    // size so all rules are visible in one list.
+    queryFn: () => apiGet<PricingRule[]>('/admin/pricing-rules?page_size=100'),
   });
 }
 
