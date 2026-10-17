@@ -239,7 +239,7 @@ def pdf_prepare():
         settle(
             db.session, wallet=wallet,
             reserved_amount_irr=estimated_irr,
-            idempotency_key=f"pdf:{idempotency_key}:reserve",
+            idempotency_key=f"pdf:{idempotency_key}:settle",
             final_amount_irr=final_irr,
             reference_type="pdf", reference_id=usage.id,
         )

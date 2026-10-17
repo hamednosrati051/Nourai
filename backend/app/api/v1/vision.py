@@ -300,7 +300,8 @@ def analyze_image():
     try:
         settle(
             db.session, wallet=wallet,
-            idempotency_key=f"vision:{idempotency_key}:reserve",
+            reserved_amount_irr=estimated_irr,
+            idempotency_key=f"vision:{idempotency_key}:settle",
             final_amount_irr=final_irr,
             reference_type="vision", reference_id=usage.id,
         )
@@ -531,7 +532,8 @@ def contract_chat():
     try:
         settle(
             db.session, wallet=wallet,
-            idempotency_key=f"contract-chat:{idempotency_key}:reserve",
+            reserved_amount_irr=estimated_irr,
+            idempotency_key=f"contract-chat:{idempotency_key}:settle",
             final_amount_irr=final_irr,
             reference_type="contract_chat", reference_id=idempotency_key,
         )

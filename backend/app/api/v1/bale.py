@@ -405,7 +405,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
         final = estimate["total_irr"]
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-               final_amount_irr=final, idempotency_key=key, description="bale_text_chat")
+               final_amount_irr=final, idempotency_key=f"{key}:settle", description="bale_text_chat")
     except DuplicateIdempotencyKey:
         # Bale retried the webhook; the user was already charged for the first
         # attempt. Skip duplicate billing but still send the AI response.
@@ -482,7 +482,7 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
 
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image")
+               final_amount_irr=estimate["total_irr"], idempotency_key=f"{key}:settle", description="bale_image")
     except DuplicateIdempotencyKey:
         log.info("bale image duplicate key, skipping rebill: %s", key)
         db.session.rollback()
@@ -620,7 +620,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
     db.session.add(usage)
     try:
         from app.billing.ledger import settle
-        settle(db.session, wallet=wallet, idempotency_key=key,
+        settle(db.session, wallet=wallet, idempotency_key=f"{key}:settle",
                reserved_amount_irr=estimate["total_irr"],
                final_amount_irr=final_irr, description="bale_lab_report")
         db.session.commit()
@@ -705,7 +705,7 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
 
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_stt")
+               final_amount_irr=estimate["total_irr"], idempotency_key=f"{key}:settle", description="bale_stt")
     except DuplicateIdempotencyKey:
         log.info("bale stt duplicate idempotency key, skipping rebill: %s", key)
         db.session.rollback()
@@ -791,7 +791,7 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
         final = estimate["total_irr"]
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-               final_amount_irr=final, idempotency_key=key, description="bale_tts")
+               final_amount_irr=final, idempotency_key=f"{key}:settle", description="bale_tts")
     except DuplicateIdempotencyKey:
         # Bale retried the webhook; the user was already charged for the first
         # attempt. Skip duplicate billing but still send the audio.
@@ -885,7 +885,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         return
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
-               final_amount_irr=stt_est["total_irr"], idempotency_key=key_stt, description="bale_va_stt")
+               final_amount_irr=stt_est["total_irr"], idempotency_key=f"{key_stt}:settle", description="bale_va_stt")
     except DuplicateIdempotencyKey:
         log.info("bale va stt duplicate key, skipping rebill: %s", key_stt)
         db.session.rollback()
@@ -916,7 +916,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     key_text = f"bale-va-text-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, description="bale_va_text")
+                idempotency_key=f"{key_text}:settle", description="bale_va_text")
     except InsufficientBalance:
         send_message(chat_id, "💰 موجودیت کافی نیست.")
         return
@@ -926,13 +926,13 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va text failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, description="bale_va_failed")
+                idempotency_key=f"{key_text}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ.")
         return
     if not text_result.ok or not text_result.text:
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-                idempotency_key=key_text, description="bale_va_failed")
+                idempotency_key=f"{key_text}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ.")
         return
@@ -944,7 +944,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         text_final = text_est["total_irr"]
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
-               final_amount_irr=text_final, idempotency_key=key_text, description="bale_va_text")
+               final_amount_irr=text_final, idempotency_key=f"{key_text}:settle", description="bale_va_text")
     except DuplicateIdempotencyKey:
         log.info("bale va text duplicate key, skipping rebill: %s", key_text)
         db.session.rollback()
@@ -971,7 +971,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     key_tts = f"bale-va-tts-{uuid.uuid4().hex}"
     try:
         reserve(db.session, wallet=wallet, amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, description="bale_va_tts")
+                idempotency_key=f"{key_tts}:settle", description="bale_va_tts")
     except InsufficientBalance:
         send_message(chat_id, f"💬 {reply_text}\n\n(موجودی برای صوت کافی نبود)")
         return
@@ -981,13 +981,13 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va tts failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, description="bale_va_failed")
+                idempotency_key=f"{key_tts}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, f"💬 {reply_text}")
         return
     if not tts_result.ok or not tts_result.audio_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-                idempotency_key=key_tts, description="bale_va_failed")
+                idempotency_key=f"{key_tts}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, f"💬 {reply_text}")
         return
@@ -998,7 +998,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         tts_final = tts_est["total_irr"]
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
-               final_amount_irr=tts_final, idempotency_key=key_tts, description="bale_va_tts")
+               final_amount_irr=tts_final, idempotency_key=f"{key_tts}:settle", description="bale_va_tts")
     except DuplicateIdempotencyKey:
         log.info("bale va tts duplicate key, skipping rebill: %s", key_tts)
         db.session.rollback()
@@ -1091,7 +1091,7 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
 
     try:
         settle(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
-               final_amount_irr=estimate["total_irr"], idempotency_key=key, description="bale_image_edit")
+               final_amount_irr=estimate["total_irr"], idempotency_key=f"{key}:settle", description="bale_image_edit")
     except DuplicateIdempotencyKey:
         log.info("bale image edit duplicate key, skipping rebill: %s", key)
         db.session.rollback()
