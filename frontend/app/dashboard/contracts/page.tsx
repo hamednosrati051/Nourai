@@ -23,9 +23,9 @@ export default function ContractsPage() {
   const { toast } = useToast();
   const [tab, setTab] = useState<'image' | 'chat'>('image');
   
-  // Image analysis state
-  const [image, setImage] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  // Image analysis state (multi-image: up to 10)
+  const [images, setImages] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,23 +59,34 @@ export default function ContractsPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const onFile = (f: File | undefined) => {
-    if (!f) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
-      toast('فقط JPG، PNG یا WebP', 'error');
-      return;
+  const onFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const valid: File[] = [];
+    for (const f of Array.from(files)) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
+        toast('فقط JPG، PNG یا WebP', 'error');
+        continue;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast('حداکثر ۱۰ مگابایت برای هر تصویر', 'error');
+        continue;
+      }
+      valid.push(f);
     }
-    if (f.size > 10 * 1024 * 1024) {
-      toast('حداکثر ۱۰ مگابایت', 'error');
-      return;
-    }
-    setImage(f);
-    setPreview(URL.createObjectURL(f));
+    const next = [...images, ...valid].slice(0, 10);
+    setImages(next);
+    setPreviews(next.map((f) => URL.createObjectURL(f)));
     setResult(null);
   };
 
+  const removeImage = (idx: number) => {
+    const next = images.filter((_, i) => i !== idx);
+    setImages(next);
+    setPreviews(next.map((f) => URL.createObjectURL(f)));
+  };
+
   const onAnalyze = async () => {
-    if (!image) {
+    if (images.length === 0) {
       toast('اول تصویر قرارداد رو انتخاب کن', 'error');
       return;
     }
@@ -83,7 +94,7 @@ export default function ContractsPage() {
     setResult(null);
     try {
       const form = new FormData();
-      form.append('image', image);
+      images.forEach((img) => form.append('images', img));
       form.append('mode', 'contract');
       const res = await apiPostForm<{ analysis: string }>('/vision/analyze', form, undefined, {
         'Idempotency-Key': crypto.randomUUID(),
@@ -239,23 +250,44 @@ export default function ContractsPage() {
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              multiple
               className="hidden"
-              onChange={(e) => onFile(e.target.files?.[0])}
+              onChange={(e) => onFiles(e.target.files)}
             />
-            {preview ? (
-              <img src={preview} alt="preview" className="max-h-64 mx-auto rounded-xl" />
+            {previews.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-3">
+                {previews.map((src, i) => (
+                  <div key={i} className="relative">
+                    <img src={src} alt={`صفحه ${i + 1}`} className="h-32 w-32 rounded-xl object-cover" />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeImage(i);
+                      }}
+                      aria-label={`حذف تصویر ${i + 1}`}
+                      className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white"
+                    >
+                      ✕
+                    </button>
+                    <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 text-[10px] text-white">
+                      {i + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 text-neutral-500">
                 <Upload className="h-10 w-10" />
-                <p>تصویر قرارداد رو انتخاب کنید</p>
-                <p className="text-xs">JPG، PNG یا WebP — حداکثر ۱۰ مگابایت</p>
+                <p>تصاویر قرارداد رو انتخاب کنید (چند صفحه)</p>
+                <p className="text-xs">JPG، PNG یا WebP — حداکثر ۱۰ مگابایت برای هر تصویر</p>
               </div>
             )}
           </div>
 
           <button
             onClick={onAnalyze}
-            disabled={loading || !image}
+            disabled={loading || images.length === 0}
             className="btn-primary disabled:opacity-50"
           >
             {loading ? (
@@ -272,8 +304,8 @@ export default function ContractsPage() {
             <>
               <button
                 onClick={() => {
-                  setImage(null);
-                  setPreview(null);
+                  setImages([]);
+                  setPreviews([]);
                   setResult(null);
                 }}
                 className="btn-primary"

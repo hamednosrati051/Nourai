@@ -52,6 +52,11 @@ bp = Blueprint("vision", __name__)
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
 DEFAULT_MAX_OUTPUT_TOKENS = 2048
+# Multi-image pricing (Hamed, 2026-10-17): first VISION_INCLUDED_IMAGES at the
+# normal input tariff, each additional image at 2x. Hard cap per request.
+VISION_INCLUDED_IMAGES = 2
+MAX_VISION_IMAGES = 10
+TOKENS_PER_IMAGE = 1000
 
 LAB_REPORT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برای تحلیل برگه‌های آزمایش هستید.
 کاربر تصویری از برگه آزمایش خود ارسال کرده است.
@@ -146,18 +151,33 @@ CONTRACT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برا�
 @bp.post("/vision/analyze")
 @login_required
 def analyze_image():
-    image_file = request.files.get("image")
+    # Multi-image upload: up to MAX_VISION_IMAGES files under "images"
+    # (legacy single "image" field still accepted). First
+    # VISION_INCLUDED_IMAGES are billed at the normal input tariff; each
+    # additional image is billed at 2x (Hamed's pricing rule, 2026-10-17).
+    image_files = request.files.getlist("images")
+    if not image_files:
+        single = request.files.get("image")
+        if single:
+            image_files = [single]
     prompt = (request.form.get("prompt") or "").strip()
     mode = (request.form.get("mode") or "general").strip()
 
-    if not image_file:
+    if not image_files:
         return validation_error("image file is required")
-    mime = image_file.content_type or ""
-    if mime not in ALLOWED_MIME:
-        return validation_error(f"unsupported image type: {mime}")
-    image_bytes = image_file.read()
-    if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
-        return validation_error("image too large (max 10MB)")
+    if len(image_files) > MAX_VISION_IMAGES:
+        return validation_error(f"too many images (max {MAX_VISION_IMAGES})")
+    images = []
+    for image_file in image_files:
+        mime = image_file.content_type or ""
+        if mime not in ALLOWED_MIME:
+            return validation_error(f"unsupported image type: {mime}")
+        image_bytes = image_file.read()
+        if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
+            return validation_error("image too large (max 10MB)")
+        images.append((mime, image_bytes))
+    num_images = len(images)
+    extra_images = max(0, num_images - VISION_INCLUDED_IMAGES)
 
     if mode == "lab_report":
         system_prompt = LAB_REPORT_SYSTEM_PROMPT
@@ -183,24 +203,23 @@ def analyze_image():
     except TokenizerUnavailable:
         counter = None
 
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-    data_url = f"data:{mime};base64,{b64}"
+    b64_images = [base64.b64encode(b).decode("utf-8") for _, b in images]
+    content_parts = [{"type": "text", "text": user_prompt}]
+    for (mime, _), b64 in zip(images, b64_images):
+        content_parts.append(
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+        )
     provider_messages = [
         {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ],
-        },
+        {"role": "user", "content": content_parts},
     ]
 
     if counter is not None:
         text_tokens = counter.count_text(system_prompt) + counter.count_text(user_prompt)
     else:
         text_tokens = (len(system_prompt) + len(user_prompt)) // 4
-    input_tokens = text_tokens + 1000
+    # First VISION_INCLUDED_IMAGES at normal tariff, extras at 2x.
+    input_tokens = text_tokens + TOKENS_PER_IMAGE * (num_images + extra_images)
 
     max_output = DEFAULT_MAX_OUTPUT_TOKENS
     pricing = PricingService(db.session)
@@ -264,6 +283,9 @@ def analyze_image():
 
     output_tokens = result.output_tokens if result.output_tokens else max_output
     actual_input = result.input_tokens if result.input_tokens else input_tokens
+    # Re-apply the 2x surcharge for images beyond VISION_INCLUDED_IMAGES on
+    # the settled amount (provider-reported tokens don't include it).
+    actual_input += TOKENS_PER_IMAGE * extra_images
     try:
         final = pricing.estimate_text(model.id, actual_input, output_tokens)
         final_irr = final["total_irr"]
