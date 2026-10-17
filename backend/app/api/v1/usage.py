@@ -93,7 +93,11 @@ def list_usage():
                 "image_count": e.image_count,
                 "usage_amount": _service_and_usage(e)[1],
                 "usage_unit": _service_and_usage(e)[2],
-                "charged_amount_irr": e.charged_amount_irr,
+                # Fall back to the estimate for old rows that never had the
+                # charged amount recorded (display-only; wallet was reserved).
+                "charged_amount_irr": e.charged_amount_irr
+                if e.charged_amount_irr is not None
+                else e.estimated_amount_irr,
                 "token_count_source": e.token_count_source,
                 "created_at": e.created_at.isoformat() if e.created_at else None,
             }
