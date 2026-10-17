@@ -451,7 +451,20 @@ def send_message(conversation_id: str):
                 reference_type="usage_event", reference_id=usage.id,
                 description="settle text generation",
             )
-        except (DuplicateIdempotencyKey, InsufficientBalance):
+        except DuplicateIdempotencyKey:
+            pass  # already settled; continue as success
+        except Exception:
+            # Genuine settle failure: release the reserve so the user's
+            # funds don't get stuck, then report the error.
+            try:
+                release(
+                    db.session, wallet=wallet, reserved_amount_irr=estimated_irr,
+                    idempotency_key=f"chat:{user_message.id}:release",
+                    reference_type="usage_event", reference_id=usage.id,
+                    description="release after settle failure",
+                )
+            except DuplicateIdempotencyKey:
+                pass
             db.session.rollback()
             log.exception("settle failed for message %s", user_message.id)
             return error_response("INTERNAL_ERROR", status=500)

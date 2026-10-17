@@ -103,7 +103,17 @@ def purchase_plan(plan_id: str):
             402,
         )
     except DuplicateIdempotencyKey:
-        pass  # retried request; the deduction already happened
+        # Retried request (e.g. page refresh): the deduction already
+        # happened. Return the existing active subscription instead of
+        # creating a new one, so the start date isn't reset.
+        db.session.rollback()
+        sub = get_active_subscription(db.session, g.current_user_id)
+        db.session.commit()
+        if sub is None:
+            return error_response("INTERNAL_ERROR", status=500)
+        return success_response(
+            {"subscription": subscription_to_dict(db.session, sub)}, status=200
+        )
     sub = activate_subscription(db.session, g.current_user_id, plan)
     db.session.commit()
     return success_response(

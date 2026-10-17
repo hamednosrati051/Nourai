@@ -23,7 +23,13 @@ export function usePlans() {
 export function usePurchasePlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (planId: string) => apiPost<{ subscription: unknown }>(`/plans/${planId}/purchase`),
+    mutationFn: (planId: string) =>
+      apiPost<{ subscription: unknown }>(
+        `/plans/${planId}/purchase`,
+        undefined,
+        undefined,
+        { 'Idempotency-Key': crypto.randomUUID() },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me', 'plan'] });
       queryClient.invalidateQueries({ queryKey: ['wallet'] });
