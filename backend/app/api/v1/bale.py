@@ -3027,7 +3027,8 @@ CONTRACT_WELCOME = (
 
 CONTRACT_MENU_KEYBOARD = {
     "keyboard": [
-        [{"text": "⚖️ تحلیل قرارداد"}],
+        [{"text": "📸 تحلیل قرارداد"}, {"text": "📝 تنظیم قرارداد"}],
+        [{"text": "✏️ اصلاح قرارداد"}],
         [{"text": "💰 اعتبار من"}],
         [{"text": "➕ افزایش اعتبار"}],
         [{"text": "🛟 پشتیبانی"}],
@@ -3260,10 +3261,29 @@ def contract_webhook():
             _contract_send_message(chat_id, CONTRACT_WELCOME, reply_markup=CONTRACT_MENU_KEYBOARD)
             return success_response({"ok": True})
 
-        if text == "⚖️ تحلیل قرارداد":
+        if text == "📸 تحلیل قرارداد":
+            _set_user_mode(bale_user_id, "awaiting_contract_analyze")
             _contract_send_message(
                 chat_id,
-                "📸 عکس قراردادت رو بفرست تا تحلیلش کنم.",
+                "📸 عکس قراردادت رو بفرست، یا متنش رو بنویس تا تحلیلش کنم.",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == "📝 تنظیم قرارداد":
+            _set_user_mode(bale_user_id, "awaiting_contract_draft")
+            _contract_send_message(
+                chat_id,
+                "📝 چه قراردادی می‌خوای؟ مثلاً بنویس «یه قولنامه برای خرید ماشین می‌خوام».",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == "✏️ اصلاح قرارداد":
+            _set_user_mode(bale_user_id, "awaiting_contract_correct")
+            _contract_send_message(
+                chat_id,
+                "✏️ متن قراردادت رو بفرست تا ایرادهاش رو بگم و نسخه درست‌شده رو بدم.",
                 reply_markup=CONTRACT_MENU_KEYBOARD,
             )
             return success_response({"ok": True})
@@ -3313,7 +3333,7 @@ def contract_webhook():
                                    reply_markup=CONTRACT_MENU_KEYBOARD)
             return success_response({"ok": True})
 
-        # Photo -> auto contract analysis
+        # Photo -> auto contract analysis (works in analyze mode or no mode)
         photos = message.get("photo") or []
         if photos:
             _clear_user_mode(bale_user_id)
@@ -3330,11 +3350,35 @@ def contract_webhook():
             _handle_contract_bot(chat_id, user, doc["file_id"])
             return success_response({"ok": True})
 
-        # Any other text -> guide to send photo
+        # Text modes
+        contract_mode, _ = _get_user_mode(bale_user_id)
+        if text and contract_mode == "awaiting_contract_draft":
+            _clear_user_mode(bale_user_id)
+            _handle_contract_text_mode(chat_id, user, text, "draft")
+            return success_response({"ok": True})
+        if text and contract_mode == "awaiting_contract_correct":
+            _clear_user_mode(bale_user_id)
+            if len(text) < 200:
+                _contract_send_message(chat_id, "متن قراردادت کوتاهه. لطفاً متن کامل رو بفرست.",
+                                       reply_markup=CONTRACT_MENU_KEYBOARD)
+                return success_response({"ok": True})
+            _handle_contract_text_mode(chat_id, user, text, "correct")
+            return success_response({"ok": True})
+        if text and contract_mode == "awaiting_contract_analyze":
+            _clear_user_mode(bale_user_id)
+            if len(text) < 200:
+                _contract_send_message(chat_id, "📸 لطفاً عکس قراردادت رو بفرست، یا متن کاملش رو بنویس.",
+                                       reply_markup=CONTRACT_MENU_KEYBOARD)
+                return success_response({"ok": True})
+            _handle_contract_text_mode(chat_id, user, text, "analyze")
+            return success_response({"ok": True})
+
+        # Any other text -> guide
         if text:
             _contract_send_message(
                 chat_id,
-                "📸 لطفاً عکس قراردادت رو بفرست تا تحلیلش کنم."
+                "از منو انتخاب کن: 📸 تحلیل، 📝 تنظیم، یا ✏️ اصلاح قرارداد.",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
             )
             return success_response({"ok": True})
 
@@ -3343,3 +3387,167 @@ def contract_webhook():
         log.exception("contract bale webhook failed: %s", exc)
         db.session.rollback()
         return success_response({"ok": True})
+
+
+CONTRACT_DISCLAIMER = "⚠️ توجه: این تحلیل جنبه اطلاع‌رسانی دارد و جایگزین مشاوره حقوقی وکیل نیست."
+
+
+def _handle_contract_text_mode(chat_id: int, user: User, text: str, mode: str) -> None:
+    """Handle text-based contract operations: analyze, draft, or correct."""
+    from app.models import UsageEvent
+
+    # mode: "analyze" (flaws), "draft" (new contract), "correct" (flaws + fixed version)
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="text", is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if model is None:
+        _contract_send_message(chat_id, "مدل متنی فعالی پیدا نشد.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    try:
+        provider = get_text_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("contract text provider error: %s", exc)
+        _contract_send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    free_left = _contract_free_remaining(user.id)
+    is_free = free_left > 0
+
+    if mode == "draft":
+        system_prompt = (
+            "شما یک دستیار حقوقی برای تنظیم قراردادهای ایرانی هستید. "
+            "قراردادهای استاندارد، کامل و ساخت‌یافته بنویسید با تمام بندهای لازم: "
+            "طرفین، موضوع، مبلغ، مدت، تعهدات، شرایط فسخ، حل اختلاف و امضا."
+        )
+        user_prompt = f"این قرارداد را تنظیم کن:\n\n{text}"
+    elif mode == "correct":
+        system_prompt = (
+            "شما یک دستیار حقوقی برای بررسی قراردادهای ایرانی هستید. "
+            "متن قرارداد را بررسی کن، ایرادها و ریسک‌ها را بگو، "
+            "سپس نسخه اصلاح‌شده و کامل قرارداد را ارائه بده."
+        )
+        user_prompt = f"این متن قرارداد را بررسی کن، ایرادهایش را بگو و نسخه درست‌شده را بده:\n\n{text}"
+    else:  # analyze
+        system_prompt = (
+            "شما یک دستیار حقوقی برای تحلیل قراردادهای ایرانی هستید. "
+            "متن قرارداد را تحلیل کن: طرفین، مبلغ، مدت، تعهدات، ریسک‌ها و نکات مهم."
+        )
+        user_prompt = f"این متن قرارداد را تحلیل کن:\n\n{text}"
+
+    max_output = 4000
+    try:
+        counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
+    except TokenizerUnavailable:
+        counter = None
+    if counter is not None:
+        input_tokens = counter.count_text(system_prompt) + counter.count_text(user_prompt)
+    else:
+        input_tokens = (len(system_prompt) + len(user_prompt)) // 4
+
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_text(model.id, input_tokens, max_output)
+    except PricingRuleUnavailable:
+        _contract_send_message(chat_id, "تعرفه مدل تنظیم نشده.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"bale-contract-text-{uuid.uuid4().hex}"
+    if not is_free:
+        try:
+            from app.billing.ledger import reserve, InsufficientBalance
+            reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="bale_contract_text")
+        except InsufficientBalance:
+            _contract_send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
+                                   reply_markup=CONTRACT_MENU_KEYBOARD)
+            return
+        db.session.commit()
+
+    usage = UsageEvent(
+        user_id=user.id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="processing",
+        est_input_tokens=input_tokens,
+        est_output_tokens=max_output,
+        estimated_amount_irr=0 if is_free else estimate["total_irr"],
+        metadata_json={"bot": "contract", "free": is_free, "mode": mode},
+    )
+    db.session.add(usage)
+    db.session.flush()
+
+    _contract_send_message(chat_id, "⚖️ دارم بررسی می‌کنم... چند لحظه صبر کن.")
+
+    def _generate():
+        try:
+            return provider.generate(
+                model.provider_model_name,
+                [{"role": "system", "content": system_prompt},
+                 {"role": "user", "content": user_prompt}],
+                {"max_output_tokens": max_output},
+            )
+        except Exception as exc:
+            log.warning("contract text provider call failed: %s", exc)
+            return None
+
+    result = _generate()
+    if result is not None and result.ok and not (result.text or "").strip():
+        result = _generate()
+
+    if result is None or not result.ok or not (result.text or "").strip():
+        usage.status = "failed"
+        if not is_free:
+            try:
+                from app.billing.ledger import release
+                release(db.session, wallet=wallet,
+                        reserved_amount_irr=estimate["total_irr"],
+                        idempotency_key=f"{key}:release",
+                        description="bale_contract_text_failed")
+            except Exception:
+                pass
+        db.session.commit()
+        _contract_send_message(chat_id, "خطا در پردازش. بعداً تلاش کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    in_tok = result.input_tokens or input_tokens
+    out_tok = result.output_tokens or max_output
+    if is_free:
+        final_irr = 0
+        free_left -= 1
+    else:
+        try:
+            final_irr = pricing.estimate_text(model.id, in_tok, out_tok)["total_irr"]
+        except PricingRuleUnavailable:
+            final_irr = estimate["total_irr"]
+        try:
+            from app.billing.ledger import settle
+            settle(db.session, wallet=wallet,
+                   reserved_amount_irr=estimate["total_irr"],
+                   final_amount_irr=final_irr,
+                   idempotency_key=f"{key}:settle",
+                   reference_type="usage_event", reference_id=usage.id,
+                   description="settle bale_contract_text")
+        except Exception as exc:
+            log.warning("contract text settle failed: %s", exc)
+
+    usage.status = "succeeded"
+    usage.final_input_tokens = in_tok
+    usage.final_output_tokens = out_tok
+    usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
+    db.session.commit()
+
+    _contract_send_message(chat_id, f"{result.text.strip()}\n\n{CONTRACT_DISCLAIMER}",
+                           reply_markup=CONTRACT_MENU_KEYBOARD)
+    if is_free:
+        _contract_send_message(chat_id, f"🎁 {free_left} درخواست رایگان دیگه داری.")
