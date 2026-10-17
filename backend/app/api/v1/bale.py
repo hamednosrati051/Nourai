@@ -2616,7 +2616,7 @@ def _pdf_free_remaining(user_id: str) -> int:
     return max(0, PDF_FREE_QUOTA - used)
 
 
-def _handle_pdf_bot(chat_id: int, user: User, content: str) -> None:
+def _handle_pdf_bot(chat_id: int, user: User, content: str, length: str = "medium") -> None:
     """Topic/text -> PDF for the dedicated PDF bot (first 3 free)."""
     from app.ai.adapters import get_text_provider
     from app.models import UsageEvent
@@ -2628,6 +2628,8 @@ def _handle_pdf_bot(chat_id: int, user: User, content: str) -> None:
     if len(content) > 10000:
         _pdf_send_message(chat_id, "متن خیلی طولانیه (حداکثر ۱۰۰۰۰ حرف).")
         return
+    if length not in ("short", "medium", "long"):
+        length = "medium"
 
     # Resolve text model (same as web PDF)
     model = (
@@ -2649,15 +2651,15 @@ def _handle_pdf_bot(chat_id: int, user: User, content: str) -> None:
     free_left = _pdf_free_remaining(user.id)
     is_free = free_left > 0
 
-    # Use the same prompts as web PDF (idea mode, medium length)
-    from app.api.v1.pdf import PDF_SYSTEM_PROMPT, LENGTH_GUIDANCE
+    # Use the same prompts as web PDF
+    from app.api.v1.pdf import PDF_SYSTEM_PROMPT, LENGTH_GUIDANCE, LENGTH_TOKENS
     system_prompt = PDF_SYSTEM_PROMPT
     user_prompt = (
         f"موضوع سند: {content}\n\n"
         f"یک سند کامل و ساخت‌یافته درباره این موضوع بنویس.\n"
-        f"{LENGTH_GUIDANCE['medium']}"
+        f"{LENGTH_GUIDANCE[length]}"
     )
-    max_output = 4000
+    max_output = LENGTH_TOKENS[length]
 
     try:
         counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
@@ -2812,6 +2814,20 @@ def pdf_webhook():
                 except ValueError:
                     amount = 0
                 _pdf_handle_charge_callback(chat_id, cb_id, user, amount)
+            elif bale_user_id and chat_id and data.startswith("pdf_len:"):
+                length = data.split(":", 1)[1]
+                if length not in ("short", "medium", "long"):
+                    _pdf_answer_callback(cb_id, "نامعتبر")
+                    return success_response({"ok": True})
+                user = _get_or_create_user(bale_user_id, from_user)
+                mode, mode_data = _get_user_mode(bale_user_id)
+                pending_text = (mode_data or {}).get("text", "")
+                _clear_user_mode(bale_user_id)
+                _pdf_answer_callback(cb_id)
+                if pending_text:
+                    _handle_pdf_bot(chat_id, user, pending_text, length)
+                else:
+                    _pdf_send_message(chat_id, "متنی پیدا نشد. دوباره بفرست.")
             else:
                 _pdf_answer_callback(cb_id)
             return success_response({"ok": True})
@@ -2888,10 +2904,23 @@ def pdf_webhook():
                               reply_markup=PDF_MENU_KEYBOARD)
             return success_response({"ok": True})
 
-        # Any other text -> PDF generation
+        # Any other text -> ask for length, then generate PDF
         if text:
             _clear_user_mode(bale_user_id)
-            _handle_pdf_bot(chat_id, user, text)
+            _set_user_mode(bale_user_id, "awaiting_pdf_length", {"text": text[:10000]})
+            _pdf_send_message(
+                chat_id,
+                "📏 طول سند رو انتخاب کن:",
+                reply_markup={
+                    "inline_keyboard": [
+                        [
+                            {"text": "کوتاه", "callback_data": "pdf_len:short"},
+                            {"text": "متوسط", "callback_data": "pdf_len:medium"},
+                            {"text": "بلند", "callback_data": "pdf_len:long"},
+                        ]
+                    ]
+                },
+            )
             return success_response({"ok": True})
 
         return success_response({"ok": True})
