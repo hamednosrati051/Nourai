@@ -53,8 +53,9 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
 DEFAULT_MAX_OUTPUT_TOKENS = 2048
 # Multi-image pricing (Hamed, 2026-10-17): first VISION_INCLUDED_IMAGES at the
-# normal input tariff, each additional image at 2x. Hard cap per request.
+# normal input tariff, each additional image at 1.5x. Hard cap per request.
 VISION_INCLUDED_IMAGES = 2
+VISION_EXTRA_IMAGE_MULTIPLIER = 1.5
 MAX_VISION_IMAGES = 10
 TOKENS_PER_IMAGE = 1000
 
@@ -218,8 +219,9 @@ def analyze_image():
         text_tokens = counter.count_text(system_prompt) + counter.count_text(user_prompt)
     else:
         text_tokens = (len(system_prompt) + len(user_prompt)) // 4
-    # First VISION_INCLUDED_IMAGES at normal tariff, extras at 2x.
-    input_tokens = text_tokens + TOKENS_PER_IMAGE * (num_images + extra_images)
+    # First VISION_INCLUDED_IMAGES at normal tariff, extras at 1.5x.
+    extra_tokens = int(TOKENS_PER_IMAGE * (VISION_EXTRA_IMAGE_MULTIPLIER - 1) * extra_images)
+    input_tokens = text_tokens + TOKENS_PER_IMAGE * num_images + extra_tokens
 
     max_output = DEFAULT_MAX_OUTPUT_TOKENS
     pricing = PricingService(db.session)
@@ -285,7 +287,7 @@ def analyze_image():
     actual_input = result.input_tokens if result.input_tokens else input_tokens
     # Re-apply the 2x surcharge for images beyond VISION_INCLUDED_IMAGES on
     # the settled amount (provider-reported tokens don't include it).
-    actual_input += TOKENS_PER_IMAGE * extra_images
+    actual_input += extra_tokens
     try:
         final = pricing.estimate_text(model.id, actual_input, output_tokens)
         final_irr = final["total_irr"]
