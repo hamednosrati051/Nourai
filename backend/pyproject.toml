@@ -22,6 +22,9 @@ dependencies = [
     "boto3==1.36.26",
     "python-dotenv==1.0.1",
     "pymysql==1.1.1",
+    "reportlab==5.0.1",
+    "arabic-reshaper==3.0.1",
+    "python-bidi==0.6.11",
 ]
 
 [project.optional-dependencies]
