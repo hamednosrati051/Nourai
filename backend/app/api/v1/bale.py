@@ -3020,7 +3020,8 @@ def _contract_handle_charge_callback(chat_id: int, callback_id: str, user: User,
 CONTRACT_WELCOME = (
     "⚖️ سلام! به ربات تحلیل قرارداد نورا خوش اومدی.\n\n"
     "کافیه عکس قراردادت رو بفرستی تا تحلیلش کنم: طرفین، مبلغ، مدت، تعهدات و ریسک‌ها.\n\n"
-    f"🎁 {CONTRACT_FREE_QUOTA} درخواست اولت رایگانه!"
+    f"🎁 {CONTRACT_FREE_QUOTA} درخواست اولت رایگانه!\n\n"
+    "⚠️ توجه: این تحلیل جنبه اطلاع‌رسانی دارد و جایگزین مشاوره حقوقی وکیل نیست."
 )
 
 
