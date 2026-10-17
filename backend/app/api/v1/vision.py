@@ -52,11 +52,6 @@ bp = Blueprint("vision", __name__)
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
 DEFAULT_MAX_OUTPUT_TOKENS = 2048
-# Multi-image pricing (Hamed, 2026-10-17): first VISION_INCLUDED_IMAGES at the
-# normal input tariff, each additional image at 1.5x. Hard cap per request.
-VISION_INCLUDED_IMAGES = 2
-VISION_EXTRA_IMAGE_MULTIPLIER = 1.5
-MAX_VISION_IMAGES = 10
 TOKENS_PER_IMAGE = 1000
 
 LAB_REPORT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برای تحلیل برگه‌های آزمایش هستید.
@@ -155,35 +150,19 @@ CONTRACT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برا�
 @bp.post("/vision/analyze")
 @login_required
 def analyze_image():
-    # Multi-image upload: up to MAX_VISION_IMAGES files under "images"
-    # (legacy single "image" field still accepted). First
-    # VISION_INCLUDED_IMAGES are billed at the normal input tariff; each
-    # additional image is billed at 1.5x (Hamed's pricing rule, 2026-10-17).
-    image_files = request.files.getlist("images")
-    if not image_files:
-        single = request.files.get("image")
-        if single:
-            image_files = [single]
+    image_file = request.files.get("image")
     prompt = (request.form.get("prompt") or "").strip()
     mode = (request.form.get("mode") or "general").strip()
 
-    if not image_files:
+    if not image_file:
         return validation_error("image file is required")
-    if len(image_files) > MAX_VISION_IMAGES:
-        return validation_error(f"too many images (max {MAX_VISION_IMAGES})")
-    images = []
-    for image_file in image_files:
-        mime = image_file.content_type or ""
-        if mime not in ALLOWED_MIME:
-            return validation_error(f"unsupported image type: {mime}")
-        image_bytes = image_file.read()
-        if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
-            return validation_error("image too large (max 10MB)")
-        images.append((mime, image_bytes))
-    num_images = len(images)
-    if mode == "lab_report" and num_images > 1:
-        return validation_error("lab_report accepts a single image")
-    extra_images = max(0, num_images - VISION_INCLUDED_IMAGES)
+    mime = image_file.content_type or ""
+    if mime not in ALLOWED_MIME:
+        return validation_error(f"unsupported image type: {mime}")
+    image_bytes = image_file.read()
+    if not image_bytes or len(image_bytes) > MAX_IMAGE_BYTES:
+        return validation_error("image too large (max 10MB)")
+    images = [(mime, image_bytes)]
 
     if mode == "lab_report":
         system_prompt = LAB_REPORT_SYSTEM_PROMPT
@@ -246,9 +225,7 @@ def analyze_image():
         text_tokens = counter.count_text(system_prompt) + counter.count_text(user_prompt)
     else:
         text_tokens = (len(system_prompt) + len(user_prompt)) // 4
-    # First VISION_INCLUDED_IMAGES at normal tariff, extras at 1.5x.
-    extra_tokens = int(TOKENS_PER_IMAGE * (VISION_EXTRA_IMAGE_MULTIPLIER - 1) * extra_images)
-    input_tokens = text_tokens + TOKENS_PER_IMAGE * num_images + extra_tokens
+    input_tokens = text_tokens + TOKENS_PER_IMAGE
 
     max_output = DEFAULT_MAX_OUTPUT_TOKENS
     pricing = PricingService(db.session)
@@ -322,9 +299,6 @@ def analyze_image():
 
     output_tokens = result.output_tokens if result.output_tokens else max_output
     actual_input = result.input_tokens if result.input_tokens else input_tokens
-    # Re-apply the extra-image surcharge on the settled amount
-    # (provider-reported tokens don't include it).
-    actual_input += extra_tokens
     try:
         final = pricing.estimate_text(model.id, actual_input, output_tokens)
         final_irr = final["total_irr"]
