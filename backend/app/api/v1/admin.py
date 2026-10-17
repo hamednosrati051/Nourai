@@ -740,11 +740,13 @@ def reply_support(msg_id: str):
     db.session.commit()
     # Send reply back to user via the correct bot
     try:
-        from app.api.v1.bale import send_message, _lab_send_message, _tts_send_message
+        from app.api.v1.bale import send_message, _lab_send_message, _tts_send_message, _stt_send_message
         if m.message.startswith("[ربات آزمایش]"):
             _send = _lab_send_message
         elif m.message.startswith("[ربات گفتار]"):
             _send = _tts_send_message
+        elif m.message.startswith("[ربات شنیدار]"):
+            _send = _stt_send_message
         else:
             _send = send_message
         _send(

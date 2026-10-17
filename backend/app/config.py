@@ -74,6 +74,7 @@ class Config:
     bale_bot_token: str = field(default_factory=lambda: _get("BALE_BOT_TOKEN", ""))
     bale_lab_bot_token: str = field(default_factory=lambda: _get("BALE_LAB_BOT_TOKEN", ""))
     bale_tts_bot_token: str = field(default_factory=lambda: _get("BALE_TTS_BOT_TOKEN", ""))
+    bale_stt_bot_token: str = field(default_factory=lambda: _get("BALE_STT_BOT_TOKEN", ""))
 
     # --- ai providers ---
     ai_text_provider: str = field(default_factory=lambda: _get("AI_TEXT_PROVIDER", "fake"))

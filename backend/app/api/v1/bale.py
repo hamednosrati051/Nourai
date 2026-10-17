@@ -1262,6 +1262,8 @@ def bale_payment_callback():
             _notify = _lab_send_message
         elif payment.idempotency_key.startswith("bale-tts-pay-"):
             _notify = _tts_send_message
+        elif payment.idempotency_key.startswith("bale-stt-pay-"):
+            _notify = _stt_send_message
         else:
             _notify = send_message
         _notify(int(link.platform_user_id),
@@ -2079,5 +2081,407 @@ def tts_webhook():
         return success_response({"ok": True})
     except Exception as exc:  # noqa: BLE001
         log.exception("tts bale webhook failed: %s", exc)
+        db.session.rollback()
+        return success_response({"ok": True})
+
+
+# ============================================================================
+# STT Bot (@nourai_stt_bot) - Speech to text only
+# ============================================================================
+
+STT_FREE_QUOTA = 5
+
+
+def _stt_bale_token() -> str:
+    token = config.bale_stt_bot_token
+    if not token:
+        raise RuntimeError("BALE_STT_BOT_TOKEN is not configured")
+    return token
+
+
+def _stt_bale_api(method: str, payload: dict | None = None) -> dict:
+    import requests
+    url = f"{BALE_API}/bot{_stt_bale_token()}/{method}"
+    try:
+        r = requests.post(url, json=payload, timeout=15)
+        return r.json()
+    except Exception as exc:
+        log.error("stt bale api error: %s", exc)
+        return {}
+
+
+def _stt_answer_callback(callback_id: str, text: str | None = None) -> None:
+    _stt_bale_api("answerCallbackQuery", {"callback_query_id": callback_id, "text": text or ""})
+
+
+def _stt_send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    _stt_bale_api("sendMessage", payload)
+
+
+def _stt_download_file(file_id: str) -> bytes | None:
+    """Download a file from Bale servers by file_id."""
+    import requests
+    info = _stt_bale_api("getFile", {"file_id": file_id})
+    file_path = (info.get("result") or {}).get("file_path")
+    if not file_path:
+        return None
+    try:
+        r = requests.get(f"https://tapi.bale.ai/file/bot{_stt_bale_token()}/{file_path}", timeout=60)
+        r.raise_for_status()
+        return r.content
+    except Exception as exc:
+        log.warning("stt bale file download failed: %s", exc)
+        return None
+
+
+def _stt_handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_irr: int) -> None:
+    """Handle charge amount tap in STT bot (uses STT token for responses)."""
+    if amount_irr not in CHARGE_PRESETS:
+        _stt_answer_callback(callback_id, "مبلغ نامعتبر")
+        return
+    payment = Payment(
+        user_id=user.id,
+        gateway="zibal",
+        amount_irr=amount_irr,
+        plan_id=None,
+        status="created",
+        idempotency_key=f"bale-stt-pay-{uuid.uuid4().hex}",
+    )
+    db.session.add(payment)
+    db.session.commit()
+
+    try:
+        gateway = get_payment_gateway()
+        start = gateway.create_payment(
+            amount_irr,
+            "https://inourai.ir/api/v1/bale/payment-callback",
+            {"payment_id": payment.id, "user_id": user.id, "channel": "bale",
+             "chat_id": chat_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("stt bale payment create failed: %s", exc)
+        payment.status = "failed"
+        db.session.commit()
+        _stt_answer_callback(callback_id, "خطا در ایجاد پرداخت")
+        return
+
+    payment.track_id = start.track_id
+    payment.status = "pending"
+    db.session.commit()
+    _stt_answer_callback(callback_id)
+    pay_url = f"https://inourai.ir/api/v1/go/{start.track_id}"
+    _stt_send_message(
+        chat_id,
+        f"💳 برای شارژ {_toman(amount_irr)} تومان روی دکمه زیر بزن:\n\n"
+        f"✅ بعد از پرداخت موفق، موجودیت خودکار به‌روز می‌شه.\n\n"
+        f"⚠️ این اعتبار فقط توی بات بله قابل استفاده‌ست.",
+        reply_markup={
+            "inline_keyboard": [
+                [{"text": "💳 پرداخت آنلاین", "url": pay_url}]
+            ]
+        },
+    )
+
+
+STT_WELCOME = (
+    "🎤 سلام! به ربات تبدیل گفتار به متن نورا خوش اومدی.\n\n"
+    "کافیه ویس یا فایل صوتیت رو بفرستی تا متنش رو تحویل بگیری.\n\n"
+    f"🎁 {STT_FREE_QUOTA} درخواست اولت رایگانه!"
+)
+
+
+STT_MENU_KEYBOARD = {
+    "keyboard": [
+        [{"text": "🎤 تبدیل گفتار به متن"}],
+        [{"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}],
+        [{"text": "🛟 پشتیبانی"}],
+    ],
+    "resize_keyboard": True,
+}
+
+
+def _stt_free_remaining(user_id: str) -> int:
+    """How many free STT-bot requests the user still has."""
+    from app.models import UsageEvent
+    used = (
+        db.session.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.status == "succeeded",
+            UsageEvent.metadata_json["bot"].as_string() == "stt",
+        )
+        .count()
+    )
+    return max(0, STT_FREE_QUOTA - used)
+
+
+def _handle_stt_bot(chat_id: int, user: User, file_id: str, mime_type: str = "audio/ogg") -> None:
+    """Voice/audio -> text for the dedicated STT bot (first 5 free)."""
+    from app.ai.adapters import get_stt_provider
+    from app.models import UsageEvent
+    from app.services.storage import storage
+
+    audio_bytes = _stt_download_file(file_id)
+    if not audio_bytes:
+        _stt_send_message(chat_id, "خطا در دانلود فایل صوتی.")
+        return
+    if len(audio_bytes) > 25 * 1024 * 1024:
+        _stt_send_message(chat_id, "فایل خیلی بزرگه (حداکثر ۲۵ مگ).")
+        return
+
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="speech_to_text", is_active=True)
+        .order_by(AiModel.created_at)
+        .first()
+    )
+    if model is None:
+        _stt_send_message(chat_id, "مدل صوتی فعالی پیدا نشد.")
+        return
+    try:
+        provider = get_stt_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("stt bot provider error: %s", exc)
+        _stt_send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.")
+        return
+
+    free_left = _stt_free_remaining(user.id)
+    is_free = free_left > 0
+
+    # Store for the provider, hold from size estimate, settle on actual.
+    audio_key = f"bale-stt-bot/{uuid.uuid4().hex}.ogg"
+    try:
+        storage.put_bytes(audio_key, audio_bytes, "audio/ogg")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("stt bot storage failed: %s", exc)
+        _stt_send_message(chat_id, "خطا در پردازش ویس.")
+        return
+
+    est_seconds = max(1, len(audio_bytes) // 2000)
+    pricing = PricingService(db.session)
+    try:
+        estimate = pricing.estimate_audio(model.id, est_seconds)
+    except PricingRuleUnavailable:
+        _stt_send_message(chat_id, "تعرفه مدل تنظیم نشده.")
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"stt-bot-{uuid.uuid4().hex}"
+    if not is_free:
+        try:
+            reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="stt bot")
+        except InsufficientBalance:
+            _stt_send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.")
+            return
+        db.session.commit()
+
+    usage = UsageEvent(
+        user_id=user.id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="processing",
+        estimated_amount_irr=0 if is_free else estimate["total_irr"],
+        metadata_json={"bot": "stt", "free": is_free},
+    )
+    db.session.add(usage)
+    db.session.flush()
+
+    _stt_send_message(chat_id, "🎧 دارم گوش می‌دم...")
+
+    try:
+        result = provider.transcribe(model.provider_model_name, audio_key, {"language": "fa"})
+    except Exception as exc:  # noqa: BLE001
+        log.warning("stt bot transcribe failed: %s", exc)
+        result = None
+
+    # Retry once on empty text; never charge for an empty result.
+    if result is not None and result.ok and not (result.text or "").strip():
+        log.warning("stt bot empty text, retrying once")
+        try:
+            result = provider.transcribe(model.provider_model_name, audio_key, {"language": "fa"})
+        except Exception as exc:  # noqa: BLE001
+            log.warning("stt bot retry failed: %s", exc)
+            result = None
+
+    if result is None or not result.ok or not (result.text or "").strip():
+        usage.status = "failed"
+        if not is_free:
+            try:
+                release(db.session, wallet=wallet,
+                        reserved_amount_irr=estimate["total_irr"],
+                        idempotency_key=f"{key}:release",
+                        description="stt bot failed")
+            except Exception:
+                pass
+        db.session.commit()
+        _stt_send_message(chat_id, "خطا در تبدیل صوت. بعداً تلاش کن.")
+        return
+
+    actual_seconds = result.duration_seconds or est_seconds
+    if is_free:
+        final_irr = 0
+        free_left -= 1
+    else:
+        try:
+            final_irr = pricing.estimate_audio(model.id, actual_seconds)["total_irr"]
+        except PricingRuleUnavailable:
+            final_irr = estimate["total_irr"]
+        try:
+            settle(db.session, wallet=wallet,
+                   reserved_amount_irr=estimate["total_irr"],
+                   final_amount_irr=final_irr,
+                   idempotency_key=f"{key}:settle",
+                   reference_type="usage_event", reference_id=usage.id,
+                   description="settle stt bot")
+        except Exception as exc:
+            log.warning("stt bot settle failed: %s", exc)
+
+    usage.status = "succeeded"
+    usage.audio_seconds = actual_seconds
+    usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
+    db.session.commit()
+
+    text = result.text.strip()
+    _stt_send_message(chat_id, f"📝 متن:\n\n{text}", reply_markup=STT_MENU_KEYBOARD)
+    if is_free:
+        _stt_send_message(chat_id, f"🎁 {free_left} درخواست رایگان دیگه داری.")
+
+
+@bp.post("/stt/webhook")
+def stt_webhook():
+    """Webhook for the STT-only bot."""
+    update = request.get_json(silent=True) or {}
+    try:
+        callback = update.get("callback_query") or {}
+        if callback:
+            cb_id = callback.get("id")
+            from_user = callback.get("from") or {}
+            bale_user_id = from_user.get("id")
+            message = callback.get("message") or {}
+            chat_id = (message.get("chat") or {}).get("id")
+            data = callback.get("data") or ""
+            if bale_user_id and chat_id and data.startswith("charge:"):
+                user = _get_or_create_user(bale_user_id, from_user)
+                try:
+                    amount = int(data.split(":", 1)[1])
+                except ValueError:
+                    amount = 0
+                _stt_handle_charge_callback(chat_id, cb_id, user, amount)
+            else:
+                _stt_answer_callback(cb_id)
+            return success_response({"ok": True})
+
+        message = update.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        from_user = message.get("from") or {}
+        bale_user_id = from_user.get("id")
+        if not chat_id or not bale_user_id:
+            return success_response({"ok": True})
+
+        if not _is_channel_member(bale_user_id):
+            _stt_send_message(chat_id, "برای استفاده از ربات، اول تو کانال ما عضو شو.")
+            return success_response({"ok": True})
+
+        user = _get_or_create_user(bale_user_id, from_user)
+        text = (message.get("text") or "").strip()
+
+        if text == "/start":
+            _stt_send_message(chat_id, STT_WELCOME, reply_markup=STT_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == "🎤 تبدیل گفتار به متن":
+            _stt_send_message(
+                chat_id,
+                "🎙️ ویست یا فایل صوتیت رو بفرست تا متنش کنم.",
+                reply_markup=STT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_WALLET:
+            balance = _wallet_balance(user.id)
+            free_left = _stt_free_remaining(user.id)
+            _stt_send_message(
+                chat_id,
+                f"💰 موجودی کیف پولت: {_toman(balance)} تومان\n"
+                f"🎁 درخواست رایگان مونده: {free_left}",
+                reply_markup=STT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_CHARGE or text.startswith("/charge"):
+            balance = _wallet_balance(user.id)
+            _stt_send_message(
+                chat_id,
+                f"💰 موجودی فعلیت: {_toman(balance)} تومان\n\nمبلغ شارژ رو انتخاب کن:",
+                reply_markup=_charge_keyboard(),
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_SUPPORT:
+            _set_user_mode(bale_user_id, "awaiting_stt_support")
+            _stt_send_message(
+                chat_id,
+                "🛟 پشتیبانی ربات شنیدار\n\n"
+                "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
+                reply_markup=STT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        stt_mode, _ = _get_user_mode(bale_user_id)
+        if stt_mode == "awaiting_stt_support" and text:
+            _clear_user_mode(bale_user_id)
+            msg = SupportMessage(
+                platform="bale",
+                platform_user_id=bale_user_id,
+                user_id=user.id,
+                message=f"[ربات شنیدار] {text[:1900]}",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            _stt_send_message(chat_id, "✅ پیامت ثبت شد. به‌زودی بررسی می‌کنیم.",
+                              reply_markup=STT_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Voice -> auto STT
+        voice = message.get("voice") or {}
+        if voice.get("file_id"):
+            _clear_user_mode(bale_user_id)
+            _handle_stt_bot(chat_id, user, voice["file_id"], "audio/ogg")
+            return success_response({"ok": True})
+
+        # Audio file -> auto STT
+        audio = message.get("audio") or {}
+        if audio.get("file_id"):
+            _clear_user_mode(bale_user_id)
+            _handle_stt_bot(chat_id, user, audio["file_id"],
+                            audio.get("mime_type") or "audio/mpeg")
+            return success_response({"ok": True})
+
+        # Document as audio
+        doc = message.get("document") or {}
+        if doc.get("file_id") and (doc.get("mime_type") or "").startswith("audio/"):
+            _clear_user_mode(bale_user_id)
+            _handle_stt_bot(chat_id, user, doc["file_id"], doc.get("mime_type"))
+            return success_response({"ok": True})
+
+        # Any other text -> guide to send voice
+        if text:
+            _stt_send_message(
+                chat_id,
+                "🎙️ لطفاً ویس یا فایل صوتیت رو بفرست تا متنش کنم."
+            )
+            return success_response({"ok": True})
+
+        return success_response({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        log.exception("stt bale webhook failed: %s", exc)
         db.session.rollback()
         return success_response({"ok": True})
