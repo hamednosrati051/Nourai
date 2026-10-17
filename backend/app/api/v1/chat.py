@@ -56,7 +56,7 @@ log = logging.getLogger(__name__)
 bp = Blueprint("chat", __name__)
 
 GENERATION_TIMEOUT_SECONDS = 90
-DEFAULT_MAX_OUTPUT_TOKENS = 4096
+DEFAULT_MAX_OUTPUT_TOKENS = 8000
 MAX_CONTENT_CHARS = 20000
 # Token budget for conversation history sent to the provider.
 # Keeps input costs bounded on long conversations.

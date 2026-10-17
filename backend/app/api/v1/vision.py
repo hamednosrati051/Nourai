@@ -51,7 +51,7 @@ bp = Blueprint("vision", __name__)
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
-DEFAULT_MAX_OUTPUT_TOKENS = 2048
+DEFAULT_MAX_OUTPUT_TOKENS = 8000
 TOKENS_PER_IMAGE = 1000
 
 LAB_REPORT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برای تحلیل برگه‌های آزمایش هستید.
