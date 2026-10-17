@@ -550,6 +550,22 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
 
     _send(chat_id, "🧪 دارم برگه آزمایشت رو تحلیل می‌کنم... چند لحظه صبر کن.")
 
+    # Downscale before sending: large photos choke the provider
+    try:
+        from PIL import Image
+        import io
+        _img = Image.open(io.BytesIO(photo_bytes))
+        if _img.mode in ("RGBA", "P"):
+            _img = _img.convert("RGB")
+        _w, _h = _img.size
+        _scale = min(1.0, 1568 / max(_w, _h))
+        if _scale < 1.0:
+            _img = _img.resize((int(_w * _scale), int(_h * _scale)), Image.LANCZOS)
+        _buf = io.BytesIO()
+        _img.save(_buf, format="JPEG", quality=85)
+        photo_bytes = _buf.getvalue()
+    except Exception:
+        pass
     # Call provider
     b64 = base64.b64encode(photo_bytes).decode("utf-8")
     data_url = f"data:image/jpeg;base64,{b64}"
@@ -570,7 +586,9 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
         log.warning("bale lab provider call failed: %s", exc)
         try:
             from app.billing.ledger import release
-            release(db.session, wallet=wallet, idempotency_key=f"{key}:release",
+            release(db.session, wallet=wallet,
+                    reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=f"{key}:release",
                     description="bale_lab_failed")
             db.session.commit()
         except Exception as release_exc:
@@ -586,7 +604,9 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
     if not result.ok or not result.text:
         try:
             from app.billing.ledger import release
-            release(db.session, wallet=wallet, idempotency_key=f"{key}:release",
+            release(db.session, wallet=wallet,
+                    reserved_amount_irr=estimate["total_irr"],
+                    idempotency_key=f"{key}:release",
                     description="bale_lab_failed")
             db.session.commit()
         except Exception:
