@@ -296,6 +296,7 @@ def analyze_image():
     usage.final_input_tokens = actual_input
     usage.final_output_tokens = output_tokens
     usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
     try:
         settle(
             db.session, wallet=wallet,
@@ -526,6 +527,7 @@ def contract_chat():
     usage.final_input_tokens = actual_input
     usage.final_output_tokens = output_tokens
     usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
     try:
         settle(
             db.session, wallet=wallet,
