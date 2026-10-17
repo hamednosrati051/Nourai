@@ -62,6 +62,9 @@ TOKENS_PER_IMAGE = 1000
 LAB_REPORT_SYSTEM_PROMPT = """شما یک دستیار هوش مصنوعی برای تحلیل برگه‌های آزمایش هستید.
 کاربر تصویری از برگه آزمایش خود ارسال کرده است.
 
+مهم: اگر تصویر ارسالی برگه نتیجه یک آزمایش پزشکی نیست (مثلاً عکس شخصی، سند دیگر، تصویر نامرتبط)، آن را تحلیل نکن و فقط و فقط این جمله را برگردان:
+تصویر شما مربوط به نتیجه یک آزمایش پزشکی نیست
+
 خروجی باید دقیقاً این ساختار ۴ بخشی را داشته باشد:
 
 ### ۱. مشخصات و موضوع آزمایش
@@ -155,7 +158,7 @@ def analyze_image():
     # Multi-image upload: up to MAX_VISION_IMAGES files under "images"
     # (legacy single "image" field still accepted). First
     # VISION_INCLUDED_IMAGES are billed at the normal input tariff; each
-    # additional image is billed at 2x (Hamed's pricing rule, 2026-10-17).
+    # additional image is billed at 1.5x (Hamed's pricing rule, 2026-10-17).
     image_files = request.files.getlist("images")
     if not image_files:
         single = request.files.get("image")
@@ -178,6 +181,8 @@ def analyze_image():
             return validation_error("image too large (max 10MB)")
         images.append((mime, image_bytes))
     num_images = len(images)
+    if mode == "lab_report" and num_images > 1:
+        return validation_error("lab_report accepts a single image")
     extra_images = max(0, num_images - VISION_INCLUDED_IMAGES)
 
     if mode == "lab_report":

@@ -14,8 +14,8 @@ interface HistoryItem {
 
 export default function LabReportPage() {
   const { toast } = useToast();
-  const [images, setImages] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [image, setImage] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -36,34 +36,23 @@ export default function LabReportPage() {
     loadHistory();
   }, []);
 
-  const onFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const valid: File[] = [];
-    for (const f of Array.from(files)) {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
-        toast('فقط JPG، PNG یا WebP', 'error');
-        continue;
-      }
-      if (f.size > 10 * 1024 * 1024) {
-        toast('حداکثر ۱۰ مگابایت برای هر تصویر', 'error');
-        continue;
-      }
-      valid.push(f);
+  const onFile = (f: File | undefined) => {
+    if (!f) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type)) {
+      toast('فقط JPG، PNG یا WebP', 'error');
+      return;
     }
-    const next = [...images, ...valid].slice(0, 10);
-    setImages(next);
-    setPreviews(next.map((f) => URL.createObjectURL(f)));
+    if (f.size > 10 * 1024 * 1024) {
+      toast('حداکثر ۱۰ مگابایت', 'error');
+      return;
+    }
+    setImage(f);
+    setPreview(URL.createObjectURL(f));
     setResult(null);
   };
 
-  const removeImage = (idx: number) => {
-    const next = images.filter((_, i) => i !== idx);
-    setImages(next);
-    setPreviews(next.map((f) => URL.createObjectURL(f)));
-  };
-
   const onAnalyze = async () => {
-    if (images.length === 0) {
+    if (!image) {
       toast('اول تصویر برگه آزمایش رو انتخاب کن', 'error');
       return;
     }
@@ -71,7 +60,7 @@ export default function LabReportPage() {
     setResult(null);
     try {
       const form = new FormData();
-      images.forEach((img) => form.append('images', img));
+      form.append('image', image);
       form.append('mode', 'lab_report');
       const res = await apiPostForm<{ analysis: string }>('/vision/analyze', form, undefined, {
         'Idempotency-Key': crypto.randomUUID(),
@@ -154,44 +143,23 @@ export default function LabReportPage() {
           ref={fileRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          multiple
           className="hidden"
-          onChange={(e) => onFiles(e.target.files)}
+          onChange={(e) => onFile(e.target.files?.[0])}
         />
-        {previews.length > 0 ? (
-          <div className="flex flex-wrap justify-center gap-3">
-            {previews.map((src, i) => (
-              <div key={i} className="relative">
-                <img src={src} alt={`برگه ${i + 1}`} className="h-32 w-32 rounded-xl object-cover" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeImage(i);
-                  }}
-                  aria-label={`حذف تصویر ${i + 1}`}
-                  className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white"
-                >
-                  ✕
-                </button>
-                <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 text-[10px] text-white">
-                  {i + 1}
-                </span>
-              </div>
-            ))}
-          </div>
+        {preview ? (
+          <img src={preview} alt="preview" className="max-h-64 mx-auto rounded-xl" />
         ) : (
           <div className="flex flex-col items-center gap-2 text-neutral-500">
             <Upload className="h-10 w-10" />
-            <p>تصاویر برگه آزمایش رو انتخاب کنید (چند برگه)</p>
-            <p className="text-xs">JPG، PNG یا WebP — حداکثر ۱۰ مگابایت برای هر تصویر</p>
+            <p>تصویر برگه آزمایش رو انتخاب کنید</p>
+            <p className="text-xs">JPG، PNG یا WebP — حداکثر ۱۰ مگابایت</p>
           </div>
         )}
       </div>
 
       <button
         onClick={onAnalyze}
-        disabled={loading || images.length === 0}
+        disabled={loading || !image}
         className="btn-primary disabled:opacity-50"
       >
         {loading ? (
@@ -208,8 +176,8 @@ export default function LabReportPage() {
         <>
           <button
             onClick={() => {
-              setImages([]);
-              setPreviews([]);
+              setImage(null);
+              setPreview(null);
               setResult(null);
             }}
             className="btn-primary"
