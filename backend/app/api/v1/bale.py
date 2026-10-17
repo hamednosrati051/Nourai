@@ -356,7 +356,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
         {"role": "user", "content": text},
     ]
     input_tokens = max(1, sum(len(m["content"]) for m in messages) // 4)
-    max_output = model.default_max_output_tokens or 1024
+    max_output = model.default_max_output_tokens or 8000
     pricing = PricingService(db.session)
     try:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
@@ -533,7 +533,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
     # Estimate cost
     pricing = PricingService(db.session)
     input_tokens = len(LAB_REPORT_SYSTEM_PROMPT) // 4 + 1500
-    max_output = model.default_max_output_tokens or 2048
+    max_output = model.default_max_output_tokens or 8000
     try:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
     except PricingRuleUnavailable:
@@ -949,7 +949,7 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     try:
         text_result = text_provider.generate(
             text_model.provider_model_name, messages,
-            {"max_tokens": text_model.default_max_output_tokens or 512})
+            {"max_tokens": text_model.default_max_output_tokens or 8000})
     except Exception as exc:  # noqa: BLE001
         log.warning("bale va text failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
@@ -3093,7 +3093,7 @@ def _handle_contract_bot(chat_id: int, user: User, file_id: str) -> None:
 
     pricing = PricingService(db.session)
     input_tokens = len(CONTRACT_SYSTEM_PROMPT) // 4 + 1500
-    max_output = model.default_max_output_tokens or 2048
+    max_output = model.default_max_output_tokens or 8000
     try:
         estimate = pricing.estimate_text(model.id, input_tokens, max_output)
     except PricingRuleUnavailable:
@@ -3446,7 +3446,7 @@ def _handle_contract_text_mode(chat_id: int, user: User, text: str, mode: str) -
         )
         user_prompt = f"این متن قرارداد را تحلیل کن:\n\n{text}"
 
-    max_output = model.default_max_output_tokens or 4000
+    max_output = model.default_max_output_tokens or 8000
     try:
         counter = TokenCounter(model.tokenizer_encoding) if model.tokenizer_encoding else None
     except TokenizerUnavailable:
