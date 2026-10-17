@@ -3210,7 +3210,8 @@ def _handle_contract_bot(chat_id: int, user: User, file_id: str) -> None:
     usage.charged_amount_irr = final_irr
     db.session.commit()
 
-    _contract_send_message(chat_id, f"📋 تحلیل قرارداد:\n\n{result.text.strip()}",
+    _contract_send_message(chat_id, f"📋 تحلیل قرارداد:\n\n{result.text.strip()}\n\n"
+                           f"⚠️ توجه: این تحلیل جنبه اطلاع‌رسانی دارد و جایگزین مشاوره حقوقی وکیل نیست.",
                            reply_markup=CONTRACT_MENU_KEYBOARD)
     if is_free:
         _contract_send_message(chat_id, f"🎁 {free_left} درخواست رایگان دیگه داری.")
