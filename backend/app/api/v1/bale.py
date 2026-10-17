@@ -1267,6 +1267,8 @@ def bale_payment_callback():
             _notify = _stt_send_message
         elif payment.idempotency_key.startswith("bale-pdf-pay-"):
             _notify = _pdf_send_message
+        elif payment.idempotency_key.startswith("bale-contract-pay-"):
+            _notify = _contract_send_message
         else:
             _notify = send_message
         _notify(int(link.platform_user_id),
@@ -2926,5 +2928,416 @@ def pdf_webhook():
         return success_response({"ok": True})
     except Exception as exc:  # noqa: BLE001
         log.exception("pdf bale webhook failed: %s", exc)
+        db.session.rollback()
+        return success_response({"ok": True})
+
+
+# ============================================================================
+# Contract Bot (@nourai_contract_bot) - Legal contract analysis only
+# ============================================================================
+
+CONTRACT_FREE_QUOTA = 3
+
+
+def _contract_bale_token() -> str:
+    token = config.bale_contract_bot_token
+    if not token:
+        raise RuntimeError("BALE_CONTRACT_BOT_TOKEN is not configured")
+    return token
+
+
+def _contract_bale_api(method: str, payload: dict | None = None) -> dict:
+    import requests
+    url = f"{BALE_API}/bot{_contract_bale_token()}/{method}"
+    try:
+        r = requests.post(url, json=payload, timeout=15)
+        return r.json()
+    except Exception as exc:
+        log.error("contract bale api error: %s", exc)
+        return {}
+
+
+def _contract_answer_callback(callback_id: str, text: str | None = None) -> None:
+    _contract_bale_api("answerCallbackQuery", {"callback_query_id": callback_id, "text": text or ""})
+
+
+def _contract_send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
+    payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    _contract_bale_api("sendMessage", payload)
+
+
+def _contract_handle_charge_callback(chat_id: int, callback_id: str, user: User, amount_irr: int) -> None:
+    """Handle charge amount tap in contract bot (uses contract token for responses)."""
+    if amount_irr not in CHARGE_PRESETS:
+        _contract_answer_callback(callback_id, "مبلغ نامعتبر")
+        return
+    payment = Payment(
+        user_id=user.id,
+        gateway="zibal",
+        amount_irr=amount_irr,
+        plan_id=None,
+        status="created",
+        idempotency_key=f"bale-contract-pay-{uuid.uuid4().hex}",
+    )
+    db.session.add(payment)
+    db.session.commit()
+
+    try:
+        gateway = get_payment_gateway()
+        start = gateway.create_payment(
+            amount_irr,
+            "https://inourai.ir/api/v1/bale/payment-callback",
+            {"payment_id": payment.id, "user_id": user.id, "channel": "bale",
+             "chat_id": chat_id},
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("contract bale payment create failed: %s", exc)
+        payment.status = "failed"
+        db.session.commit()
+        _contract_answer_callback(callback_id, "خطا در ایجاد پرداخت")
+        return
+
+    payment.track_id = start.track_id
+    payment.status = "pending"
+    db.session.commit()
+    _contract_answer_callback(callback_id)
+    pay_url = f"https://inourai.ir/api/v1/go/{start.track_id}"
+    _contract_send_message(
+        chat_id,
+        f"💳 برای شارژ {_toman(amount_irr)} تومان روی دکمه زیر بزن:\n\n"
+        f"✅ بعد از پرداخت موفق، موجودیت خودکار به‌روز می‌شه.\n\n"
+        f"⚠️ این اعتبار فقط توی بات بله قابل استفاده‌ست.",
+        reply_markup={
+            "inline_keyboard": [
+                [{"text": "💳 پرداخت آنلاین", "url": pay_url}]
+            ]
+        },
+    )
+
+
+CONTRACT_WELCOME = (
+    "⚖️ سلام! به ربات تحلیل قرارداد نورا خوش اومدی.\n\n"
+    "کافیه عکس قراردادت رو بفرستی تا تحلیلش کنم: طرفین، مبلغ، مدت، تعهدات و ریسک‌ها.\n\n"
+    f"🎁 {CONTRACT_FREE_QUOTA} درخواست اولت رایگانه!"
+)
+
+
+CONTRACT_MENU_KEYBOARD = {
+    "keyboard": [
+        [{"text": "⚖️ تحلیل قرارداد"}],
+        [{"text": "💰 اعتبار من"}],
+        [{"text": "➕ افزایش اعتبار"}],
+        [{"text": "🛟 پشتیبانی"}],
+    ],
+    "resize_keyboard": True,
+}
+
+
+def _contract_free_remaining(user_id: str) -> int:
+    """How many free contract-bot requests the user still has."""
+    from app.models import UsageEvent
+    used = (
+        db.session.query(UsageEvent)
+        .filter(
+            UsageEvent.user_id == user_id,
+            UsageEvent.status == "succeeded",
+            UsageEvent.metadata_json["bot"].as_string() == "contract",
+        )
+        .count()
+    )
+    return max(0, CONTRACT_FREE_QUOTA - used)
+
+
+def _handle_contract_bot(chat_id: int, user: User, file_id: str) -> None:
+    """Contract photo -> analysis for the dedicated contract bot (first 3 free)."""
+    from app.api.v1.vision import CONTRACT_SYSTEM_PROMPT
+    from app.models import UsageEvent
+    import base64
+
+    photo_bytes = download_bale_file(file_id)
+    if not photo_bytes:
+        _contract_send_message(chat_id, "خطا در دانلود عکس. دوباره تلاش کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    model = (
+        db.session.query(AiModel)
+        .filter_by(capability="vision", is_active=True)
+        .first()
+    )
+    if model is None:
+        _contract_send_message(chat_id, "مدل تحلیل تصویر فعالی پیدا نشد.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    try:
+        provider = get_text_provider(model.provider_key, model)
+    except ValueError as exc:
+        log.error("contract bot provider error: %s", exc)
+        _contract_send_message(chat_id, "خطای سرویس. بعداً تلاش کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    free_left = _contract_free_remaining(user.id)
+    is_free = free_left > 0
+
+    pricing = PricingService(db.session)
+    input_tokens = len(CONTRACT_SYSTEM_PROMPT) // 4 + 1500
+    max_output = 2048
+    try:
+        estimate = pricing.estimate_text(model.id, input_tokens, max_output)
+    except PricingRuleUnavailable:
+        _contract_send_message(chat_id, "تعرفه مدل تنظیم نشده.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    wallet = get_wallet_for_update(db.session, user.id)
+    key = f"bale-contract-{uuid.uuid4().hex}"
+    if not is_free:
+        try:
+            from app.billing.ledger import reserve, InsufficientBalance
+            reserve(db.session, wallet=wallet, amount_irr=estimate["total_irr"],
+                    idempotency_key=key, description="bale_contract")
+        except InsufficientBalance:
+            _contract_send_message(chat_id, "💰 موجودیت کافی نیست. با /charge شارژ کن.",
+                                   reply_markup=CONTRACT_MENU_KEYBOARD)
+            return
+        db.session.commit()
+
+    usage = UsageEvent(
+        user_id=user.id,
+        job_id=None,
+        model_id=model.id,
+        provider_key=model.provider_key,
+        status="processing",
+        est_input_tokens=input_tokens,
+        est_output_tokens=max_output,
+        estimated_amount_irr=0 if is_free else estimate["total_irr"],
+        metadata_json={"bot": "contract", "free": is_free},
+    )
+    db.session.add(usage)
+    db.session.flush()
+
+    _contract_send_message(chat_id, "⚖️ دارم قراردادت رو تحلیل می‌کنم... چند لحظه صبر کن.")
+
+    # Downscale before sending: large photos choke the provider
+    try:
+        from PIL import Image
+        import io
+        _img = Image.open(io.BytesIO(photo_bytes))
+        if _img.mode in ("RGBA", "P"):
+            _img = _img.convert("RGB")
+        _w, _h = _img.size
+        _scale = min(1.0, 1568 / max(_w, _h))
+        if _scale < 1.0:
+            _img = _img.resize((int(_w * _scale), int(_h * _scale)), Image.LANCZOS)
+        _buf = io.BytesIO()
+        _img.save(_buf, format="JPEG", quality=85)
+        photo_bytes = _buf.getvalue()
+    except Exception:
+        pass
+
+    b64 = base64.b64encode(photo_bytes).decode("utf-8")
+    data_url = f"data:image/jpeg;base64,{b64}"
+    provider_messages = [
+        {"role": "system", "content": CONTRACT_SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "این قرارداد را تحلیل کن."},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        },
+    ]
+
+    def _analyze():
+        try:
+            return provider.generate(model.provider_model_name, provider_messages, {"max_output_tokens": max_output})
+        except BaseException as exc:
+            log.warning("contract bot provider call failed: %s", exc)
+            return None
+
+    result = _analyze()
+    # Retry once on empty text; never charge for an empty result.
+    if result is not None and result.ok and not (result.text or "").strip():
+        log.warning("contract bot empty text, retrying once")
+        result = _analyze()
+
+    if result is None or not result.ok or not (result.text or "").strip():
+        usage.status = "failed"
+        if not is_free:
+            try:
+                from app.billing.ledger import release
+                release(db.session, wallet=wallet,
+                        reserved_amount_irr=estimate["total_irr"],
+                        idempotency_key=f"{key}:release",
+                        description="bale_contract_failed")
+            except Exception:
+                pass
+        db.session.commit()
+        _contract_send_message(chat_id, "خطا در تحلیل. بعداً تلاش کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
+
+    output_tokens = result.output_tokens if result.output_tokens else max_output
+    actual_input = result.input_tokens if result.input_tokens else input_tokens
+    if is_free:
+        final_irr = 0
+        free_left -= 1
+    else:
+        try:
+            final_irr = pricing.estimate_text(model.id, actual_input, output_tokens)["total_irr"]
+        except PricingRuleUnavailable:
+            final_irr = estimate["total_irr"]
+        try:
+            from app.billing.ledger import settle
+            settle(db.session, wallet=wallet,
+                   reserved_amount_irr=estimate["total_irr"],
+                   final_amount_irr=final_irr,
+                   idempotency_key=f"{key}:settle",
+                   reference_type="usage_event", reference_id=usage.id,
+                   description="settle bale_contract")
+        except Exception as exc:
+            log.warning("contract bot settle failed: %s", exc)
+
+    usage.status = "succeeded"
+    usage.final_input_tokens = actual_input
+    usage.final_output_tokens = output_tokens
+    usage.final_amount_irr = final_irr
+    usage.charged_amount_irr = final_irr
+    db.session.commit()
+
+    _contract_send_message(chat_id, f"📋 تحلیل قرارداد:\n\n{result.text.strip()}",
+                           reply_markup=CONTRACT_MENU_KEYBOARD)
+    if is_free:
+        _contract_send_message(chat_id, f"🎁 {free_left} درخواست رایگان دیگه داری.")
+
+
+@bp.post("/contract/webhook")
+def contract_webhook():
+    """Webhook for the contract-only bot."""
+    update = request.get_json(silent=True) or {}
+    try:
+        callback = update.get("callback_query") or {}
+        if callback:
+            cb_id = callback.get("id")
+            from_user = callback.get("from") or {}
+            bale_user_id = from_user.get("id")
+            message = callback.get("message") or {}
+            chat_id = (message.get("chat") or {}).get("id")
+            data = callback.get("data") or ""
+            if bale_user_id and chat_id and data.startswith("charge:"):
+                user = _get_or_create_user(bale_user_id, from_user)
+                try:
+                    amount = int(data.split(":", 1)[1])
+                except ValueError:
+                    amount = 0
+                _contract_handle_charge_callback(chat_id, cb_id, user, amount)
+            else:
+                _contract_answer_callback(cb_id)
+            return success_response({"ok": True})
+
+        message = update.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        from_user = message.get("from") or {}
+        bale_user_id = from_user.get("id")
+        if not chat_id or not bale_user_id:
+            return success_response({"ok": True})
+
+        if not _is_channel_member(bale_user_id):
+            _contract_send_message(chat_id, "برای استفاده از ربات، اول تو کانال ما عضو شو.")
+            return success_response({"ok": True})
+
+        user = _get_or_create_user(bale_user_id, from_user)
+        text = (message.get("text") or "").strip()
+
+        if text == "/start":
+            _contract_send_message(chat_id, CONTRACT_WELCOME, reply_markup=CONTRACT_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        if text == "⚖️ تحلیل قرارداد":
+            _contract_send_message(
+                chat_id,
+                "📸 عکس قراردادت رو بفرست تا تحلیلش کنم.",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_WALLET:
+            balance = _wallet_balance(user.id)
+            free_left = _contract_free_remaining(user.id)
+            _contract_send_message(
+                chat_id,
+                f"💰 موجودی کیف پولت: {_toman(balance)} تومان\n"
+                f"🎁 درخواست رایگان مونده: {free_left}",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_CHARGE or text.startswith("/charge"):
+            balance = _wallet_balance(user.id)
+            _contract_send_message(
+                chat_id,
+                f"💰 موجودی فعلیت: {_toman(balance)} تومان\n\nمبلغ شارژ رو انتخاب کن:",
+                reply_markup=_charge_keyboard(),
+            )
+            return success_response({"ok": True})
+
+        if text == BTN_SUPPORT:
+            _set_user_mode(bale_user_id, "awaiting_contract_support")
+            _contract_send_message(
+                chat_id,
+                "🛟 پشتیبانی ربات قرارداد\n\n"
+                "مشکلت رو بنویس بفرست، بررسی می‌کنیم.",
+                reply_markup=CONTRACT_MENU_KEYBOARD,
+            )
+            return success_response({"ok": True})
+
+        contract_mode, _ = _get_user_mode(bale_user_id)
+        if contract_mode == "awaiting_contract_support" and text:
+            _clear_user_mode(bale_user_id)
+            msg = SupportMessage(
+                platform="bale",
+                platform_user_id=bale_user_id,
+                user_id=user.id,
+                message=f"[ربات قرارداد] {text[:1900]}",
+            )
+            db.session.add(msg)
+            db.session.commit()
+            _contract_send_message(chat_id, "✅ پیامت ثبت شد. به‌زودی بررسی می‌کنیم.",
+                                   reply_markup=CONTRACT_MENU_KEYBOARD)
+            return success_response({"ok": True})
+
+        # Photo -> auto contract analysis
+        photos = message.get("photo") or []
+        if photos:
+            _clear_user_mode(bale_user_id)
+            photo = max(photos, key=lambda p: p.get("file_size", 0))
+            file_id = photo.get("file_id")
+            if file_id:
+                _handle_contract_bot(chat_id, user, file_id)
+                return success_response({"ok": True})
+
+        # Document as image
+        doc = message.get("document") or {}
+        if doc.get("file_id") and (doc.get("mime_type") or "").startswith("image/"):
+            _clear_user_mode(bale_user_id)
+            _handle_contract_bot(chat_id, user, doc["file_id"])
+            return success_response({"ok": True})
+
+        # Any other text -> guide to send photo
+        if text:
+            _contract_send_message(
+                chat_id,
+                "📸 لطفاً عکس قراردادت رو بفرست تا تحلیلش کنم."
+            )
+            return success_response({"ok": True})
+
+        return success_response({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        log.exception("contract bale webhook failed: %s", exc)
         db.session.rollback()
         return success_response({"ok": True})
