@@ -978,6 +978,7 @@ class ModelCreateSchema(BaseModel):
     description: str | None = None
     # Per-model default cap for generated tokens (admin-configurable).
     default_max_output_tokens: int | None = None
+    max_prompt_chars: int | None = None
     # Write-only provider credentials (from the admin form). Stored on the
     # model record; never returned by the API. Env vars remain as fallback.
     base_url: str | None = None
@@ -994,6 +995,7 @@ class ModelUpdateSchema(BaseModel):
     config_json: dict | None = None
     description: str | None = None
     default_max_output_tokens: int | None = None
+    max_prompt_chars: int | None = None
     # Write-only: non-empty values replace the stored credentials.
     base_url: str | None = None
     api_key: str | None = None
@@ -1050,6 +1052,7 @@ def _model_payload(model: AiModel) -> dict:
         "pricing_type": model.pricing_type, "provider_type": model.provider_type,
         "tokenizer_encoding": model.tokenizer_encoding,
         "default_max_output_tokens": model.default_max_output_tokens,
+        "max_prompt_chars": model.max_prompt_chars,
         "base_url": creds.get("base_url") or "",
         "config_json": cfg or None, "description": model.description,
         "has_credentials": has_credentials,
@@ -1127,6 +1130,7 @@ def create_model():
         tokenizer_encoding=encoding, config_json=config_with_creds,
         description=data.description,
         default_max_output_tokens=data.default_max_output_tokens,
+        max_prompt_chars=data.max_prompt_chars,
     )
     db.session.add(model)
     db.session.flush()
@@ -1178,6 +1182,9 @@ def update_model(model_id: str):
     if data.default_max_output_tokens is not None:
         model.default_max_output_tokens = data.default_max_output_tokens
         changes["default_max_output_tokens"] = model.default_max_output_tokens
+    if data.max_prompt_chars is not None:
+        model.max_prompt_chars = data.max_prompt_chars
+        changes["max_prompt_chars"] = model.max_prompt_chars
     _audit("model.updated", "ai_model", model.id, changes)
     db.session.commit()
     payload = _model_payload(model)

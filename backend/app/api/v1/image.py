@@ -392,7 +392,7 @@ def create_image_job():
         capability="image",
         model_id=model.id,
         status=JOB_QUEUED,
-        prompt_text=prompt[:4000],
+        prompt_text=prompt[:(model.max_prompt_chars or 4000)],
         mode=mode,
         source_asset_id=processed_asset.id if processed_asset else None,
         parameters_json={

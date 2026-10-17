@@ -121,6 +121,8 @@ export interface AiModel {
   description?: string | null;
   /** Per-model default cap for generated tokens (admin-configurable). */
   default_max_output_tokens?: number | null;
+  /** Per-model cap for input prompt length in chars (admin-configurable). */
+  max_prompt_chars?: number | null;
   /** True when provider credentials were stored via the admin form. */
   has_credentials?: boolean;
   /** Provider endpoint URL (not sensitive); api_key is never returned. */

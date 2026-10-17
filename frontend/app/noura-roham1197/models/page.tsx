@@ -63,6 +63,7 @@ const modelSchema = z.object({
   api_key: z.string().trim().optional(),
   is_active: z.boolean(),
   default_max_output_tokens: z.coerce.number().int().min(1).max(32768).optional(),
+  max_prompt_chars: z.coerce.number().int().min(1).max(100000).optional(),
 }).superRefine((v, ctx) => {
   if (v.api_key?.trim() && !v.base_url?.trim()) {
     ctx.addIssue({
@@ -116,6 +117,7 @@ export default function AdminModelsPage() {
       api_key: '',
       is_active: true,
       default_max_output_tokens: undefined,
+      max_prompt_chars: undefined,
     });
     setModalOpen(true);
   };
@@ -131,6 +133,7 @@ export default function AdminModelsPage() {
       api_key: '',
       is_active: m.is_active,
       default_max_output_tokens: m.default_max_output_tokens ?? undefined,
+      max_prompt_chars: m.max_prompt_chars ?? undefined,
     });
     setModalOpen(true);
   };
@@ -158,6 +161,9 @@ export default function AdminModelsPage() {
             is_active: values.is_active,
             ...(values.default_max_output_tokens
               ? { default_max_output_tokens: values.default_max_output_tokens }
+              : {}),
+            ...(values.max_prompt_chars
+              ? { max_prompt_chars: values.max_prompt_chars }
               : {}),
           },
         },
@@ -191,6 +197,9 @@ export default function AdminModelsPage() {
         is_active: values.is_active,
         ...(values.default_max_output_tokens
           ? { default_max_output_tokens: values.default_max_output_tokens }
+          : {}),
+        ...(values.max_prompt_chars
+          ? { max_prompt_chars: values.max_prompt_chars }
           : {}),
       },
       {
@@ -360,6 +369,23 @@ export default function AdminModelsPage() {
                     <p role="alert" className="field-error">{errors.default_max_output_tokens.message}</p>
                   )}
                   <p className="field-hint">حداکثر توکن پاسخ مدل. خالی بماند از پیش‌فرض سیستم استفاده می‌شود.</p>
+                </div>
+                <div>
+                  <label htmlFor="model-max-prompt" className="label">سقف کاراکتر پرامپت</label>
+                  <input
+                    id="model-max-prompt"
+                    dir="ltr"
+                    type="number"
+                    min={1}
+                    max={100000}
+                    placeholder="خالی = پیش‌فرض سیستم (۴۰۰۰)"
+                    className={`input text-left ${errors.max_prompt_chars ? 'input-error' : ''}`}
+                    {...register('max_prompt_chars')}
+                  />
+                  {errors.max_prompt_chars && (
+                    <p role="alert" className="field-error">{errors.max_prompt_chars.message}</p>
+                  )}
+                  <p className="field-hint">حداکثر طول پرامپت ورودی (برای عکس/ویدیو). خالی بماند از پیش‌فرض سیستم استفاده می‌شود.</p>
                 </div>
               </div>
             </div>

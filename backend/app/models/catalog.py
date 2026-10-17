@@ -53,6 +53,9 @@ class AiModel(Base):
     # Per-model default cap for generated tokens (admin-configurable).
     # NULL = fall back to the endpoint's built-in default.
     default_max_output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Per-model cap for input prompt length in chars (admin-configurable).
+    # NULL = fall back to the endpoint's built-in default.
+    max_prompt_chars: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ModelPricingRule(Base):

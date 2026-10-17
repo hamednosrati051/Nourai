@@ -183,7 +183,7 @@ def create_video_job():
         capability=CAP_VIDEO_GENERATION,
         model_id=model.id,
         status=JOB_QUEUED,
-        prompt_text=prompt[:4000],
+        prompt_text=prompt[:(model.max_prompt_chars or 4000)],
         mode=MODE_TEXT_TO_VIDEO,
         parameters_json={
             "seconds": seconds,
