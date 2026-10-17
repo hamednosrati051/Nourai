@@ -204,11 +204,33 @@ def analyze_image():
     except TokenizerUnavailable:
         counter = None
 
-    b64_images = [base64.b64encode(b).decode("utf-8") for _, b in images]
+    # Downscale images before sending: large phone photos choke the provider
+    # (3+ full-size images return empty). Max 1568px on the long side, JPEG q85.
+    def _prepare_image(image_bytes: bytes) -> tuple[str, bytes]:
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(image_bytes))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            w, h = img.size
+            scale = min(1.0, 1568 / max(w, h))
+            if scale < 1.0:
+                img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            return "image/jpeg", buf.getvalue()
+        except Exception:
+            return "image/jpeg", image_bytes
+
+    b64_images = []
+    for mime, b in images:
+        out_mime, out_bytes = _prepare_image(b)
+        b64_images.append((out_mime, base64.b64encode(out_bytes).decode("utf-8")))
     content_parts = [{"type": "text", "text": user_prompt}]
-    for (mime, _), b64 in zip(images, b64_images):
+    for out_mime, b64 in b64_images:
         content_parts.append(
-            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+            {"type": "image_url", "image_url": {"url": f"data:{out_mime};base64,{b64}"}}
         )
     provider_messages = [
         {"role": "system", "content": system_prompt},
@@ -268,16 +290,26 @@ def analyze_image():
     db.session.add(usage)
     db.session.flush()
 
-    try:
-        result = provider.generate(model.provider_model_name, provider_messages, {"max_output_tokens": max_output})
-    except Exception as exc:
-        log.warning("vision provider failed: %s", exc)
-        result = None
+    def _call_provider():
+        try:
+            return provider.generate(model.provider_model_name, provider_messages, {"max_output_tokens": max_output})
+        except Exception as exc:
+            log.warning("vision provider failed: %s", exc)
+            return None
 
-    if result is None or not result.ok:
+    result = _call_provider()
+    # Provider sometimes returns ok=True with empty text (e.g. choked on large
+    # payloads). Retry once before giving up; never charge for an empty result.
+    if result is not None and result.ok and not (result.text or "").strip():
+        log.warning("vision provider returned empty text, retrying once")
+        result = _call_provider()
+
+    if result is None or not result.ok or not (result.text or "").strip():
         usage.status = "failed"
         try:
-            release(db.session, wallet=wallet, idempotency_key=f"vision:{idempotency_key}:reserve")
+            release(db.session, wallet=wallet,
+                    reserved_amount_irr=estimated_irr,
+                    idempotency_key=f"vision:{idempotency_key}:release")
         except Exception:
             pass
         db.session.commit()
@@ -285,8 +317,8 @@ def analyze_image():
 
     output_tokens = result.output_tokens if result.output_tokens else max_output
     actual_input = result.input_tokens if result.input_tokens else input_tokens
-    # Re-apply the 2x surcharge for images beyond VISION_INCLUDED_IMAGES on
-    # the settled amount (provider-reported tokens don't include it).
+    # Re-apply the extra-image surcharge on the settled amount
+    # (provider-reported tokens don't include it).
     actual_input += extra_tokens
     try:
         final = pricing.estimate_text(model.id, actual_input, output_tokens)
