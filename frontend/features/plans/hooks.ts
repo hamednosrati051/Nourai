@@ -62,7 +62,7 @@ export function useMySubscription(enabled = true) {
       return data?.subscription ?? null;
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 0,
   });
 }
 
@@ -122,6 +122,6 @@ export function useSubscriptionHistory(enabled = true) {
       return data?.items ?? [];
     },
     enabled,
-    staleTime: 60_000,
+    staleTime: 0,
   });
 }
