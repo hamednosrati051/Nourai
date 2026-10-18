@@ -253,7 +253,7 @@ def send_message(conversation_id: str):
     max_output_tokens = (data.max_output_tokens
                          or model.default_max_output_tokens
                          or DEFAULT_MAX_OUTPUT_TOKENS)
-    if not 1 <= max_output_tokens <= 8192:
+    if not 1 <= max_output_tokens <= 32768:
         return validation_error()
 
     # The exact payload string sent to the provider is what gets counted.
