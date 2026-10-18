@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSearchParams } from 'next/navigation';
 import { useCreatePayment, usePayments, useRecheckPayment, useWallet, useWalletTransactions } from '@/features/wallet/hooks';
+import { BAZAAR_CHARGE_SKUS, useBazaarPayment } from '@/features/wallet/useBazaar';
 import { formatToman, tomanToIrr } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { StatCard } from '@/components/StatCard';
@@ -203,6 +204,9 @@ export default function WalletPage() {
         </form>
       </section>
 
+      {/* Top-up via Bazaar (native app only) */}
+      <BazaarTopupSection />
+
       {/* Payments */}
       <section aria-labelledby="payments-heading">
         <h2 id="payments-heading" className="mb-3 text-lg font-bold">
@@ -305,5 +309,40 @@ export default function WalletPage() {
         )}
       </section>
     </div>
+  );
+}
+
+/** Bazaar in-app top-up — rendered only inside the native Android app. */
+function BazaarTopupSection() {
+  const { toast } = useToast();
+  const wallet = useWallet();
+  const bazaar = useBazaarPayment(() => {
+    wallet.refetch();
+  });
+
+  if (!bazaar.inApp) return null;
+
+  return (
+    <section aria-labelledby="bazaar-topup-heading" className="card">
+      <h2 id="bazaar-topup-heading" className="text-lg font-bold">
+        شارژ با بازار
+      </h2>
+      <p className="mt-1 text-sm text-neutral-500 dark:text-slate-400">
+        پرداخت امن از طریق کافه‌بازار
+      </p>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {BAZAAR_CHARGE_SKUS.map((item) => (
+          <button
+            key={item.sku}
+            type="button"
+            disabled={bazaar.buying !== null}
+            onClick={() => bazaar.purchase(item.sku)}
+            className="btn-secondary"
+          >
+            {bazaar.buying === item.sku ? 'در حال خرید…' : item.label}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
