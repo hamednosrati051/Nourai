@@ -336,6 +336,10 @@ def _wallet_balance(user_id: str) -> int:
 # ---------------------------------------------------------------------------
 
 def _handle_text(chat_id: int, user: User, text: str) -> None:
+    # Prompt blocklist: reject before any wallet hold or provider call.
+    if find_blocked_phrase(db.session, text):
+        send_message(chat_id, "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.")
+        return
     model = (
         db.session.query(AiModel)
         .filter_by(capability=CAP_TEXT, is_active=True)
@@ -925,6 +929,10 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
 
     user_text = stt_result.text
     log.info("bale va: stt done for chat %s, text len %d", chat_id, len(user_text or ""))
+    # Prompt blocklist: reject before text generation.
+    if find_blocked_phrase(db.session, user_text or ""):
+        send_message(chat_id, "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.")
+        return
     send_message(chat_id, "🤔 دارم فکر می‌کنم...")
 
     # --- Text chat ---
@@ -3407,6 +3415,11 @@ def _handle_contract_text_mode(chat_id: int, user: User, text: str, mode: str) -
     """Handle text-based contract operations: analyze, draft, or correct."""
     from app.models import UsageEvent
 
+    # Prompt blocklist: reject before any wallet hold or provider call.
+    if find_blocked_phrase(db.session, text):
+        _contract_send_message(chat_id, "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.",
+                               reply_markup=CONTRACT_MENU_KEYBOARD)
+        return
     # mode: "analyze" (flaws), "draft" (new contract), "correct" (flaws + fixed version)
     model = (
         db.session.query(AiModel)
