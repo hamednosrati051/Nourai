@@ -69,6 +69,7 @@ class Config:
     zibal_merchant: str = field(default_factory=lambda: _get("ZIBAL_MERCHANT", ""))
     zibal_api_base_url: str = field(default_factory=lambda: _get("ZIBAL_API_BASE_URL", ""))
     zibal_callback_url: str = field(default_factory=lambda: _get("ZIBAL_CALLBACK_URL", ""))
+    bazaar_rsa_public_key: str = field(default_factory=lambda: _get("BAZAAR_RSA_PUBLIC_KEY", ""))
 
     # --- bale bot ---
     bale_bot_token: str = field(default_factory=lambda: _get("BALE_BOT_TOKEN", ""))
