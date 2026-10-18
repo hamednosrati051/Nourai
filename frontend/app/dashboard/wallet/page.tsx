@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSearchParams } from 'next/navigation';
 import { useCreatePayment, usePayments, useRecheckPayment, useWallet, useWalletTransactions } from '@/features/wallet/hooks';
-import { BAZAAR_CHARGE_SKUS, useBazaarPayment } from '@/features/wallet/useBazaar';
+import { BAZAAR_CHARGE_SKUS, isBazaarApp, useBazaarPayment } from '@/features/wallet/useBazaar';
 import { formatToman, tomanToIrr } from '@/lib/currency';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { StatCard } from '@/components/StatCard';
@@ -55,7 +55,12 @@ export default function WalletPage() {
   const { toast } = useToast();
   const [txPage, setTxPage] = useState(1);
   const [payPage, setPayPage] = useState(1);
+  const [inApp, setInApp] = useState(false);
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    setInApp(isBazaarApp());
+  }, []);
 
   const wallet = useWallet();
   const transactions = useWalletTransactions(txPage);
@@ -146,7 +151,8 @@ export default function WalletPage() {
         <StatCard label="موجودی فعلی" value={formatToman(wallet.data.balance_irr)} icon={Wallet} accent="brand" />
       )}
 
-      {/* Top-up */}
+      {/* Top-up (Zibal — hidden in native app) */}
+      {!inApp && (
       <section aria-labelledby="topup-heading" className="card">
         <h2 id="topup-heading" className="text-lg font-bold">
           شارژ کیف پول
@@ -203,6 +209,7 @@ export default function WalletPage() {
           </p>
         </form>
       </section>
+      )}
 
       {/* Top-up via Bazaar (native app only) */}
       <BazaarTopupSection />
