@@ -47,6 +47,7 @@ from app.models.messenger import PLATFORM_BALE, SupportMessage
 from app.providers import get_payment_gateway
 from app.providers.base import ProviderError
 from app.providers.zibal import ZibalNotConfigured
+from app.services.prompt_filter import find_blocked_phrase
 
 log = logging.getLogger(__name__)
 
@@ -435,6 +436,10 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
     max_prompt = model.max_prompt_chars or 4000
     if len(prompt) > max_prompt:
         send_message(chat_id, "متن شما خیلی طولانیه، لطفاً کوتاه‌ترش کنید.")
+        return
+    # Prompt blocklist: reject before any wallet hold or provider call.
+    if find_blocked_phrase(db.session, prompt):
+        send_message(chat_id, "این درخواست شامل محتوای غیرمجاز است؛ لطفاً بازنویسی کنید.")
         return
     try:
         provider = get_image_provider(model.provider_key, model)
