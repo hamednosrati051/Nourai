@@ -80,11 +80,19 @@ class ZibalPaymentGateway(PaymentGateway):
     # -- request building ---------------------------------------------------
     def _build_create_request(self, amount_irr: int, callback_url: str, metadata: dict):
         url = f"{self.api_base_url}{_CREATE_PATH}"
+        # Generic platform identifier: if channel + chat_id present (bale, eitaa, ...),
+        # include them in the description so the merchant panel shows who paid.
+        channel = metadata.get("channel")
+        chat_id = metadata.get("chat_id")
+        if channel and chat_id:
+            description = f"Noura {channel} top-up ({chat_id})"
+        else:
+            description = f"Noura wallet top-up ({metadata.get('payment_id', '')})"
         body = {
             "merchant": self.merchant,
             "amount": self.to_gateway_amount(amount_irr),
             "callbackUrl": callback_url,
-            "description": f"Noura wallet top-up ({metadata.get('payment_id', '')})",
+            "description": description,
             "orderId": str(metadata.get("payment_id") or metadata.get("user_id") or ""),
         }
         # Zibal shows this in the merchant panel and pre-fills it on the pay page.
