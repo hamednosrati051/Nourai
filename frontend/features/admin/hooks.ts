@@ -82,6 +82,7 @@ export function useUserActivity(id: string | null, page = 1) {
 export interface UserChat {
   id: string;
   title: string | null;
+  source?: string | null;
   model: string | null;
   message_count: number;
   preview: string | null;
@@ -124,14 +125,33 @@ const USER_ASSET_KIND_MAP = {
   generated: 'generated_image',
   chat_input: 'chat_input_image',
   edit_input: 'input_image_original,input_image_processed',
+  audio: 'input_audio,output_audio',
 } as const;
 
-export function useUserAssets(id: string | null, kind?: 'generated' | 'chat_input' | 'edit_input', enabled = true) {
+export function useUserAssets(id: string | null, kind?: 'generated' | 'chat_input' | 'edit_input' | 'audio', enabled = true) {
   return useQuery({
     queryKey: ['admin', 'users', id, 'assets', kind],
     queryFn: () =>
       apiGet<AssetItem[]>(
         `/admin/users/${id}/assets${buildQuery({ kind: kind ? USER_ASSET_KIND_MAP[kind] : undefined })}`,
+      ),
+    enabled: !!id && enabled,
+  });
+}
+
+export interface UserPdf {
+  id: string;
+  title: string;
+  created_at: string | null;
+  download_url: string;
+}
+
+export function useUserPdfs(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'users', id, 'pdfs'],
+    queryFn: () =>
+      apiGet<Paginated<UserPdf>>(
+        `/admin/users/${id}/pdfs${buildQuery({ page: 1, page_size: 50 })}`,
       ),
     enabled: !!id && enabled,
   });

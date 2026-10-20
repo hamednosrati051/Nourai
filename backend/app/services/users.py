@@ -161,13 +161,23 @@ def activity_timeline(session, user_id: str, limit: int = 100) -> list[dict]:
         .all()
     ):
         model = session.get(AiModel, usage.model_id) if usage.model_id else None
+        meta = usage.metadata_json if isinstance(usage.metadata_json, dict) else {}
         events.append({
             "kind": "usage",
             "action": f"usage.{usage.status}",
             "at": _iso(usage.created_at),
             "detail": {
                 "model": model.slug if model else None,
+                "capability": model.capability if model else None,
                 "charged_amount_irr": usage.charged_amount_irr,
+                "usage_kind": meta.get("kind"),
+                "channel": meta.get("channel"),
+                "bot": meta.get("bot"),
+                "free": meta.get("free"),
+                "input_tokens": meta.get("input_tokens") or usage.final_input_tokens,
+                "output_tokens": meta.get("output_tokens") or usage.final_output_tokens,
+                "audio_seconds": usage.audio_seconds or meta.get("audio_seconds"),
+                "image_count": usage.image_count or meta.get("image_count"),
             },
         })
 

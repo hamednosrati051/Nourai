@@ -1,7 +1,7 @@
 'use client';
 
 import { MessageSquare, NotebookText } from 'lucide-react';
-import { History, Images } from 'lucide-react';
+import { FileText, History, Images, Mic } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -13,6 +13,7 @@ import {
   useUserActivity,
   useUserAssets,
   useUserChatMessages,
+  useUserPdfs,
   useUserChats,
   useUserWalletTransactions,
   useWalletAdjustment,
@@ -48,7 +49,7 @@ const ASSET_LABELS: Record<AssetItem['kind'], string> = {
   output_audio: 'صوت خروجی',
 };
 
-type Tab = 'activity' | 'chats' | 'generated' | 'chat_input' | 'edit_input' | 'wallet' | 'session';
+type Tab = 'activity' | 'chats' | 'generated' | 'chat_input' | 'edit_input' | 'audio' | 'pdfs' | 'wallet' | 'session';
 
 const statusSchema = z.object({
   reason: z.string().trim().min(3, 'دلیل تغییر وضعیت را بنویسید (حداقل ۳ حرف).'),
@@ -82,6 +83,8 @@ export default function AdminUserDetailPage() {
   const generatedAssets = useUserAssets(id, 'generated', tab === 'generated');
   const chatInputAssets = useUserAssets(id, 'chat_input', tab === 'chat_input');
   const editInputAssets = useUserAssets(id, 'edit_input', tab === 'edit_input');
+  const audioAssets = useUserAssets(id, 'audio', tab === 'audio');
+  const pdfs = useUserPdfs(id, tab === 'pdfs');
 
   const updateStatus = useUpdateUserStatus();
   const adjustWallet = useWalletAdjustment();
@@ -155,6 +158,8 @@ export default function AdminUserDetailPage() {
     { value: 'generated', label: 'تصاویر تولیدشده' },
     { value: 'chat_input', label: 'تصاویر ورودی چت' },
     { value: 'edit_input', label: 'تصاویر ورودی ویرایش' },
+    { value: 'audio', label: 'فایل‌های صوتی' },
+    { value: 'pdfs', label: 'اسناد PDF' },
     { value: 'wallet', label: 'تراکنش‌های کیف پول' },
     { value: 'session', label: 'آخرین نشست' },
   ];
@@ -282,6 +287,7 @@ export default function AdminUserDetailPage() {
                       {c.preview && <p className="mt-1 text-sm text-neutral-600 dark:text-slate-400" dir="auto">{c.preview}…</p>}
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-slate-400">
                         {c.model && <span className="badge badge-info">{c.model}</span>}
+                        {c.source && <span className="badge badge-warning">ربات</span>}
                         <span>{formatNumber(c.message_count)} پیام</span>
                       </div>
                     </button>
@@ -339,6 +345,12 @@ export default function AdminUserDetailPage() {
 
       {/* Edit input images (original upload + processed derivative) */}
       {tab === 'edit_input' && <AssetGrid query={editInputAssets} emptyTitle="تصویر ورودی ویرایشی نیست" />}
+
+      {/* Audio files (bot + site voice in/out) */}
+      {tab === 'audio' && <AudioList query={audioAssets} />}
+
+      {/* PDF documents */}
+      {tab === 'pdfs' && <PdfList query={pdfs} />}
 
       {/* Wallet transactions */}
       {tab === 'wallet' && (
@@ -523,6 +535,64 @@ function AssetGrid({
           <p className="px-3 py-2 text-xs text-neutral-500 dark:text-slate-400">
             {ASSET_LABELS[a.kind]} — {formatDateTime(a.created_at)}
           </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AudioList({
+  query,
+}: {
+  query: { isLoading: boolean; isError: boolean; data?: AssetItem[]; refetch: () => void };
+}) {
+  if (query.isLoading) return <LoadingSpinner />;
+  if (query.isError) return <ErrorState message="بارگذاری فایل‌های صوتی ناموفق بود." onRetry={() => query.refetch()} />;
+  const items = query.data ?? [];
+  if (items.length === 0) {
+    return <EmptyState icon={Mic} title="فایل صوتی‌ای نیست" description="موردی برای نمایش وجود ندارد." />;
+  }
+  return (
+    <ul className="flex flex-col gap-3">
+      {items.map((a) => (
+        <li key={a.id} className="card !p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold">{ASSET_LABELS[a.kind]}</p>
+            <time className="text-xs text-neutral-500 dark:text-slate-400">{formatDateTime(a.created_at)}</time>
+          </div>
+          <audio controls preload="none" src={a.url} className="w-full" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PdfList({
+  query,
+}: {
+  query: { isLoading: boolean; isError: boolean; data?: { items: import('@/features/admin/hooks').UserPdf[] }; refetch: () => void };
+}) {
+  if (query.isLoading) return <LoadingSpinner />;
+  if (query.isError) return <ErrorState message="بارگذاری اسناد ناموفق بود." onRetry={() => query.refetch()} />;
+  const items = query.data?.items ?? [];
+  if (items.length === 0) {
+    return <EmptyState icon={FileText} title="سند PDFای نیست" description="موردی برای نمایش وجود ندارد." />;
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {items.map((d) => (
+        <li key={d.id} className="card !p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-bold" dir="auto">{d.title}</p>
+            <div className="flex items-center gap-3">
+              {d.created_at && (
+                <time className="text-xs text-neutral-500 dark:text-slate-400">{formatDateTime(d.created_at)}</time>
+              )}
+              <a href={d.download_url} target="_blank" rel="noreferrer" className="btn-secondary btn-sm">
+                دانلود
+              </a>
+            </div>
+          </div>
         </li>
       ))}
     </ul>

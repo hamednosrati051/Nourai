@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from flask import Blueprint, g, request
+from flask import Blueprint, Response, g, request
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
 
@@ -62,6 +62,7 @@ from app.models import (
     new_uuid,
 )
 from app.models.catalog import CAP_IMAGE, CAPABILITIES
+from app.models.pdf_document import PdfDocument
 from app.models.payment import PAY_PAID
 from app.models.gallery import GALLERY_APPROVED, GALLERY_PENDING, GALLERY_REJECTED
 from app.models.jobs import ASSET_CHAT_INPUT_IMAGE, ASSET_GENERATED_IMAGE, ASSET_GENERATED_VIDEO, ASSET_KINDS
@@ -299,6 +300,7 @@ def user_chats(user_id: str):
         items.append({
             "id": c.id,
             "title": c.title,
+            "source": c.source,
             "model": model.slug if model else None,
             "message_count": msg_count,
             "preview": (first_msg.content_text or "")[:120] if first_msg else None,
@@ -313,6 +315,69 @@ _ACTIVITY_UI_KIND = {
     "usage": "ai_request",
     "wallet": "wallet",
 }
+
+
+# Persian labels for usage kinds / capabilities shown in the admin timeline.
+_USAGE_KIND_LABELS = {
+    "text": "چت متنی",
+    "image": "تولید تصویر",
+    "generate_image": "تولید تصویر",
+    "image_edit": "ویرایش تصویر",
+    "edit_image": "ویرایش تصویر",
+    "tts": "متن به صدا",
+    "text_to_speech": "متن به صدا",
+    "stt": "صدا به متن",
+    "speech_to_text": "صدا به متن",
+    "vision": "تحلیل تصویر",
+    "pdf": "ساخت PDF",
+    "contract": "تحلیل قرارداد",
+    "video": "تولید ویدیو",
+    "video_generation": "تولید ویدیو",
+}
+
+_BOT_LABELS = {
+    "main": "ربات بله",
+    "lab": "ربات آزمایش",
+    "tts": "ربات متن به صدا",
+    "stt": "ربات صدا به متن",
+    "pdf": "ربات ساخت PDF",
+    "contract": "ربات قرارداد",
+}
+
+_PAYMENT_TITLES = {
+    "payment.paid": "پرداخت موفق",
+    "payment.pending": "پرداخت در انتظار",
+    "payment.failed": "پرداخت ناموفق",
+    "payment.created": "ایجاد پرداخت",
+    "payment.verified": "پرداخت تأییدشده",
+}
+
+_GATEWAY_LABELS = {"zibal": "زیبال", "bazaar": "بازار"}
+
+_WALLET_TITLES = {
+    "wallet.deposit": "شارژ کیف پول",
+    "wallet.bonus": "اعتبار هدیه",
+    "wallet.reserve": "رزرو مبلغ",
+    "wallet.settlement": "تسویه",
+    "wallet.release": "آزادسازی رزرو",
+    "wallet.refund": "بازگشت وجه",
+    "wallet.admin_adjustment": "اصلاح دستی ادمین",
+    "wallet.plan_purchase": "خرید اشتراک از کیف پول",
+}
+
+
+def _fa_amount(amount_irr) -> str:
+    try:
+        return f"{int(amount_irr):,}".replace(",", "٬") + " ریال"
+    except (TypeError, ValueError):
+        return str(amount_irr)
+
+
+def _fa_num(n) -> str:
+    try:
+        return f"{int(n):,}".replace(",", "٬")
+    except (TypeError, ValueError):
+        return str(n)
 
 
 def _activity_item(event: dict, index: int) -> dict:
@@ -330,14 +395,67 @@ def _activity_item(event: dict, index: int) -> dict:
             ui_kind = "admin_action"
     else:
         ui_kind = _ACTIVITY_UI_KIND.get(kind, "admin_action")
-    detail = event.get("detail")
+    detail = event.get("detail") if isinstance(event.get("detail"), dict) else {}
+    title = action
     description = None
-    if isinstance(detail, dict):
+    if kind == "usage":
+        kind_key = detail.get("usage_kind") or detail.get("bot") or detail.get("capability")
+        label = _USAGE_KIND_LABELS.get(kind_key or "", "درخواست هوش مصنوعی")
+        status = action.rsplit(".", 1)[-1] if "." in action else ""
+        title = label
+        if detail.get("free"):
+            title += " (رایگان)"
+        elif status and status != "succeeded":
+            title += f" — {status}"
+        parts: list[str] = []
+        bot = detail.get("bot")
+        if bot:
+            parts.append(_BOT_LABELS.get(bot, "ربات"))
+        elif detail.get("channel") == "bale":
+            parts.append("ربات بله")
+        elif detail.get("channel"):
+            parts.append(str(detail["channel"]))
+        else:
+            parts.append("سایت")
+        if detail.get("model"):
+            parts.append(f"مدل {detail['model']}")
+        if detail.get("input_tokens") or detail.get("output_tokens"):
+            parts.append(
+                f"ورودی {_fa_num(detail.get('input_tokens') or 0)} · خروجی {_fa_num(detail.get('output_tokens') or 0)} توکن"
+            )
+        if detail.get("audio_seconds"):
+            parts.append(f"{_fa_num(detail['audio_seconds'])} ثانیه")
+        if detail.get("image_count"):
+            parts.append(f"{_fa_num(detail['image_count'])} تصویر")
+        if detail.get("charged_amount_irr") is not None:
+            parts.append(_fa_amount(detail["charged_amount_irr"]))
+        description = " · ".join(parts) or None
+    elif kind == "payment":
+        title = _PAYMENT_TITLES.get(action, action)
+        parts = []
+        if detail.get("gateway"):
+            parts.append("درگاه " + _GATEWAY_LABELS.get(detail["gateway"], detail["gateway"]))
+        if detail.get("amount_irr") is not None:
+            parts.append(_fa_amount(detail["amount_irr"]))
+        description = " · ".join(parts) or None
+    elif kind == "wallet":
+        title = _WALLET_TITLES.get(action, action)
+        parts = []
+        if detail.get("amount_irr") is not None:
+            parts.append(_fa_amount(detail["amount_irr"]))
+        if detail.get("balance_after_irr") is not None:
+            parts.append("مانده " + _fa_amount(detail["balance_after_irr"]))
+        description = " · ".join(parts) or None
+    elif kind == "audit" and action == "user.login":
+        title = "ورود کاربر"
+    elif kind == "audit" and action == "user.logout":
+        title = "خروج کاربر"
+    elif detail:
         description = ", ".join(f"{k}={v}" for k, v in detail.items() if v is not None) or None
     return {
         "id": f"{kind}-{index}",
         "kind": ui_kind,
-        "title": action,
+        "title": title,
         "description": description,
         "created_at": event.get("at") or "",
     }
@@ -361,6 +479,50 @@ def user_assets(user_id: str):
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)
     return success_response([_asset_payload(a, include_url=True) for a in items], meta)
+
+
+@bp.get("/admin/users/<user_id>/pdfs")
+@admin_required
+def user_pdfs(user_id: str):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return error_response("NOT_FOUND", status=404)
+    query = (
+        db.session.query(PdfDocument)
+        .filter_by(user_id=user_id)
+        .order_by(PdfDocument.created_at.desc())
+    )
+    page, page_size = pagination_params()
+    items, meta = paginate_query(query, page, page_size)
+    results = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "download_url": f"/api/v1/admin/users/{user_id}/pdfs/{d.id}/download",
+        }
+        for d in items
+    ]
+    return paginated_response(results, page, page_size, meta["total"])
+
+
+@bp.get("/admin/users/<user_id>/pdfs/<doc_id>/download")
+@admin_required
+def user_pdf_download(user_id: str, doc_id: str):
+    doc = db.session.get(PdfDocument, doc_id)
+    if doc is None or doc.user_id != user_id:
+        return error_response("NOT_FOUND", status=404)
+    try:
+        data = storage.get_bytes(doc.storage_key)
+    except Exception:  # noqa: BLE001
+        return error_response("NOT_FOUND", status=404)
+    return Response(
+        data,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=nourai-pdf-{doc.id[:8]}.pdf"
+        },
+    )
 
 
 class UserStatusSchema(BaseModel):

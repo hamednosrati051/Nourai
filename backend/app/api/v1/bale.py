@@ -43,10 +43,17 @@ from app.config import config
 from app.extensions import db
 from app.models import AiModel, MessengerUser, Payment, UsageEvent, User, WalletAccount
 from app.models.catalog import CAP_GENERATE_IMAGE, CAP_STT, CAP_TEXT, CAP_TTS
+from app.models.jobs import (
+    ASSET_CHAT_INPUT_IMAGE,
+    ASSET_GENERATED_IMAGE,
+    ASSET_INPUT_AUDIO,
+    ASSET_OUTPUT_AUDIO,
+)
 from app.models.messenger import PLATFORM_BALE, SupportMessage
 from app.providers import get_payment_gateway
 from app.providers.base import ProviderError
 from app.providers.zibal import ZibalNotConfigured
+from app.services import bot_activity
 from app.services.prompt_filter import find_blocked_phrase
 
 log = logging.getLogger(__name__)
@@ -420,6 +427,10 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
     _record_usage(user.id, model.id, "text", final,
                   {"input_tokens": in_tokens, "output_tokens": out_tokens})
     db.session.commit()
+    bot_activity.record_exchange(
+        user.id, "main", user_text=text,
+        assistant_text=result.text or "پاسخی تولید نشد.",
+        model_id=model.id, input_tokens=in_tokens, output_tokens=out_tokens)
     send_message(chat_id, result.text or "پاسخی تولید نشد.")
 
 
@@ -502,11 +513,16 @@ def _handle_image(chat_id: int, user: User, prompt: str) -> None:
         db.session.rollback()
     _record_usage(user.id, model.id, "image", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
+    _gen_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_GENERATED_IMAGE, result.image_bytes)
+    bot_activity.record_exchange(
+        user.id, "main", user_text=prompt, assistant_text="🎨 تصویر تولید شد",
+        assistant_asset=_gen_asset, model_id=model.id)
     send_message(chat_id, "🎨 عکست آماده شد!")
     send_photo(chat_id, result.image_bytes, caption=f"🎨 {prompt}")
 
 
-def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None) -> None:
+def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None, bot: str = "main") -> None:
     """Analyze a lab report image sent by the user."""
     from app.api.v1.vision import LAB_REPORT_SYSTEM_PROMPT
     _send = send_fn or send_message
@@ -662,6 +678,13 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None)
         log.warning("bale lab settle failed: %s", exc)
         db.session.rollback()
 
+    _lab_photo = bot_activity.save_bot_asset(
+        user.id, ASSET_CHAT_INPUT_IMAGE, photo_bytes, "image/jpeg")
+    bot_activity.record_exchange(
+        user.id, bot, user_text="📷 برگه آزمایش", user_asset=_lab_photo,
+        assistant_text=result.text, model_id=model.id,
+        input_tokens=actual_input, output_tokens=output_tokens)
+
     # Send result (split if too long)
     text = result.text
     if len(text) > 4000:
@@ -746,6 +769,12 @@ def _handle_voice(chat_id: int, user: User, file_id: str) -> None:
     _record_usage(user.id, model.id, "stt", estimate["total_irr"],
                   {"audio_seconds": est_seconds})
     db.session.commit()
+    _voice_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_INPUT_AUDIO, audio_bytes, "audio/ogg",
+        duration_seconds=est_seconds)
+    bot_activity.record_exchange(
+        user.id, "main", user_text="🎙️ پیام صوتی", user_asset=_voice_asset,
+        assistant_text=result.text or "متنی تشخیص داده نشد.", model_id=model.id)
     send_message(chat_id, f"🎙️ متن ویس:\n\n{result.text or 'متنی تشخیص داده نشد.'}")
 
 
@@ -834,6 +863,12 @@ def _handle_tts(chat_id: int, user: User, text: str) -> None:
     _record_usage(user.id, model.id, "tts", final,
                   {"audio_seconds": actual_seconds, "chars": len(text)})
     db.session.commit()
+    _tts_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_OUTPUT_AUDIO, result.audio_bytes,
+        result.mime_type or "audio/ogg", duration_seconds=actual_seconds)
+    bot_activity.record_exchange(
+        user.id, "main", user_text=text, assistant_text="🔊 پاسخ صوتی",
+        assistant_asset=_tts_asset, model_id=model.id)
     send_voice(chat_id, result.audio_bytes, result.mime_type or "audio/ogg")
 
 
@@ -994,6 +1029,13 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     db.session.commit()
 
     reply_text = text_result.text
+    _va_in_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_INPUT_AUDIO, audio_bytes, "audio/ogg",
+        duration_seconds=est_seconds)
+    bot_activity.record_exchange(
+        user.id, "main", user_text=user_text, user_asset=_va_in_asset,
+        assistant_text=reply_text, model_id=text_model.id,
+        input_tokens=in_tokens, output_tokens=out_tokens)
     log.info("bale va: text done for chat %s, reply len %d", chat_id, len(reply_text or ""))
 
     # --- TTS ---
@@ -1045,6 +1087,12 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
     _record_usage(user.id, tts_model.id, "tts", tts_final,
                   {"audio_seconds": tts_actual, "via": "voice_assistant"})
     db.session.commit()
+    _va_out_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_OUTPUT_AUDIO, tts_result.audio_bytes,
+        tts_result.mime_type or "audio/ogg", duration_seconds=tts_actual)
+    bot_activity.record_exchange(
+        user.id, "main", assistant_text="🔊 پاسخ صوتی",
+        assistant_asset=_va_out_asset, model_id=tts_model.id)
     send_message(chat_id, f"💬 {reply_text}")
     send_voice(chat_id, tts_result.audio_bytes, tts_result.mime_type or "audio/ogg")
 
@@ -1137,6 +1185,14 @@ def _handle_image_edit(chat_id: int, user: User, file_id: str, prompt: str) -> N
         db.session.rollback()
     _record_usage(user.id, model.id, "image_edit", estimate["total_irr"], {"image_count": 1})
     db.session.commit()
+    _edit_in = bot_activity.save_bot_asset(
+        user.id, ASSET_CHAT_INPUT_IMAGE, image_bytes, "image/jpeg")
+    _edit_out = bot_activity.save_bot_asset(
+        user.id, ASSET_GENERATED_IMAGE, result.image_bytes)
+    bot_activity.record_exchange(
+        user.id, "main", user_text=prompt, user_asset=_edit_in,
+        assistant_text="✏️ تصویر ویرایش شد", assistant_asset=_edit_out,
+        model_id=model.id)
     send_message(chat_id, "✏️ ویرایش شد!")
     send_photo(chat_id, result.image_bytes, caption=f"✏️ {prompt}")
 
@@ -1722,14 +1778,14 @@ def lab_webhook():
             photo = max(photos, key=lambda p: p.get("file_size", 0))
             file_id = photo.get("file_id")
             if file_id:
-                _handle_lab(chat_id, user, file_id, send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD)
+                _handle_lab(chat_id, user, file_id, send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD, bot="lab")
                 return success_response({"ok": True})
 
         # Document as image
         doc = message.get("document") or {}
         if doc.get("file_id") and (doc.get("mime_type") or "").startswith("image/"):
             _clear_user_mode(bale_user_id)
-            _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD)
+            _handle_lab(chat_id, user, doc["file_id"], send_fn=_lab_send_message, menu=LAB_MENU_KEYBOARD, bot="lab")
             return success_response({"ok": True})
 
         # Any other text -> guide to send photo
@@ -1991,6 +2047,12 @@ def _handle_tts_bot(chat_id: int, user: User, text: str) -> None:
     usage.charged_amount_irr = final_irr
     db.session.commit()
 
+    _ttsb_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_OUTPUT_AUDIO, result.audio_bytes, "audio/ogg",
+        duration_seconds=actual_seconds)
+    bot_activity.record_exchange(
+        user.id, "tts", user_text=text, assistant_text="🔊 پاسخ صوتی",
+        assistant_asset=_ttsb_asset, model_id=model.id)
     _tts_send_voice(chat_id, result.audio_bytes)
     if is_free:
         _tts_send_message(
@@ -2373,6 +2435,12 @@ def _handle_stt_bot(chat_id: int, user: User, file_id: str, mime_type: str = "au
     db.session.commit()
 
     text = result.text.strip()
+    _sttb_asset = bot_activity.save_bot_asset(
+        user.id, ASSET_INPUT_AUDIO, audio_bytes, mime_type,
+        duration_seconds=actual_seconds)
+    bot_activity.record_exchange(
+        user.id, "stt", user_text="🎙️ پیام صوتی", user_asset=_sttb_asset,
+        assistant_text=text, model_id=model.id)
     _stt_send_message(chat_id, f"📝 متن:\n\n{text}", reply_markup=STT_MENU_KEYBOARD)
     if is_free:
         _stt_send_message(chat_id, f"🎁 {free_left} درخواست رایگان دیگه داری.")
@@ -2806,6 +2874,11 @@ def _handle_pdf_bot(chat_id: int, user: User, content: str, length: str = "mediu
     usage.charged_amount_irr = final_irr
     db.session.commit()
 
+    bot_activity.record_bot_pdf(user.id, title, pdf_bytes)
+    bot_activity.record_exchange(
+        user.id, "pdf", user_text=content,
+        assistant_text=f"📄 سند «{title}» ساخته شد", model_id=model.id,
+        input_tokens=in_tok, output_tokens=out_tok)
     _pdf_send_document(chat_id, pdf_bytes, f"nourai-{usage.id[:8]}.pdf")
     if is_free:
         _pdf_send_message(
@@ -3230,6 +3303,12 @@ def _handle_contract_bot(chat_id: int, user: User, file_id: str) -> None:
     usage.charged_amount_irr = final_irr
     db.session.commit()
 
+    _contract_photo = bot_activity.save_bot_asset(
+        user.id, ASSET_CHAT_INPUT_IMAGE, photo_bytes, "image/jpeg")
+    bot_activity.record_exchange(
+        user.id, "contract", user_text="📷 عکس قرارداد", user_asset=_contract_photo,
+        assistant_text=result.text.strip(), model_id=model.id,
+        input_tokens=actual_input, output_tokens=output_tokens)
     _contract_send_message(chat_id, f"📋 تحلیل قرارداد:\n\n{result.text.strip()}\n\n"
                            f"⚠️ توجه: این تحلیل جنبه اطلاع‌رسانی دارد و جایگزین مشاوره حقوقی وکیل نیست.",
                            reply_markup=CONTRACT_MENU_KEYBOARD)
@@ -3571,6 +3650,10 @@ def _handle_contract_text_mode(chat_id: int, user: User, text: str, mode: str) -
     usage.charged_amount_irr = final_irr
     db.session.commit()
 
+    bot_activity.record_exchange(
+        user.id, "contract", user_text=text,
+        assistant_text=result.text.strip(), model_id=model.id,
+        input_tokens=in_tok, output_tokens=out_tok)
     _contract_send_message(chat_id, f"{result.text.strip()}\n\n{CONTRACT_DISCLAIMER}",
                            reply_markup=CONTRACT_MENU_KEYBOARD)
     if is_free:

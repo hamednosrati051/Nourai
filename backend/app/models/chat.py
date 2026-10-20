@@ -25,6 +25,10 @@ class Conversation(Base):
     model_id: Mapped[str | None] = mapped_column(
         CHAR(36), ForeignKey("ai_models.id"), nullable=True
     )
+    # Origin marker: NULL for site conversations; "bale_main" / "bale_tts" /
+    # "bale_stt" / "bale_pdf" / "bale_contract" / "bale_lab" for bot threads
+    # recorded by app.services.bot_activity.
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # Soft delete: user hides it, admin can still see it.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
