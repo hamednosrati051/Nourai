@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleCheck, CircleDollarSign, Clapperboard, Crown, FileDown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Mic, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
+import { CircleCheck, CircleDollarSign, Clapperboard, Crown, FileDown, FileText, FlaskConical, Image as ImageIcon, MessageSquare, Phone, ScanSearch, ShoppingCart, Volume2 } from 'lucide-react';
 import { useWallet } from '@/features/wallet/hooks';
 import { useMySubscription } from '@/features/plans/hooks';
 import { useMe } from '@/features/auth/hooks';
@@ -162,15 +162,6 @@ export default function DashboardPage() {
         <section aria-labelledby="services-heading">
           <h2 id="services-heading" className="mb-3 text-lg font-bold">سرویس‌ها</h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {hasCap('speech_to_text') && (
-              <ServiceCard
-                href="/dashboard/voice"
-                icon={Mic}
-                title="نورا"
-                description="دستیار صوتی نورا؛ حرف بزن، جواب متنی و صوتی بگیر"
-                color="#f472b6"
-              />
-            )}
             {hasCap('text') && (
               <ServiceCard
                 href="/dashboard/chat"
