@@ -222,6 +222,32 @@ export default function ChatPage() {
                       )}
                     </div>
                   ))}
+                  {sendMessage.isPending && (
+                    <div className="flex items-end justify-end gap-2">
+                      <div className="rounded-2xl bg-neutral-100 px-4 py-3.5 dark:bg-navy-800">
+                        <span className="flex gap-1.5" role="status" aria-label="نورا در حال پاسخگویی">
+                          <span
+                            className="h-2 w-2 animate-bounce rounded-full bg-neutral-400 dark:bg-slate-400"
+                            style={{ animationDelay: '0ms' }}
+                          />
+                          <span
+                            className="h-2 w-2 animate-bounce rounded-full bg-neutral-400 dark:bg-slate-400"
+                            style={{ animationDelay: '150ms' }}
+                          />
+                          <span
+                            className="h-2 w-2 animate-bounce rounded-full bg-neutral-400 dark:bg-slate-400"
+                            style={{ animationDelay: '300ms' }}
+                          />
+                        </span>
+                      </div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/images/noura-robot.jpg"
+                        alt="نورا"
+                        className="h-8 w-8 shrink-0 rounded-full object-cover shadow"
+                      />
+                    </div>
+                  )}
                   <div ref={bottomRef} />
                 </div>
 
