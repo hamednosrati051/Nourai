@@ -322,7 +322,13 @@ function VoiceExchange({ job }: { job: AudioJob }) {
       </div>
       {/* Nourai */}
       {!processing && (
-        <div className="flex justify-start">
+        <div className="flex items-start justify-start gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/nourai-mascot.jpg"
+            alt="نورا"
+            className="mt-1 h-9 w-9 shrink-0 rounded-full object-cover shadow"
+          />
           <div className="card max-w-[75%] !p-4">
             {job.status === 'succeeded' ? (
               <>
