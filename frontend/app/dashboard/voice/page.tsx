@@ -325,7 +325,7 @@ function VoiceExchange({ job }: { job: AudioJob }) {
         <div className="flex items-start justify-start gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/nourai-mascot.jpg"
+            src="/images/noura-robot.jpg"
             alt="نورا"
             className="mt-1 h-9 w-9 shrink-0 rounded-full object-cover shadow"
           />

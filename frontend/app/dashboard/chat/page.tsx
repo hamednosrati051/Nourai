@@ -181,7 +181,12 @@ export default function ChatPage() {
                 <div className="flex-1 space-y-3 overflow-y-auto p-4" role="log" aria-live="polite" aria-label="پیام‌ها">
                   {(messages.data ?? []).length === 0 && (
                     <div className="flex flex-col items-center gap-3 py-8">
-                      <NouraAvatar working={false} className="h-20 w-20" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/images/noura-robot.jpg"
+                        alt="نورا"
+                        className="h-20 w-20 rounded-full object-cover shadow-lg"
+                      />
                       <p className="text-center text-sm text-neutral-500">اولین پیام را بنویسید.</p>
                     </div>
                   )}
@@ -202,7 +207,7 @@ export default function ChatPage() {
                       {m.role !== 'user' && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src="/images/nourai-mascot.jpg"
+                          src="/images/noura-robot.jpg"
                           alt="نورا"
                           className="h-8 w-8 shrink-0 rounded-full object-cover shadow"
                         />
