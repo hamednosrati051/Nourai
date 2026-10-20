@@ -76,7 +76,6 @@ export default function DashboardPage() {
           <div className="mb-8 flex justify-center">
             <NouraHero
               href="/dashboard/voice"
-              subtitle="دستیار صوتی‌ات — بزن و حرف بزن"
             />
           </div>
         )}
