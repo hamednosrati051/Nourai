@@ -310,7 +310,13 @@ function VoiceExchange({ job }: { job: AudioJob }) {
   return (
     <div className="flex flex-col gap-2">
       {/* User */}
-      <div className="flex justify-end">
+      <div className="flex items-start justify-end gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/nourai-mascot.jpg"
+          alt="کاربر"
+          className="mt-1 h-9 w-9 shrink-0 rounded-full object-cover shadow"
+        />
         <div className="max-w-[75%] rounded-2xl rounded-bl-md bg-brand-600 px-4 py-3 text-white dark:bg-brand-500">
           <VoicePlayer assetId={job.input_asset_id} label="صدای شما" tone="dark" />
           {processing && !job.transcript && (

@@ -192,6 +192,14 @@ export default function ChatPage() {
                   )}
                   {(messages.data ?? []).map((m) => (
                     <div key={m.id} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-start' : 'justify-end'}`}>
+                      {m.role === 'user' && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src="/images/nourai-mascot.jpg"
+                          alt="کاربر"
+                          className="h-8 w-8 shrink-0 rounded-full object-cover shadow"
+                        />
+                      )}
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-7 ${
                           m.role === 'user'
