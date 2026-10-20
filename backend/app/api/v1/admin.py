@@ -62,6 +62,7 @@ from app.models import (
     new_uuid,
 )
 from app.models.catalog import CAP_IMAGE, CAPABILITIES
+from app.models.chat import MessageAsset
 from app.models.pdf_document import PdfDocument
 from app.models.payment import PAY_PAID
 from app.models.gallery import GALLERY_APPROVED, GALLERY_PENDING, GALLERY_REJECTED
@@ -965,6 +966,34 @@ def _asset_payload(asset: Asset, include_url: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 # Gallery moderation
 # ---------------------------------------------------------------------------
+def _bot_prompt_for_asset(asset_id: str) -> str | None:
+    """Prompt text for a bot-generated image, from its recorded conversation.
+
+    Site images carry the prompt on their GenerationJob; bot images have no
+    job, so the prompt is the user message right before the assistant message
+    that carries the image (recorded by services/bot_activity).
+    """
+    link = db.session.query(MessageAsset).filter_by(asset_id=asset_id).first()
+    if link is None:
+        return None
+    msg = db.session.get(Message, link.message_id)
+    if msg is None:
+        return None
+    user_msg = (
+        db.session.query(Message)
+        .filter(
+            Message.conversation_id == msg.conversation_id,
+            Message.role == "user",
+            Message.created_at <= msg.created_at,
+        )
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    if user_msg is None or not user_msg.content_text:
+        return None
+    return user_msg.content_text.strip() or None
+
+
 @bp.get("/admin/gallery")
 @admin_required
 def list_gallery():
@@ -1007,6 +1036,8 @@ def list_gallery():
             # The admin UI renders the prompt (small) under each image.
             job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
             prompt = (job.prompt_text or "").strip() if job else ""
+            if not prompt:
+                prompt = _bot_prompt_for_asset(asset.id) or ""
             item["prompt_excerpt"] = prompt[:140] if prompt else None
         results.append(item)
     return success_response(results, meta)
@@ -2493,7 +2524,10 @@ def list_bale_queue():
                     if asset:
                         item["image_url"] = f"/api/v1/assets/{asset.id}/download?stream=1"
                         job = db.session.get(GenerationJob, asset.job_id) if asset.job_id else None
-                        item["prompt"] = (job.prompt_text or "")[:200] if job else None
+                        prompt = (job.prompt_text or "") if job else ""
+                        if not prompt:
+                            prompt = _bot_prompt_for_asset(asset.id) or ""
+                        item["prompt"] = prompt[:200] if prompt else None
             elif q.content_type == "blog":
                 post = db.session.get(BlogPost, q.content_id)
                 if post:

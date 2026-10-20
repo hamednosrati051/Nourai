@@ -19,6 +19,7 @@ Setup:
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from typing import Any
 
@@ -178,6 +179,30 @@ def _bale_api(method: str, payload: dict | None = None, files: dict | None = Non
         log.warning("bale api %s failed: %s", method, exc)
         return {"ok": False, "error": str(exc)}
     return data
+
+
+def _typing_pulse(api_fn, chat_id: int) -> threading.Event:
+    """Show a "typing..." indicator through api_fn until the event is set.
+
+    Purely cosmetic feedback while a provider call runs (chat used to sit
+    silent for the whole generation). Best-effort: failures are ignored,
+    it never touches billing, and a hard cap stops the thread even if a
+    caller forgets to set the event.
+    """
+    stop = threading.Event()
+
+    def _run() -> None:
+        for _ in range(75):  # ~5 min hard cap
+            if stop.is_set():
+                break
+            try:
+                api_fn("sendChatAction", {"chat_id": chat_id, "action": "typing"})
+            except Exception:  # noqa: BLE001
+                pass
+            stop.wait(4)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return stop
 
 
 def send_message(chat_id: int, text: str, reply_markup: dict | None = None) -> None:
@@ -386,9 +411,11 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
         return
     db.session.commit()
 
+    _typing_stop = _typing_pulse(_bale_api, chat_id)
     try:
         result = provider.generate(model.provider_model_name, messages, {"max_tokens": max_output})
     except BaseException as exc:  # Never crash webhook, always refund
+        _typing_stop.set()
         log.warning("bale text provider call failed: %s", exc)
         try:
             release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
@@ -403,6 +430,7 @@ def _handle_text(chat_id: int, user: User, text: str) -> None:
             pass
         return
 
+    _typing_stop.set()
     if not result.ok:
         release(db.session, wallet=wallet, reserved_amount_irr=estimate["total_irr"],
                 idempotency_key=f"{key}:release", description="bale_text_failed")
@@ -937,15 +965,18 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         return
     db.session.commit()
 
+    _typing_stop = _typing_pulse(_bale_api, chat_id)
     try:
         stt_result = stt_provider.transcribe(stt_model.provider_model_name, audio_key, {"language": "fa"})
     except Exception as exc:  # noqa: BLE001
+        _typing_stop.set()
         log.warning("bale va stt failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
                 idempotency_key=key_stt, description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تبدیل صوت.")
         return
+    _typing_stop.set()
     if not stt_result.ok or not stt_result.text:
         release(db.session, wallet=wallet, reserved_amount_irr=stt_est["total_irr"],
                 idempotency_key=key_stt, description="bale_va_failed")
@@ -994,17 +1025,20 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         send_message(chat_id, "💰 موجودیت کافی نیست.")
         return
     db.session.commit()
+    _typing_stop = _typing_pulse(_bale_api, chat_id)
     try:
         text_result = text_provider.generate(
             text_model.provider_model_name, messages,
             {"max_tokens": text_model.default_max_output_tokens or 8000})
     except Exception as exc:  # noqa: BLE001
+        _typing_stop.set()
         log.warning("bale va text failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
                 idempotency_key=f"{key_text}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, "خطا در تولید پاسخ.")
         return
+    _typing_stop.set()
     if not text_result.ok or not text_result.text:
         release(db.session, wallet=wallet, reserved_amount_irr=text_est["total_irr"],
                 idempotency_key=f"{key_text}:settle", description="bale_va_failed")
@@ -1058,15 +1092,18 @@ def _handle_voice_assistant(chat_id: int, user: User, file_id: str) -> None:
         send_message(chat_id, f"💬 {reply_text}\n\n(موجودی برای صوت کافی نبود)")
         return
     db.session.commit()
+    _typing_stop = _typing_pulse(_bale_api, chat_id)
     try:
         tts_result = tts_provider.synthesize(tts_model.provider_model_name, reply_text, {})
     except Exception as exc:  # noqa: BLE001
+        _typing_stop.set()
         log.warning("bale va tts failed: %s", exc)
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
                 idempotency_key=f"{key_tts}:settle", description="bale_va_failed")
         db.session.commit()
         send_message(chat_id, f"💬 {reply_text}")
         return
+    _typing_stop.set()
     if not tts_result.ok or not tts_result.audio_bytes:
         release(db.session, wallet=wallet, reserved_amount_irr=tts_est["total_irr"],
                 idempotency_key=f"{key_tts}:settle", description="bale_va_failed")
