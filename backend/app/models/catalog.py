@@ -56,6 +56,12 @@ class AiModel(Base):
     # Per-model cap for input prompt length in chars (admin-configurable).
     # NULL = fall back to the endpoint's built-in default.
     max_prompt_chars: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Per-model conversation-history caps for chat (site + main Bale bot):
+    # how many previous messages, and their total token budget, are resent
+    # to the provider per turn. NULL = fall back to the built-in defaults
+    # (20 messages / 4000 tokens).
+    max_history_messages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_history_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ModelPricingRule(Base):

@@ -123,6 +123,9 @@ export interface AiModel {
   default_max_output_tokens?: number | null;
   /** Per-model cap for input prompt length in chars (admin-configurable). */
   max_prompt_chars?: number | null;
+  /** Per-model chat history caps (messages / token budget); null = system default. */
+  max_history_messages?: number | null;
+  max_history_tokens?: number | null;
   /** True when provider credentials were stored via the admin form. */
   has_credentials?: boolean;
   /** Provider endpoint URL (not sensitive); api_key is never returned. */

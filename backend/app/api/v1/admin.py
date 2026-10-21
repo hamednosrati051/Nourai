@@ -1175,6 +1175,8 @@ class ModelCreateSchema(BaseModel):
     # Per-model default cap for generated tokens (admin-configurable).
     default_max_output_tokens: int | None = None
     max_prompt_chars: int | None = None
+    max_history_messages: int | None = None
+    max_history_tokens: int | None = None
     # Write-only provider credentials (from the admin form). Stored on the
     # model record; never returned by the API. Env vars remain as fallback.
     base_url: str | None = None
@@ -1192,6 +1194,8 @@ class ModelUpdateSchema(BaseModel):
     description: str | None = None
     default_max_output_tokens: int | None = None
     max_prompt_chars: int | None = None
+    max_history_messages: int | None = None
+    max_history_tokens: int | None = None
     # Write-only: non-empty values replace the stored credentials.
     base_url: str | None = None
     api_key: str | None = None
@@ -1249,6 +1253,8 @@ def _model_payload(model: AiModel) -> dict:
         "tokenizer_encoding": model.tokenizer_encoding,
         "default_max_output_tokens": model.default_max_output_tokens,
         "max_prompt_chars": model.max_prompt_chars,
+        "max_history_messages": model.max_history_messages,
+        "max_history_tokens": model.max_history_tokens,
         "base_url": creds.get("base_url") or "",
         "config_json": cfg or None, "description": model.description,
         "has_credentials": has_credentials,
@@ -1327,6 +1333,8 @@ def create_model():
         description=data.description,
         default_max_output_tokens=data.default_max_output_tokens,
         max_prompt_chars=data.max_prompt_chars,
+        max_history_messages=data.max_history_messages,
+        max_history_tokens=data.max_history_tokens,
     )
     db.session.add(model)
     db.session.flush()
@@ -1381,6 +1389,12 @@ def update_model(model_id: str):
     if data.max_prompt_chars is not None:
         model.max_prompt_chars = data.max_prompt_chars
         changes["max_prompt_chars"] = model.max_prompt_chars
+    if data.max_history_messages is not None:
+        model.max_history_messages = data.max_history_messages
+        changes["max_history_messages"] = model.max_history_messages
+    if data.max_history_tokens is not None:
+        model.max_history_tokens = data.max_history_tokens
+        changes["max_history_tokens"] = model.max_history_tokens
     _audit("model.updated", "ai_model", model.id, changes)
     db.session.commit()
     payload = _model_payload(model)

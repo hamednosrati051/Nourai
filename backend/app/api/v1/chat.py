@@ -264,11 +264,15 @@ def send_message(conversation_id: str):
         return error_response("PROVIDER_ERROR", "AI provider is not configured.", 500)
     overhead = getattr(provider, "OVERHEAD_PER_MESSAGE", 0)
 
+    # History caps come from the model row when set; the module constants
+    # are only the fallback (same rule as the other per-model caps).
+    history_messages_cap = model.max_history_messages or MAX_HISTORY_MESSAGES
+    history_tokens_cap = model.max_history_tokens or MAX_HISTORY_TOKENS
     history = (
         db.session.query(Message)
         .filter_by(conversation_id=conversation.id, status="succeeded")
         .order_by(Message.created_at.desc())
-        .limit(MAX_HISTORY_MESSAGES)
+        .limit(history_messages_cap)
         .all()
     )
     history = list(reversed(history))
@@ -280,7 +284,7 @@ def send_message(conversation_id: str):
         for item in reversed(history):
             text = item.content_text or ""
             cost = counter.count_text(text) + overhead
-            if used + cost > MAX_HISTORY_TOKENS and budgeted:
+            if used + cost > history_tokens_cap and budgeted:
                 break
             budgeted.append(item)
             used += cost

@@ -64,6 +64,8 @@ const modelSchema = z.object({
   is_active: z.boolean(),
   default_max_output_tokens: z.coerce.number().int().min(1).max(32768).optional(),
   max_prompt_chars: z.coerce.number().int().min(1).max(100000).optional(),
+  max_history_messages: z.coerce.number().int().min(1).max(200).optional(),
+  max_history_tokens: z.coerce.number().int().min(1).max(200000).optional(),
 }).superRefine((v, ctx) => {
   if (v.api_key?.trim() && !v.base_url?.trim()) {
     ctx.addIssue({
@@ -118,6 +120,8 @@ export default function AdminModelsPage() {
       is_active: true,
       default_max_output_tokens: undefined,
       max_prompt_chars: undefined,
+      max_history_messages: undefined,
+      max_history_tokens: undefined,
     });
     setModalOpen(true);
   };
@@ -134,6 +138,8 @@ export default function AdminModelsPage() {
       is_active: m.is_active,
       default_max_output_tokens: m.default_max_output_tokens ?? undefined,
       max_prompt_chars: m.max_prompt_chars ?? undefined,
+      max_history_messages: m.max_history_messages ?? undefined,
+      max_history_tokens: m.max_history_tokens ?? undefined,
     });
     setModalOpen(true);
   };
@@ -164,6 +170,12 @@ export default function AdminModelsPage() {
               : {}),
             ...(values.max_prompt_chars
               ? { max_prompt_chars: values.max_prompt_chars }
+              : {}),
+            ...(values.max_history_messages
+              ? { max_history_messages: values.max_history_messages }
+              : {}),
+            ...(values.max_history_tokens
+              ? { max_history_tokens: values.max_history_tokens }
               : {}),
           },
         },
@@ -200,6 +212,12 @@ export default function AdminModelsPage() {
           : {}),
         ...(values.max_prompt_chars
           ? { max_prompt_chars: values.max_prompt_chars }
+          : {}),
+        ...(values.max_history_messages
+          ? { max_history_messages: values.max_history_messages }
+          : {}),
+        ...(values.max_history_tokens
+          ? { max_history_tokens: values.max_history_tokens }
           : {}),
       },
       {
@@ -386,6 +404,40 @@ export default function AdminModelsPage() {
                     <p role="alert" className="field-error">{errors.max_prompt_chars.message}</p>
                   )}
                   <p className="field-hint">حداکثر طول پرامپت ورودی (برای عکس/ویدیو). خالی بماند از پیش‌فرض سیستم استفاده می‌شود.</p>
+                </div>
+                <div>
+                  <label htmlFor="model-max-history-messages" className="label">سقف تعداد پیام‌های قبلی (history)</label>
+                  <input
+                    id="model-max-history-messages"
+                    dir="ltr"
+                    type="number"
+                    min={1}
+                    max={200}
+                    placeholder="خالی = پیش‌فرض سیستم (۲۰)"
+                    className={`input text-left ${errors.max_history_messages ? 'input-error' : ''}`}
+                    {...register('max_history_messages')}
+                  />
+                  {errors.max_history_messages && (
+                    <p role="alert" className="field-error">{errors.max_history_messages.message}</p>
+                  )}
+                  <p className="field-hint">حداکثر تعداد پیام‌های قبلی مکالمه که در چت سایت و ربات اصلی همراه پیام جدید به مدل فرستاده می‌شود.</p>
+                </div>
+                <div>
+                  <label htmlFor="model-max-history-tokens" className="label">سقف توکن history</label>
+                  <input
+                    id="model-max-history-tokens"
+                    dir="ltr"
+                    type="number"
+                    min={1}
+                    max={200000}
+                    placeholder="خالی = پیش‌فرض سیستم (۴۰۰۰)"
+                    className={`input text-left ${errors.max_history_tokens ? 'input-error' : ''}`}
+                    {...register('max_history_tokens')}
+                  />
+                  {errors.max_history_tokens && (
+                    <p role="alert" className="field-error">{errors.max_history_tokens.message}</p>
+                  )}
+                  <p className="field-hint">بودجه توکن پیام‌های قبلی؛ قدیمی‌ترین‌ها اول حذف می‌شوند. هزینه‌اش هر نوبت جزو توکن ورودی از کاربر گرفته می‌شود.</p>
                 </div>
               </div>
             </div>
