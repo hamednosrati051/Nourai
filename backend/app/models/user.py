@@ -21,6 +21,10 @@ class User(Base):
     # Bumped when the user is disabled (or sessions are revoked); JWTs issued
     # before this instant are rejected.
     session_invalidated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Where the account came from: 'site' (web OTP signup), 'bot' (messenger
+    # auto-provision) or 'bazaar' (signed up inside the Android app, or a
+    # 'site' account later proven to use the app by a paid Bazaar purchase).
+    signup_source: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
 
 
 class OtpChallenge(Base):

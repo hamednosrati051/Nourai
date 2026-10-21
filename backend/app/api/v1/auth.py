@@ -47,6 +47,10 @@ class OtpRequestSchema(BaseModel):
 class OtpVerifySchema(BaseModel):
     mobile: str
     code: str
+    # True when the verify happens inside the native Android app (the
+    # frontend detects the injected Bazaar bridge). Optional: older clients
+    # omit it and are treated as plain web signups.
+    in_app: bool = False
 
 
 def _parse(schema_cls, payload: dict):
@@ -162,7 +166,11 @@ def otp_verify():
 
     user = db.session.query(User).filter_by(mobile_normalized=mobile).one_or_none()
     if user is None:
-        user = User(mobile_normalized=mobile, mobile_verified_at=now)
+        user = User(
+            mobile_normalized=mobile,
+            mobile_verified_at=now,
+            signup_source="bazaar" if data.in_app else "site",
+        )
         db.session.add(user)
         db.session.flush()
     if not user.is_active:

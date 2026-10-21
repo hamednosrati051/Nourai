@@ -96,6 +96,7 @@ def user_summary(session, user: User) -> dict:
         "balance_irr": wallet.balance_irr if wallet else 0,
         "total_spent_irr": _total_spent_irr(session, user.id),
         "channels": get_user_channels(session, user.id),
+        "signup_source": getattr(user, "signup_source", None) or "site",
         "created_at": _iso(user.created_at),
     }
 

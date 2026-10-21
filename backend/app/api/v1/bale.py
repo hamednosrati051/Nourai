@@ -298,7 +298,7 @@ def _get_or_create_user(platform_user_id: int, from_user: dict) -> User:
         if user and user.is_active:
             return user
     # Auto-provision: users row with NULL mobile + wallet.
-    user = User(mobile_normalized=None, is_active=True)
+    user = User(mobile_normalized=None, is_active=True, signup_source="bot")
     db.session.add(user)
     db.session.flush()
     wallet = WalletAccount(user_id=user.id, balance_irr=0)

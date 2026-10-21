@@ -41,7 +41,7 @@ from app.api.deps import (
 from app.billing.ledger import DuplicateIdempotencyKey, deposit, get_wallet_for_update
 from app.config import config
 from app.extensions import db
-from app.models import Payment, Plan
+from app.models import Payment, Plan, User
 from app.models.payment import PAY_FAILED, PAY_PAID
 from app.services.audit import audit
 from app.services.plans import activate_subscription
@@ -204,6 +204,13 @@ def verify_bazaar_purchase():
                 log.info("bazaar purchase %s already credited", purchase_token)
         else:
             activate_subscription(db.session, g.current_user_id, plan)
+
+        # A paid Bazaar purchase proves the account is used inside the
+        # Android app: upgrade a web signup's source so the admin user
+        # list can tell app users apart.
+        buyer = db.session.get(User, g.current_user_id)
+        if buyer is not None and buyer.signup_source in (None, "site"):
+            buyer.signup_source = "bazaar"
 
         audit(
             db.session, actor_type="system", actor_id=None,

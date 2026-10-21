@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api';
+import { isBazaarApp } from '@/features/wallet/useBazaar';
 import type { AdminAccount, User } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -29,7 +30,7 @@ export function useOtpVerify() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ mobile, code }: { mobile: string; code: string }) =>
-      apiPost<User>('/auth/otp/verify', { mobile, code }),
+      apiPost<User>('/auth/otp/verify', { mobile, code, in_app: isBazaarApp() }),
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user);
     },

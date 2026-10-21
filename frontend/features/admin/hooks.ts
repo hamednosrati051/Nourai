@@ -42,12 +42,13 @@ export interface AdminUserFilters {
   pageSize?: number;
   search?: string;
   isActive?: boolean | '';
+  source?: string;
 }
 
 export function useAdminUsers(filters: AdminUserFilters = {}) {
-  const { page = 1, pageSize = DEFAULT_PAGE_SIZE, search, isActive } = filters;
+  const { page = 1, pageSize = DEFAULT_PAGE_SIZE, search, isActive, source } = filters;
   return useQuery({
-    queryKey: ['admin', 'users', page, pageSize, search, isActive],
+    queryKey: ['admin', 'users', page, pageSize, search, isActive, source],
     queryFn: () =>
       apiGet<Paginated<AdminUserRow>>(
         `/admin/users${buildQuery({
@@ -55,6 +56,7 @@ export function useAdminUsers(filters: AdminUserFilters = {}) {
           page_size: pageSize,
           search: search || undefined,
           is_active: isActive === '' ? undefined : isActive,
+          source: source || undefined,
         })}`,
       ),
   });

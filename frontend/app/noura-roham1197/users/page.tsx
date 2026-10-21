@@ -19,11 +19,13 @@ export default function AdminUsersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('');
+  const [sourceFilter, setSourceFilter] = useState<'' | 'site' | 'bot' | 'bazaar'>('');
 
   const users = useAdminUsers({
     page,
     search,
     isActive: statusFilter === '' ? '' : statusFilter === 'active',
+    source: sourceFilter || undefined,
   });
 
   const applySearch = (e: React.FormEvent) => {
@@ -69,6 +71,23 @@ export default function AdminUsersPage() {
               <option value="active">فعال</option>
               <option value="inactive">غیرفعال</option>
             </select>
+            <label htmlFor="source-filter" className="sr-only">
+              فیلتر منبع ثبت‌نام
+            </label>
+            <select
+              id="source-filter"
+              className="input sm:w-40"
+              value={sourceFilter}
+              onChange={(e) => {
+                setSourceFilter(e.target.value as '' | 'site' | 'bot' | 'bazaar');
+                setPage(1);
+              }}
+            >
+              <option value="">همه منابع</option>
+              <option value="site">کاربران سایت</option>
+              <option value="bot">کاربران ربات</option>
+              <option value="bazaar">کاربران بازار</option>
+            </select>
             <button type="submit" className="btn-primary">
               جست‌وجو
             </button>
@@ -94,6 +113,7 @@ export default function AdminUsersPage() {
                 {u.channels && Object.keys(u.channels).map((p) => (
                   <span key={p} className="badge-info mr-1">{p === 'bale' ? 'بله' : p}</span>
                 ))}
+                {u.signup_source === 'bazaar' && <span className="badge-warning mr-1">بازار</span>}
               </span>
             )}
             columns={[
@@ -105,6 +125,7 @@ export default function AdminUsersPage() {
                     {u.channels && Object.keys(u.channels).map((p) => (
                       <span key={p} className="badge-info mr-1">{p === 'bale' ? 'بله' : p}</span>
                     ))}
+                    {u.signup_source === 'bazaar' && <span className="badge-warning mr-1">بازار</span>}
                   </span>
                 ),
               },

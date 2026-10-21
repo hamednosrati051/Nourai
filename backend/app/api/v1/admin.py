@@ -213,6 +213,9 @@ def list_users():
     is_active = request.args.get("is_active")
     if is_active in ("true", "false"):
         query = query.filter_by(is_active=is_active == "true")
+    source = request.args.get("source")
+    if source in ("site", "bot", "bazaar"):
+        query = query.filter(User.signup_source == source)
     query = query.order_by(User.created_at.desc())
     page, page_size = pagination_params()
     items, meta = paginate_query(query, page, page_size)

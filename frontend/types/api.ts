@@ -371,6 +371,8 @@ export interface AdminUserRow {
   id: string;
   mobile_masked: string;
   is_active: boolean;
+  /** Signup origin: 'site' | 'bot' | 'bazaar'. */
+  signup_source?: string;
   /** Balance in integer IRR. */
   balance_irr: number;
   total_spent_irr: number;
