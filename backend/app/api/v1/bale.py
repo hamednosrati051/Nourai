@@ -19,6 +19,7 @@ Setup:
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import uuid
 from typing import Any
@@ -2312,8 +2313,39 @@ def _stt_handle_charge_callback(chat_id: int, callback_id: str, user: User, amou
 STT_WELCOME = (
     "🎤 سلام! به ربات تبدیل گفتار به متن نورا خوش اومدی.\n\n"
     "کافیه ویس یا فایل صوتیت رو بفرستی تا متنش رو تحویل بگیری.\n\n"
+    "⏱ حداکثر مدت فایل صوتی: ۵ دقیقه\n\n"
     f"🎁 {STT_FREE_QUOTA} درخواست اولت رایگانه!"
 )
+
+STT_MAX_SECONDS = 300
+
+
+def _probe_audio_duration_seconds(audio_bytes: bytes) -> float | None:
+    """Best-effort real duration of an audio file via ffprobe (None if unknown)."""
+    import subprocess
+    import tempfile
+
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".audio", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            path = tmp.name
+        proc = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, timeout=20,
+        )
+        if proc.returncode != 0:
+            return None
+        return float(proc.stdout.strip())
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 STT_MENU_KEYBOARD = {
@@ -2354,6 +2386,15 @@ def _handle_stt_bot(chat_id: int, user: User, file_id: str, mime_type: str = "au
         return
     if len(audio_bytes) > 25 * 1024 * 1024:
         _stt_send_message(chat_id, "فایل خیلی بزرگه (حداکثر ۲۵ مگ).")
+        return
+    duration = _probe_audio_duration_seconds(audio_bytes)
+    if duration is not None and duration > STT_MAX_SECONDS:
+        _stt_send_message(
+            chat_id,
+            f"⏱ فایل صوتیت حدود {int(duration // 60)} دقیقه‌ست و از سقف "
+            f"{STT_MAX_SECONDS // 60} دقیقه بیشتره.\n"
+            "لطفاً فایل کوتاه‌تر بفرست یا تکه‌تکه‌ش کن.",
+        )
         return
 
     model = (

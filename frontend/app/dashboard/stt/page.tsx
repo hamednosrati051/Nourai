@@ -160,6 +160,7 @@ export default function SttPage() {
           )}
           {recording ? 'دوباره بزن تا بفرستم' : 'بزن و حرف بزن، یا فایل صوتی بفرست'}
         </p>
+        <p className="-mt-3 text-xs text-neutral-400">فایل صوتی حداکثر ۵ دقیقه و ۲۵ مگابایت</p>
         {recording && analyser && (
           <div className="-mt-1 flex flex-col items-center gap-1" aria-hidden="true">
             <ListeningVisualizer analyser={analyser} />
