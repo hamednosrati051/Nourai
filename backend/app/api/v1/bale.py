@@ -695,6 +695,7 @@ def _handle_lab(chat_id: int, user: User, file_id: str, send_fn=None, menu=None,
         final_input_tokens=actual_input,
         final_output_tokens=output_tokens,
         charged_amount_irr=final_irr,
+        metadata_json={"channel": CHANNEL, "kind": "lab"},
     )
     db.session.add(usage)
     try:
@@ -2025,7 +2026,7 @@ def _handle_tts_bot(chat_id: int, user: User, text: str) -> None:
         status="processing",
         est_input_tokens=len(text),
         estimated_amount_irr=0 if is_free else estimate["total_irr"],
-        metadata_json={"bot": "tts", "free": is_free},
+        metadata_json={"bot": "tts", "free": is_free, "channel": CHANNEL},
     )
     db.session.add(usage)
     db.session.flush()
@@ -2451,7 +2452,7 @@ def _handle_stt_bot(chat_id: int, user: User, file_id: str, mime_type: str = "au
         provider_key=model.provider_key,
         status="processing",
         estimated_amount_irr=0 if is_free else estimate["total_irr"],
-        metadata_json={"bot": "stt", "free": is_free},
+        metadata_json={"bot": "stt", "free": is_free, "channel": CHANNEL},
     )
     db.session.add(usage)
     db.session.flush()
@@ -2864,7 +2865,7 @@ def _handle_pdf_bot(chat_id: int, user: User, content: str, length: str = "mediu
         est_input_tokens=text_tokens,
         est_output_tokens=max_output,
         estimated_amount_irr=0 if is_free else estimate["total_irr"],
-        metadata_json={"bot": "pdf", "free": is_free},
+        metadata_json={"bot": "pdf", "free": is_free, "channel": CHANNEL},
     )
     db.session.add(usage)
     db.session.flush()
@@ -3287,7 +3288,7 @@ def _handle_contract_bot(chat_id: int, user: User, file_id: str) -> None:
         est_input_tokens=input_tokens,
         est_output_tokens=max_output,
         estimated_amount_irr=0 if is_free else estimate["total_irr"],
-        metadata_json={"bot": "contract", "free": is_free},
+        metadata_json={"bot": "contract", "free": is_free, "channel": CHANNEL},
     )
     db.session.add(usage)
     db.session.flush()
@@ -3661,7 +3662,7 @@ def _handle_contract_text_mode(chat_id: int, user: User, text: str, mode: str) -
         est_input_tokens=input_tokens,
         est_output_tokens=max_output,
         estimated_amount_irr=0 if is_free else estimate["total_irr"],
-        metadata_json={"bot": "contract", "free": is_free, "mode": mode},
+        metadata_json={"bot": "contract", "free": is_free, "mode": mode, "channel": CHANNEL},
     )
     db.session.add(usage)
     db.session.flush()

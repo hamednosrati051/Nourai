@@ -37,14 +37,20 @@ def get_user_channels(session, user_id: str) -> dict:
                 func.json_unquote(func.json_extract(UsageEvent.metadata_json, "$.channel")),
                 "web",
             ).label("channel"),
+            func.json_extract(UsageEvent.metadata_json, "$.bot").label("bot"),
             func.count().label("cnt"),
         )
         .filter(UsageEvent.user_id == user_id)
-        .group_by("channel")
+        .group_by("channel", "bot")
         .all()
     )
-    for channel, cnt in rows:
-        channels.setdefault(channel, {})["usage_count"] = int(cnt)
+    for channel, bot, cnt in rows:
+        # The dedicated bots (tts/stt/pdf/contract) originally tagged their
+        # usage with a "bot" key but no channel: that is Bale usage, not web.
+        if bot is not None and channel == "web":
+            channel = "bale"
+        entry = channels.setdefault(channel, {})
+        entry["usage_count"] = entry.get("usage_count", 0) + int(cnt)
     return channels
 
 
@@ -172,7 +178,7 @@ def activity_timeline(session, user_id: str, limit: int = 100) -> list[dict]:
                 "capability": model.capability if model else None,
                 "charged_amount_irr": usage.charged_amount_irr,
                 "usage_kind": meta.get("kind"),
-                "channel": meta.get("channel"),
+                "channel": meta.get("channel") or ("bale" if meta.get("bot") else None),
                 "bot": meta.get("bot"),
                 "free": meta.get("free"),
                 "input_tokens": meta.get("input_tokens") or usage.final_input_tokens,
