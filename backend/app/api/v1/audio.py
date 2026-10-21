@@ -133,7 +133,7 @@ def _job_payload(job: GenerationJob) -> dict:
     return {
         "id": job.id,
         "status": job.status,
-        "mode": (job.parameters_json or {}).get("mode", "assistant"),
+        "mode": "tts" if job.capability == CAP_TTS else (job.parameters_json or {}).get("mode", "assistant"),
         "transcript": job.prompt_text,
         "reply_text": job.result_text,
         "error_code": job.error_code,
