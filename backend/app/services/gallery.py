@@ -44,7 +44,7 @@ def public_gallery(session, limit: int | None = None, kind: str = "image") -> li
             if asset.width and asset.height else None,
             "mime_type": asset.mime_type,
             "alt": GALLERY_ALT_TEXT,
-            "prompt": (job.prompt_text or "").strip() or None,
+            "prompt": ((job.prompt_text if job else None) or "").strip() or None,
             # The frontend resolves the actual bytes via /assets/{id}/download
             # semantics; for the public slider we hand out a short-lived URL.
             "asset_id": asset.id,
