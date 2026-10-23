@@ -54,7 +54,6 @@ LENGTH_TOKENS = {
     "short": 1500,
     "medium": 4000,
     "long": 8000,
-    "very_long": 16000,
 }
 
 # Human-readable length guidance injected into the prompt
@@ -62,7 +61,6 @@ LENGTH_GUIDANCE = {
     "short": "متن کوتاه باشد: حدود ۱ تا ۲ صفحه.",
     "medium": "متن با طول متوسط باشد: حدود ۳ تا ۵ صفحه.",
     "long": "متن بلند و مفصل باشد: حدود ۸ تا ۱۰ صفحه.",
-    "very_long": "متن بسیار بلند و جامع باشد: حدود ۱۶ تا ۲۰ صفحه.",
 }
 
 PDF_SYSTEM_PROMPT = """شما یک نویسنده حرفه‌ای فارسی‌زبان هستید که سندهای رسمی و مرتب تولید می‌کنید.
@@ -113,7 +111,7 @@ def pdf_prepare():
     if len(content) > 10000:
         return validation_error("content too long (max 10000 chars)")
     if length not in LENGTH_TOKENS:
-        return validation_error("length must be short, medium, long or very_long")
+        return validation_error("length must be short, medium or long")
 
     model = _resolve_text_model(None)
     if model is None or not model.is_active:
@@ -202,7 +200,7 @@ def pdf_prepare():
             model.provider_model_name, provider_messages,
             # Safety cap only: length is guided via prompt text.
             # (Low max_tokens values trigger empty responses on AvalAI.)
-            {"max_output_tokens": max(16000, max_output * 2)},
+            {"max_output_tokens": 16000},
         )
     except Exception as exc:
         log.warning("pdf provider failed: %s", exc)

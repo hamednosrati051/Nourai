@@ -5,7 +5,7 @@ import { apiPost, apiGet, readCookie, apiUrl } from '@/lib/api';
 import { Loader2, FileText, Download, Sparkles, ArrowLeft, History, X } from 'lucide-react';
 
 type Tab = 'idea' | 'text';
-type LengthChoice = 'short' | 'medium' | 'long' | 'very_long';
+type LengthChoice = 'short' | 'medium' | 'long';
 
 interface HistoryItem {
   id: string;
@@ -17,7 +17,6 @@ const LENGTHS: { value: LengthChoice; label: string }[] = [
   { value: 'short', label: 'کوتاه' },
   { value: 'medium', label: 'متوسط' },
   { value: 'long', label: 'بلند' },
-  { value: 'very_long', label: 'خیلی بلند' },
 ];
 
 export default function PdfPage() {
