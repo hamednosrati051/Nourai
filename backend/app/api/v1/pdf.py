@@ -209,9 +209,14 @@ def pdf_prepare():
     if result is None or not result.ok:
         usage.status = "failed"
         try:
-            release(db.session, wallet=wallet, idempotency_key=f"pdf:{idempotency_key}:reserve")
-        except Exception:
-            pass
+            release(
+                db.session, wallet=wallet,
+                reserved_amount_irr=estimated_irr,
+                idempotency_key=f"pdf:{idempotency_key}:release",
+                reference_type="pdf", reference_id=usage.id,
+            )
+        except Exception as exc:
+            log.warning("pdf release failed: %s", exc)
         db.session.commit()
         return error_response("PROVIDER_ERROR", "تولید متن ناموفق بود.", 500)
 
